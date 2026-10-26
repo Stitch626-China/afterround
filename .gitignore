@@ -1,0 +1,29 @@
+# 参考项目（AGPL-3.0，仅本地阅读，禁止入库）
+reference/
+
+# 构建产物
+target/
+build/
+out/
+dist/
+node_modules/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 日志与临时文件
+*.log
+logs/
+*.tmp
+
+# 本地配置与密钥
+.env
+.env.local
+application-local.yml
