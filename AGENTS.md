@@ -12,14 +12,19 @@
 ## 收工（任务完成或中断时都要做）
 
 1. 更新 `docs/agent-memory/PROGRESS.md` 的「当前状态 / 阻塞 / 下一步」三块（其余不动）。
-2. 新建 `docs/agent-memory/sessions/YYYY-MM-DD-<主机名>.md`，按下方模板填写，**只增不改**。
-3. `git add -A` → `git commit`（`feat|fix|docs|refactor|chore: 简述`）→ `git push`。
-4. 任务没做完也必须提交，并在「未完成 / 下一步」写清断点，避免另一台设备重复劳动。
+2. 写会话记录 `docs/agent-memory/sessions/YYYY-MM-DD-<主机名>.md`，按下方模板填写，**只追加不改已有段落**：
+   - 跨日或换设备 → 新建文件；
+   - 同一天同一台设备多次会话 → 追加到原文件末尾，不覆盖、不重写旧内容。
+   - `<主机名>` 用固定别名（如 `WORKPC` / `HOMEPC`），不要用会变化的中文名或带空格的名字。
+3. 收工前确认 `git status` 干净（无遗漏的改动、无未跟踪的临时文件）。
+4. `git add -A` → `git commit`（`feat|fix|docs|refactor|chore: 简述`）→ `git push`。
+5. **push 失败必须重试**：网络不稳时用 `git -c http.proxy=http://127.0.0.1:7890 push`；连续失败则在本机 Trae 记忆写一条「待补推」标记，下次开工第一件事补推。
+6. 任务没做完也必须提交，并在「未完成 / 下一步」写清断点，避免另一台设备重复劳动。
 
 ## 冲突与重复工作防线
 
 - 同一时间只在一台设备改代码；换设备前先 pull 并确认 `git status` 干净。
-- 会话记录只增不改，天然避免冲突；`PROGRESS.md` 只改状态三块。
+- 会话记录只追加、不改已有段落，天然避免冲突；`PROGRESS.md` 只改状态三块，**如遇 rebase 冲突，取并集保留两台设备的内容，不删除对方状态**。
 - 记忆与代码不一致时以代码为准，顺手修正记忆文件。
 - 禁止 `git push -f`，禁止回滚他人提交。
 

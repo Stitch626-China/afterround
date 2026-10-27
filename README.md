@@ -39,8 +39,8 @@ interview-main/
 项目在多台设备上开发，仓库是唯一事实源，本机 Trae 记忆仅作缓存。
 
 - **开工**：`git pull --rebase --autostash` → 读 `AGENTS.md`、`PROGRESS.md`、最近 1~2 份会话记录，确认任务是否已被另一台设备完成。
-- **收工**：更新 `PROGRESS.md` 状态三块 → 新建 `sessions/YYYY-MM-DD-<主机名>.md` → commit → push（没做完也要提交并写清断点）。
-- 会话记录只增不改，`PROGRESS.md` 只改状态三块，避免两台设备同时编辑同一文件产生冲突。
+- **收工**：更新 `PROGRESS.md` 状态三块 → 写 `sessions/YYYY-MM-DD-<主机名>.md`（跨日/换设备新建，同日同机追加）→ commit → push（失败必须重试，必要时加 `-c http.proxy=http://127.0.0.1:7890`）。
+- 会话记录只追加不改已有段落，`PROGRESS.md` 只改状态三块、冲突取并集，避免两台设备同时编辑同一文件产生冲突。
 - 同一时间只在一台设备改代码；换设备前先 pull，确认 `git status` 干净。
 
 ## 技术底座

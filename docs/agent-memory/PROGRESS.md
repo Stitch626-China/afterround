@@ -1,7 +1,7 @@
 # 项目进度（唯一事实源）
 
 > 规则：每次会话结束更新「当前状态 / 阻塞 / 下一步」；历史过程写入 `sessions/`，不在此展开。
-> 最后更新：2026-10-27 · 设备：DSL-WORKPC
+> 多设备冲突时取并集，不删除对方状态条目。
 
 ## 快照
 
@@ -12,7 +12,7 @@
 ## 当前状态
 
 - 进行中：无
-- 已完成：需求文档 v1.2、README、AI 跨设备记忆机制（`AGENTS.md` + `docs/agent-memory/`）
+- 已完成：需求文档 v1.2、README、AI 跨设备记忆机制（`AGENTS.md` + `docs/agent-memory/`）、记忆机制加固（`.gitattributes` 统一 LF、会话文件命名与 push 失败重试规则、PROGRESS 冲突取并集）
 - 阻塞：无
 
 ## 下一步
