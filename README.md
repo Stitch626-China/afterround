@@ -30,7 +30,7 @@ interview-main/
 | [职点（JobPilot）需求文档](docs/superpowers/specs/职点（JobPilot）需求文档.md) | 唯一需求源，含功能需求、非功能需求、架构、数据模型、接口原则、里程碑 |
 | [AGENTS.md](AGENTS.md) | AI 协作契约：开工 pull + 读记忆，收工写记忆 + push |
 | [PROGRESS.md](docs/agent-memory/PROGRESS.md) | 当前进度、阻塞、下一步、关键决策 |
-| [sessions/](docs/agent-memory/sessions/) | 每次会话一份记录，只增不改 |
+| [sessions/](docs/agent-memory/sessions/) | 会话记录：跨日/换设备新建，同日同机追加，不改已有段落 |
 
 > 需求文档维护规则：每次修改必须在文内「变更记录」表格追加一行（版本 / 日期 / 变更内容 / 影响章节），禁止只改正文不记录。
 
