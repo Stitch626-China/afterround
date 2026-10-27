@@ -12,7 +12,11 @@ AI 求职辅助平台，围绕求职全流程构建闭环：
 
 ```
 interview-main/
+├── AGENTS.md               # AI 协作契约（跨设备记忆与开工/收工流程，优先级最高）
 ├── docs/
+│   ├── agent-memory/       # AI 记忆（随 git 同步）
+│   │   ├── PROGRESS.md     # 当前进度 / 阻塞 / 下一步 / 关键决策
+│   │   └── sessions/       # 每次会话一份记录（只增不改）
 │   └── superpowers/
 │       └── specs/          # 需求规格文档（唯一需求源）
 ├── reference/              # 参考项目（AGPL-3.0，仅本地阅读，已 gitignore，禁止入库/复制代码）
@@ -24,8 +28,20 @@ interview-main/
 | 文档 | 说明 |
 |---|---|
 | [职点（JobPilot）需求文档](docs/superpowers/specs/职点（JobPilot）需求文档.md) | 唯一需求源，含功能需求、非功能需求、架构、数据模型、接口原则、里程碑 |
+| [AGENTS.md](AGENTS.md) | AI 协作契约：开工 pull + 读记忆，收工写记忆 + push |
+| [PROGRESS.md](docs/agent-memory/PROGRESS.md) | 当前进度、阻塞、下一步、关键决策 |
+| [sessions/](docs/agent-memory/sessions/) | 每次会话一份记录，只增不改 |
 
 > 需求文档维护规则：每次修改必须在文内「变更记录」表格追加一行（版本 / 日期 / 变更内容 / 影响章节），禁止只改正文不记录。
+
+## AI 协作与跨设备同步
+
+项目在多台设备上开发，仓库是唯一事实源，本机 Trae 记忆仅作缓存。
+
+- **开工**：`git pull --rebase --autostash` → 读 `AGENTS.md`、`PROGRESS.md`、最近 1~2 份会话记录，确认任务是否已被另一台设备完成。
+- **收工**：更新 `PROGRESS.md` 状态三块 → 新建 `sessions/YYYY-MM-DD-<主机名>.md` → commit → push（没做完也要提交并写清断点）。
+- 会话记录只增不改，`PROGRESS.md` 只改状态三块，避免两台设备同时编辑同一文件产生冲突。
+- 同一时间只在一台设备改代码；换设备前先 pull，确认 `git status` 干净。
 
 ## 技术底座
 
