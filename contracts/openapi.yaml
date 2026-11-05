@@ -1,0 +1,1456 @@
+openapi: 3.1.0
+
+info:
+  title: 职点（JobPilot）API
+  version: 1.5.0
+  description: |
+    **本文件是接口的唯一真实源。**
+
+    前后端均以此为准：
+    - 后端按本契约实现，并编写「契约一致性测试」断言实际接口与本文一致；
+    - 前端用 `openapi-typescript` 从本文生成 TypeScript 类型，**禁止手写接口类型**；
+    - 后端 springdoc 的输出仅用于比对，**不作为真实源**。
+
+    ## 响应约定
+    - 所有 JSON 接口统一返回 `Result<T>`：`{ code, message, data, traceId }`。
+    - `code = 0` 表示成功；非 0 为业务错误码，同时 HTTP 状态码为 400 / 404 / 409 / 500。
+    - `traceId` 贯穿请求全链路，用于日志排查（NFR2）。
+
+    ## 分页约定
+    - 列表接口统一使用 `page`（从 1 开始）/ `size`（默认 20，最大 100）。
+    - 统一返回 `PageResult<T>`：`{ items, total, page, size }`。
+    - 默认按创建时间倒序。
+
+    ## 覆盖范围
+    当前为 **M1 全量契约**：模型配置（X1）、对话会话（M1 能力验证载体）、简历中心（F1 轨一）。
+    F2 / F3 / F4 / F5 的接口在对应里程碑追加。
+
+  contact:
+    name: 职点（JobPilot）
+  license:
+    name: 私有项目（未授权）
+    identifier: LicenseRef-Proprietary
+
+servers:
+  - url: http://localhost:8080
+    description: 本地开发环境
+
+tags:
+  - name: 模型配置
+    description: Provider / Model 增删改查、连通测试、模型列举、全局默认。配置存数据库，保存即生效。
+  - name: 对话会话
+    description: 会话内 Provider + Model 两级切换与流式对话；任务执行中禁止切换。
+  - name: 简历
+    description: 简历上传、解析、异步分析与报告查询。
+
+security: []
+
+paths:
+  # ==========================================================
+  # 模型配置 X1
+  # ==========================================================
+
+  /api/llm/providers:
+    get:
+      tags: [模型配置]
+      operationId: listProviders
+      summary: 查询 Provider 列表（含各自挂载的模型）
+      description: 返回全部 Provider 及其模型，API Key 一律掩码显示。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultProviderList'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [模型配置]
+      operationId: createProvider
+      summary: 新增 Provider
+      description: 新建后立即可用，无需重启服务。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProviderRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultProvider'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: providerKey 已存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/providers/{providerKey}:
+    parameters:
+      - $ref: '#/components/parameters/ProviderKey'
+    get:
+      tags: [模型配置]
+      operationId: getProvider
+      summary: 查询单个 Provider 详情
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultProvider'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    put:
+      tags: [模型配置]
+      operationId: updateProvider
+      summary: 更新 Provider
+      description: |
+        `apiKey` 传空或省略表示**保持原密钥不变**；传入新值则整体覆写密文。
+        更新后相关的内存客户端缓存会被精确失效，下一次调用即使用新配置。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProviderRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultProvider'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags: [模型配置]
+      operationId: deleteProvider
+      summary: 删除 Provider（级联删除其下所有模型）
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 该 Provider 正被进行中的会话或全局默认引用，不可删除
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/providers/{providerKey}/test:
+    parameters:
+      - $ref: '#/components/parameters/ProviderKey'
+    post:
+      tags: [模型配置]
+      operationId: testProvider
+      summary: 连通性测试
+      description: |
+        向上游发起一次最小调用，返回是否可用与耗时。
+        **同时回显上游响应中的真实 `model` 字段**——用于识别网关的模型别名
+        （不同配置名可能路由到同一后端）。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestProviderRequest'
+      responses:
+        '200':
+          description: 测试完成（无论连通与否均返回 200，结果看 success 字段）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultConnectivityTest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/providers/{providerKey}/models:
+    parameters:
+      - $ref: '#/components/parameters/ProviderKey'
+    get:
+      tags: [模型配置]
+      operationId: listUpstreamModels
+      summary: 从上游拉取可用模型列表
+      description: 调用上游 `/v1/models`；失败时回退为库内已登记的模型，并在 `source` 中标注来源。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultUpstreamModelList'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [模型配置]
+      operationId: createModel
+      summary: 在 Provider 下新增模型
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateModelRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultModel'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 该 Provider 下已存在同名模型
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/providers/{providerKey}/models/{modelName}:
+    parameters:
+      - $ref: '#/components/parameters/ProviderKey'
+      - $ref: '#/components/parameters/ModelName'
+    put:
+      tags: [模型配置]
+      operationId: updateModel
+      summary: 更新模型（改名请删除后重建）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateModelRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultModel'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags: [模型配置]
+      operationId: deleteModel
+      summary: 删除模型
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 该模型正被进行中的会话或全局默认引用，不可删除
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/global:
+    get:
+      tags: [模型配置]
+      operationId: getGlobalSetting
+      summary: 查询全局默认 Provider + Model
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultGlobalSetting'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    put:
+      tags: [模型配置]
+      operationId: updateGlobalSetting
+      summary: 设置全局默认 Provider + Model
+      description: 需校验该 Model 确实属于该 Provider，否则返回 400。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGlobalSettingRequest'
+      responses:
+        '200':
+          description: 设置成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultGlobalSetting'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # ==========================================================
+  # 对话会话（M1 能力验证载体）
+  # ==========================================================
+
+  /api/chat/sessions:
+    get:
+      tags: [对话会话]
+      operationId: listChatSessions
+      summary: 会话分页列表
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultChatSessionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [对话会话]
+      operationId: createChatSession
+      summary: 创建会话
+      description: 未指定 Provider / Model 时，采用全局默认设置。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChatSessionRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultChatSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/chat/sessions/{sessionId}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [对话会话]
+      operationId: getChatSession
+      summary: 会话详情（含当前绑定的 Provider / Model 与状态）
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultChatSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags: [对话会话]
+      operationId: deleteChatSession
+      summary: 删除会话（级联删除其消息）
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/chat/sessions/{sessionId}/model:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    patch:
+      tags: [对话会话]
+      operationId: switchChatModel
+      summary: 切换会话的 Provider / Model（两级）
+      description: |
+        切换只改会话绑定，不迁移历史消息。
+
+        **守卫规则（服务端判定，前端置灰仅作体验优化）**
+        - 会话存在执行中的任务（`status = PROCESSING`）→ **409**，业务码 `40901`
+        - 会话已锁定（`status = LOCKED`）→ **409**，业务码 `40902`
+        - 目标 Model 不属于目标 Provider → **400**
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwitchModelRequest'
+      responses:
+        '200':
+          description: 切换成功，返回更新后的会话
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultChatSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 执行中或已锁定，禁止切换
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/chat/sessions/{sessionId}/messages:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    get:
+      tags: [对话会话]
+      operationId: listChatMessages
+      summary: 查询会话历史消息（按时间正序）
+      description: 每条消息包含实际使用的 `llmProvider` / `llmModel`，用于追溯。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultChatMessageList'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [对话会话]
+      operationId: sendChatMessage
+      summary: 发送消息（SSE 流式返回）
+      description: |
+        以 `text/event-stream` 流式返回，事件载荷为 JSON，格式见 `ChatStreamEvent`。
+
+        常见事件序列：
+        1. 一个或多个 `delta`（增量文本）
+        2. 结尾 `done`（含 messageId / providerKey / model / token 用量）
+        3. 失败时 `error` 事件
+
+        **并发守卫**：会话处于 `PROCESSING` 时再次发送返回 **409**（业务码 `40901`）；
+        会话已 `LOCKED` 返回 **409**（业务码 `40902`）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '200':
+          description: 流式响应（每个 `data:` 行是一个 ChatStreamEvent 的 JSON）
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/ChatStreamEvent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 执行中或已锁定
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # ==========================================================
+  # 简历 F1（轨一）
+  # ==========================================================
+
+  /api/resumes:
+    get:
+      tags: [简历]
+      operationId: listResumes
+      summary: 简历分页列表
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultResumePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [简历]
+      operationId: uploadResume
+      summary: 上传简历（文件或粘贴文本）
+      description: |
+        - `file` 与 `text` 二选一，**不可同时为空**。
+        - 支持 PDF / DOCX / DOC / TXT，单文件 ≤ 5MB。
+        - 以内容 SHA-256 去重：重复上传直接返回已有记录，`duplicated = true`，不重复触发分析。
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 简历文件（与 text 二选一）
+                text:
+                  type: string
+                  description: 粘贴的简历纯文本（与 file 二选一）
+      responses:
+        '200':
+          description: 上传成功或命中已有记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultResumeUpload'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          description: 文件超过 5MB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '415':
+          description: 不支持的文件类型
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/resumes/{resumeId}:
+    parameters:
+      - $ref: '#/components/parameters/ResumeId'
+    get:
+      tags: [简历]
+      operationId: getResume
+      summary: 简历详情（含解析出的纯文本）
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultResumeDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags: [简历]
+      operationId: deleteResume
+      summary: 删除简历
+      description: 硬删除，级联删除分析结果与岗位匹配结果，同时清理磁盘上的原始文件。
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/resumes/{resumeId}/analyze:
+    parameters:
+      - $ref: '#/components/parameters/ResumeId'
+    post:
+      tags: [简历]
+      operationId: triggerResumeAnalysis
+      summary: 触发或重试分析
+      description: |
+        异步任务，立即返回。前端随后轮询 `GET /api/resumes/{resumeId}/analysis`。
+
+        - 当前已是 `PROCESSING` → **409**（业务码 `40910`）
+        - 失败后重试会重置 `retryCount`
+      responses:
+        '200':
+          description: 已提交
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultResumeAnalysisStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 分析进行中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/resumes/{resumeId}/analysis:
+    parameters:
+      - $ref: '#/components/parameters/ResumeId'
+    get:
+      tags: [简历]
+      operationId: getResumeAnalysis
+      summary: 查询分析状态与报告（轮询端点）
+      description: |
+        `status` 为 `PENDING` / `PROCESSING` 时 `report` 为 null；
+        `COMPLETED` 时返回完整报告；`FAILED` 时返回 `error` 与 `retryCount`。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultResumeAnalysisStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+
+  parameters:
+    ProviderKey:
+      name: providerKey
+      in: path
+      required: true
+      description: Provider 的内部唯一标识（如 `corp-gateway`）
+      schema:
+        type: string
+        pattern: '^[a-z0-9][a-z0-9-]{1,63}$'
+        example: corp-gateway
+    ModelName:
+      name: modelName
+      in: path
+      required: true
+      description: 模型名（上游返回的 model id）
+      schema:
+        type: string
+        example: Qwen3.8-27B
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    ResumeId:
+      name: resumeId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    Page:
+      name: page
+      in: query
+      required: false
+      description: 页码，从 1 开始
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Size:
+      name: size
+      in: query
+      required: false
+      description: 每页条数，默认 20，最大 100
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    BadRequest:
+      description: 参数校验失败（业务码 40001）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ResultVoid'
+    NotFound:
+      description: 资源不存在（业务码 40401）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ResultVoid'
+    ServerError:
+      description: 服务内部错误（业务码 50000）
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ResultVoid'
+
+  schemas:
+
+    # ---------- 通用 ----------
+
+    ResultVoid:
+      type: object
+      required: [code, message, traceId]
+      properties:
+        code:
+          type: integer
+          description: 0 表示成功，非 0 为业务错误码
+          example: 0
+        message:
+          type: string
+          example: ok
+        data:
+          description: 成功时返回业务数据；失败时为空
+        traceId:
+          type: string
+          example: 3f7a1c2e9b4d
+
+    ResultProvider:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/LlmProvider'
+
+    ResultProviderList:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/LlmProvider'
+
+    ResultModel:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/LlmModel'
+
+    ResultConnectivityTest:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ConnectivityTest'
+
+    ResultUpstreamModelList:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/UpstreamModelList'
+
+    ResultGlobalSetting:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/GlobalSetting'
+
+    ResultChatSession:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ChatSession'
+
+    ResultChatSessionPage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/ChatSession'
+
+    ResultChatMessageList:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/ChatMessage'
+
+    ResultResumeUpload:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ResumeUpload'
+    
+    ResultResumeDetail:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ResumeDetail'
+
+    ResultResumePage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/ResumeListItem'
+
+    ResultResumeAnalysisStatus:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ResumeAnalysisStatus'
+
+    PageResult:
+      type: object
+      required: [total, page, size]
+      properties:
+        total:
+          type: integer
+          format: int64
+          example: 42
+        page:
+          type: integer
+          example: 1
+        size:
+          type: integer
+          example: 20
+
+    # ---------- 模型配置 ----------
+
+    LlmProvider:
+      type: object
+      required: [providerKey, label, baseUrl, enabled, sortOrder]
+      properties:
+        providerKey:
+          type: string
+          example: corp-gateway
+        label:
+          type: string
+          description: 展示名称
+          example: 公司内网网关
+        baseUrl:
+          type: string
+          format: uri
+          description: OpenAI 兼容端点，需包含 /v1
+          example: http://192.168.101.200:3000/v1
+        apiKeyMasked:
+          type: string
+          description: 掩码后的密钥，仅用于展示，**永不返回明文**
+          example: sk-****MwMY
+        enabled:
+          type: boolean
+        sortOrder:
+          type: integer
+          example: 10
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/LlmModel'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    LlmModel:
+      type: object
+      required: [modelName, label, enabled, isDefault, sortOrder]
+      properties:
+        modelName:
+          type: string
+          description: 上游模型名，请求时原样传给 /chat/completions
+          example: Qwen3.8-27B
+        label:
+          type: string
+          example: Qwen3.8 27B
+        enabled:
+          type: boolean
+        isDefault:
+          type: boolean
+          description: 是否为该 Provider 下的默认模型
+        sortOrder:
+          type: integer
+          example: 10
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateProviderRequest:
+      type: object
+      required: [providerKey, label, baseUrl, apiKey]
+      properties:
+        providerKey:
+          type: string
+          pattern: '^[a-z0-9][a-z0-9-]{1,63}$'
+          description: 内部唯一标识，创建后不可修改
+          example: corp-gateway
+        label:
+          type: string
+          maxLength: 64
+          example: 公司内网网关
+        baseUrl:
+          type: string
+          format: uri
+          maxLength: 512
+          example: http://192.168.101.200:3000/v1
+        apiKey:
+          type: string
+          description: 明文传入，服务端加密存储，绝不回显
+          example: sk-xxxxxxxx
+        enabled:
+          type: boolean
+          default: true
+        sortOrder:
+          type: integer
+          default: 10
+
+    UpdateProviderRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          maxLength: 64
+        baseUrl:
+          type: string
+          format: uri
+          maxLength: 512
+        apiKey:
+          type: string
+          description: 省略或传空表示保持原密钥不变
+        enabled:
+          type: boolean
+        sortOrder:
+          type: integer
+
+    CreateModelRequest:
+      type: object
+      required: [modelName, label]
+      properties:
+        modelName:
+          type: string
+          maxLength: 128
+          example: Qwen3.8-27B
+        label:
+          type: string
+          maxLength: 64
+          example: Qwen3.8 27B
+        enabled:
+          type: boolean
+          default: true
+        isDefault:
+          type: boolean
+          default: false
+        sortOrder:
+          type: integer
+          default: 10
+
+    UpdateModelRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          maxLength: 64
+        enabled:
+          type: boolean
+        isDefault:
+          type: boolean
+        sortOrder:
+          type: integer
+
+    TestProviderRequest:
+      type: object
+      properties:
+        modelName:
+          type: string
+          description: 指定用于测试的模型；省略则使用该 Provider 的默认模型
+          example: Qwen3.8-27B
+
+    ConnectivityTest:
+      type: object
+      required: [success, latencyMs]
+      properties:
+        success:
+          type: boolean
+        latencyMs:
+          type: integer
+          format: int64
+          example: 812
+        message:
+          type: string
+          description: 失败时的原因摘要（不含密钥）
+          example: HTTP 401 Unauthorized
+        upstreamModel:
+          type: string
+          description: |
+            上游响应中回显的**真实 model 字段**。
+            与请求的 modelName 不一致说明网关存在模型别名（多个名字指向同一后端）。
+          example: Qwen3.8-27B-W8A8-DFlash2
+
+    UpstreamModelList:
+      type: object
+      required: [source, models]
+      properties:
+        source:
+          type: string
+          enum: [UPSTREAM, LOCAL_FALLBACK]
+          description: UPSTREAM 表示实时拉取成功；LOCAL_FALLBACK 表示回退为库内登记列表
+        models:
+          type: array
+          items:
+            type: string
+          example: [Qwen3.8-27B]
+
+    GlobalSetting:
+      type: object
+      properties:
+        defaultProviderKey:
+          type: [string, "null"]
+          example: corp-gateway
+        defaultModel:
+          type: [string, "null"]
+          example: Qwen3.8-27B
+
+    UpdateGlobalSettingRequest:
+      type: object
+      required: [defaultProviderKey, defaultModel]
+      properties:
+        defaultProviderKey:
+          type: string
+        defaultModel:
+          type: string
+
+    # ---------- 对话会话 ----------
+
+    ChatSessionStatus:
+      type: string
+      description: |
+        - `IDLE`：空闲，可发消息、可切换模型
+        - `PROCESSING`：正在生成回答，**禁止切换**（409 / 40901）
+        - `LOCKED`：终态锁定，**禁止切换与继续发消息**（409 / 40902）
+      enum: [IDLE, PROCESSING, LOCKED]
+
+    ChatSession:
+      type: object
+      required: [id, status, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+          example: 新会话
+        currentProviderKey:
+          type: [string, "null"]
+          example: corp-gateway
+        currentModel:
+          type: [string, "null"]
+          example: Qwen3.8-27B
+        status:
+          $ref: '#/components/schemas/ChatSessionStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateChatSessionRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 128
+          description: 省略时自动生成
+        providerKey:
+          type: string
+          description: 省略则使用全局默认
+        model:
+          type: string
+          description: 省略则使用全局默认
+
+    SwitchModelRequest:
+      type: object
+      required: [providerKey, model]
+      properties:
+        providerKey:
+          type: string
+          example: corp-gateway
+        model:
+          type: string
+          example: Qwen3.8-27B
+
+    ChatRole:
+      type: string
+      enum: [USER, ASSISTANT]
+
+    ChatMessage:
+      type: object
+      required: [id, role, content, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        role:
+          $ref: '#/components/schemas/ChatRole'
+        content:
+          type: string
+        llmProvider:
+          type: [string, "null"]
+          description: 实际使用的 Provider（仅 ASSISTANT 消息有值）
+          example: corp-gateway
+        llmModel:
+          type: [string, "null"]
+          description: 实际使用的模型（仅 ASSISTANT 消息有值）
+          example: Qwen3.8-27B
+        traceId:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    SendMessageRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 20000
+
+    ChatStreamEvent:
+      type: object
+      description: 'SSE 事件载荷（每行 `data: {json}`）'
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [delta, done, error]
+          description: |
+            - `delta`：增量文本，读 `content`
+            - `done`：本次回答结束，读 `messageId` / `providerKey` / `model` / `totalTokens`
+            - `error`：出错，读 `code` / `message`
+        content:
+          type: string
+          description: type = delta 时的增量文本
+        messageId:
+          type: integer
+          format: int64
+          description: type = done 时，落库的 assistant 消息 id
+        providerKey:
+          type: string
+          description: type = done 时，实际使用的 Provider
+        model:
+          type: string
+          description: type = done 时，实际使用的模型
+        totalTokens:
+          type: integer
+          description: type = done 时，本次消耗的 token
+        code:
+          type: integer
+          description: type = error 时的业务错误码
+        message:
+          type: string
+          description: type = error 时的错误描述
+
+    # ---------- 简历 ----------
+
+    AnalyzeStatus:
+      type: string
+      description: 分析任务状态机
+      enum: [PENDING, PROCESSING, COMPLETED, FAILED]
+
+    ResumeListItem:
+      type: object
+      required: [id, analyzeStatus, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        fileName:
+          type: [string, "null"]
+          description: 粘贴文本导入时为 null
+        fileType:
+          type: [string, "null"]
+          example: PDF
+        fileSize:
+          type: [integer, "null"]
+          format: int64
+          example: 204800
+        analyzeStatus:
+          $ref: '#/components/schemas/AnalyzeStatus'
+        overallScore:
+          type: [integer, "null"]
+          description: 分析完成后的总分，未完成时为 null
+          example: 78
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ResumeUpload:
+      type: object
+      required: [resume, duplicated]
+      properties:
+        resume:
+          $ref: '#/components/schemas/ResumeListItem'
+        duplicated:
+          type: boolean
+          description: true 表示命中已有的相同内容（SHA-256 去重），未重复触发分析
+
+    ResumeDetail:
+      allOf:
+        - $ref: '#/components/schemas/ResumeListItem'
+        - type: object
+          properties:
+            fileHash:
+              type: string
+              description: 内容 SHA-256
+            resumeText:
+              type: string
+              description: Tika 解析并清洗后的纯文本
+            analyzeError:
+              type: [string, "null"]
+            retryCount:
+              type: integer
+              example: 0
+
+    ResumeAnalysisStatus:
+      type: object
+      required: [resumeId, status, retryCount]
+      properties:
+        resumeId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/AnalyzeStatus'
+        error:
+          type: [string, "null"]
+          description: 失败原因（截断至 500 字）
+        retryCount:
+          type: integer
+          description: 已自动重试次数，上限 3
+          example: 0
+        report:
+          oneOf:
+            - $ref: '#/components/schemas/ResumeAnalysisReport'
+            - type: "null"
+          description: 仅 status = COMPLETED 时有值
+
+    ResumeAnalysisReport:
+      type: object
+      required: [overallScore, dimensions]
+      properties:
+        overallScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 五维加权总分
+          example: 78
+        dimensions:
+          type: array
+          description: 五维评分，权重合计 100
+          items:
+            $ref: '#/components/schemas/AnalysisDimension'
+        basicInfo:
+          $ref: '#/components/schemas/ResumeBasicInfo'
+        strengths:
+          type: array
+          description: 优势清单，带简历原句引用
+          items:
+            $ref: '#/components/schemas/QuoteItem'
+        weaknesses:
+          type: array
+          description: 短板清单，带简历原句引用
+          items:
+            $ref: '#/components/schemas/QuoteItem'
+        suggestions:
+          type: array
+          description: 逐条优化建议（原句 vs 优化句）
+          items:
+            $ref: '#/components/schemas/SuggestionItem'
+        careerDirections:
+          type: array
+          description: 岗位方向推荐（轨一，3-5 个）
+          items:
+            $ref: '#/components/schemas/CareerDirection'
+        llmProvider:
+          type: string
+          example: corp-gateway
+        llmModel:
+          type: string
+          example: Qwen3.8-27B
+
+    AnalysisDimension:
+      type: object
+      required: [key, label, score, weight]
+      properties:
+        key:
+          type: string
+          enum: [technicalDepth, projectQuality, engineeringAbility, expressionStructure, jobMatchPotential]
+        label:
+          type: string
+          example: 技术深度
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 82
+        weight:
+          type: integer
+          description: 权重百分比，五维合计 100
+          enum: [30, 25, 20, 15, 10]
+
+    ResumeBasicInfo:
+      type: object
+      properties:
+        name:
+          type: [string, "null"]
+          example: 张三
+        yearsOfExperience:
+          type: [number, "null"]
+          description: 工作年限（年）
+          example: 7
+        techDirection:
+          type: [string, "null"]
+          example: Java 后端
+
+    QuoteItem:
+      type: object
+      required: [quote, comment]
+      properties:
+        quote:
+          type: string
+          description: 简历原句
+          example: 负责订单系统重构
+        comment:
+          type: string
+          description: 说明
+          example: 未量化结果，缺少可验证的影响数据
+
+    SuggestionItem:
+      type: object
+      required: [original, improved]
+      properties:
+        original:
+          type: string
+          description: 简历原句
+        improved:
+          type: string
+          description: 优化后的写法
+        reason:
+          type: string
+          description: 这样改的理由
+
+    CareerDirection:
+      type: object
+      required: [direction, matchReason]
+      properties:
+        direction:
+          type: string
+          example: Java 后端开发
+        matchReason:
+          type: string
+          description: 为什么适合
+        skillGaps:
+          type: array
+          description: 该方向上的技能差距
+          items:
+            type: string
+        interviewFocus:
+          type: array
+          description: 面试准备重点（高频考点）
+          items:
+            type: string

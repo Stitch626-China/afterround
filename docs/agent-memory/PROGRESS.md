@@ -12,14 +12,14 @@
 ## 当前状态
 
 - 进行中：无
-- 已完成：需求文档 v1.5（新增 F5 求职洞察与规律分析、明确不做 RAG、数据模型扩 companies/interview_events）；v1.4（Provider/Model 数据库驱动热更新、M1 会话载体、技术选型 §6.8、契约唯一源 §6.9、前端设计规范 §6.10、测试分层承诺、M1 拆四阶段）；README 同步；LLM 网关实测（new-api / Qwen3.8-27B / SSE 与 json_object 可用）
+- 已完成：**M1-a 接口契约**（`contracts/openapi.yaml`，25 个接口 / 45 个模型，redocly 校验 0 error 0 warning；新增根目录 `redocly.yaml`）；需求文档 v1.5（新增 F5 求职洞察与规律分析、明确不做 RAG、数据模型扩 companies/interview_events）；v1.4（Provider/Model 数据库驱动热更新、M1 会话载体、技术选型 §6.8、契约唯一源 §6.9、前端设计规范 §6.10、测试分层承诺、M1 拆四阶段）；README 同步；LLM 网关实测（new-api / Qwen3.8-27B / SSE 与 json_object 可用）
 - 阻塞：无
 
 ## 下一步
 
-1. **M1-a 骨架与契约**：建 `backend/` `frontend/` `contracts/` 三目录；Spring Boot 3.5.x + Java 21 骨架、Docker Compose（PG + 应用）、Flyway、统一响应/异常/traceId
-2. 写 `contracts/openapi.yaml` 全量契约（评审后才实现）
-3. 再做模型网关与 Provider 管理（M1-b）
+1. **M1-a 剩余**：建 `backend/` 工程骨架（Spring Boot 3.5.x + Java 21、Docker Compose（PG + 应用）、Flyway、统一响应/异常/traceId）与 `frontend/` 工程骨架 + 由契约生成 TS 类型
+2. M1-b 模型网关与 Provider 管理
+3. M1-c 简历中心
 4. M2 建 F2 表时**必须预留 `companies` 与 `job_positions.company_id`**（F5 依赖，否则 M3 要回填）
 
 ## 关键决策

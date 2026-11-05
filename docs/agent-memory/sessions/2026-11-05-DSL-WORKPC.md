@@ -72,3 +72,48 @@
 ### 阻塞
 
 - 无
+
+---
+
+## 追加 · 完成 M1 全量接口契约
+
+### 目标
+
+按契约先行约定，落地 `contracts/openapi.yaml` 作为前后端唯一接口真实源。
+
+### 改动
+
+- `contracts/openapi.yaml`（新增）→ M1 全量契约：**25 个接口 / 45 个 schema / 156 个 $ref**
+  - 模型配置（12）：Provider CRUD、连通测试、上游模型列举、Model 增删改、全局默认读写
+  - 对话会话（7）：会话 CRUD、两级切换（409）、历史消息、SSE 流式发送
+  - 简历（6）：上传（文件/文本，含 413/415）、分页列表、详情、删除、触发分析、分析状态轮询
+  - 统一 `Result<T>`（code/message/data/traceId）、`PageResult<T>`、业务错误码约定
+- `redocly.yaml`（新增，仓库根）→ 关闭 `no-server-example.com`（本地部署）与 `operation-4xx-response`（无鉴权纯查询接口），理由写在注释
+- `README.md` → 新增「契约怎么用」命令行说明
+- `AGENTS.md` → 硬约束新增「先改契约再实现 + 提交前 redocly lint 必须 0 error 0 warning」
+- `docs/agent-memory/PROGRESS.md` → 状态与下一步更新
+
+### 校验结果（实测）
+
+- `python yaml.safe_load` 解析通过
+- 自写脚本检查：156 refs **0 broken**、25 operations、operationId 唯一、responses 与 tags 齐全
+- `npx @redocly/cli lint contracts/openapi.yaml` → **valid，0 error / 0 warning**
+
+### 决策（为什么）
+
+- **OpenAPI 3.1**：需去掉 3.0 的 `nullable`，改用 `type: [string, "null"]`；`allOf + nullable` 改为 `oneOf + type: "null"`。首轮 18 个 error 全部由此而来。
+- **SSE 以 `ChatStreamEvent` 作为响应 schema**：虽非严格表达 SSE 分帧文本，但能让 `openapi-typescript` 生成前端可用的强类型事件对象，收益大于形式纯度。
+- **删除未被引用的 `Conflict` 响应组件**：各端点 409 的业务码不同，已在各自 description 内注明，保留通用组件反而误导。
+- **连通测试回显 `upstreamModel`**：用于识别网关模型别名（历史实测三个模型名指向同一后端）。
+
+### 未完成 / 下一步
+
+- M1-a 剩余：`backend/` 工程骨架（Spring Boot 3.5.x + Java 21 + Docker Compose + Flyway + 统一响应/异常/traceId）、`frontend/` 骨架 + 由契约生成 TS 类型
+
+### 阻塞
+
+- 无
+
+### 备注
+
+- 未提交改动等待用户确认后再 commit + push

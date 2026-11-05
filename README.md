@@ -35,6 +35,22 @@ interview-main/
 
 流程：先改契约 → 评审通过 → 后端实现（加契约一致性测试）→ 前端用 `openapi-typescript` 由契约生成类型，禁止手写接口类型。
 
+### 契约怎么用
+
+```bash
+# 校验契约（必须 0 error 才算通过）
+npx @redocly/cli lint contracts/openapi.yaml
+
+# 本地预览成可读文档
+npx @redocly/cli preview-docs contracts/openapi.yaml
+
+# 前端由契约生成 TS 类型（在 frontend/ 下执行）
+npx openapi-typescript ../contracts/openapi.yaml -o src/api/schema.d.ts
+```
+
+- 校验规则配置在根目录 `redocly.yaml`，其中 `no-server-example.com` 与 `operation-4xx-response` 因本地部署、无鉴权查询接口而关闭，理由写在配置注释里。
+- 契约当前覆盖 **M1 全量**（模型配置 / 对话会话 / 简历），F2~F5 随里程碑追加。
+
 ## 文档索引
 
 | 文档 | 说明 |

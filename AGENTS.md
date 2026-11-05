@@ -48,6 +48,7 @@
 ## 项目硬约束（摘自需求文档）
 
 - 需求唯一源：`docs/superpowers/specs/职点（JobPilot）需求文档.md`，改需求必在「迭代历程」章节追加记录，且**用产品语言写**（多了什么 / 变了什么 / 砍了什么），技术细节仅作附注。
+- 接口唯一源：`contracts/openapi.yaml`。**先改契约再实现**，禁止实现完再补契约；提交前必须 `npx @redocly/cli lint contracts/openapi.yaml` 通过（0 error / 0 warning）。前端接口类型由契约生成，禁止手写。
 - 异步任务状态四件套：`status` + CHECK 约束 + `error` + `retry_count`；重试 ≤3 次。
 - 单用户 `user_id` 固定为 1，后端注入；LLM 调用必须落 `llm_call_logs`；列表统一分页（page/size，默认 20，时间倒序）；删除为硬删除 + 级联清理。
 - `reference/` 为 AGPL-3.0，仅本地阅读：**禁止复制代码、禁止入库**。

@@ -1,0 +1,15 @@
+# Redocly 校验配置
+# 用法：npx @redocly/cli lint contracts/openapi.yaml
+#
+# 仅关闭两条「不适用于本项目」的规则，其余保持 recommended。
+
+extends:
+  - recommended
+
+rules:
+  # 本项目为个人自用版，部署在本地/Docker，server 指向 localhost 是真实情况而非占位
+  no-server-example.com: off
+
+  # 单用户无鉴权；纯查询类 GET（如列表、全局配置）没有任何入参，
+  # 不存在合理的 4xx 分支。强行补一个假 4xx 反而污染契约。
+  operation-4xx-response: off
