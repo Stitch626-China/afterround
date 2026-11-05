@@ -2,24 +2,163 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.2 |
-| 日期 | 2026-10-14 |
-| 状态 | 需求已确认（可用于 M1 开工） |
-| 技术底座 | Spring Boot 3 + PostgreSQL + Docker Compose |
+| 文档版本 | v1.5 |
+| 日期 | 2026-11-05 |
+| 状态 | 需求已确认（M1 可开工；F5 待 M3 落地） |
+| 技术底座 | Spring Boot 3.5.x + Java 21 + PostgreSQL + MyBatis-Plus |
 
 ---
 
-## 变更记录
+## 迭代历程
 
-> **维护规则**：本文件每次修改必须在下方表格追加一行（版本 / 日期 / 变更内容 / 影响章节），正文改动与变更记录必须同步，禁止只改正文不记录。这是回溯与追踪的唯一依据。
+> **维护规则**
+> 1. 本文件每次修改必须在此追加记录，正文改动与记录同步，禁止只改正文不记录。
+> 2. **记录以「产品语言」为主**：先写清新增了什么能力、调整了什么、不做什么，让不看代码的人也能看懂迭代思路；技术实现细节只作附注。
+> 3. 每条记录必须能回答三个问题：这一版**多了什么**、**变了什么**、**砍了什么**。
 
-| 版本 | 日期 | 变更内容 | 影响章节 |
-|---|---|---|---|
-| v1.2 | 2026-10-14 | 补全 6 项阻断性缺口：新增 `llm_call_logs` 表；状态三件套扩充为四件套（+ `retry_count`）；明确五维评分与匹配分权重；补齐答题流程规则（追问链、跳过计分、交卷条件）；明确无简历时的出题配额；新增简历/JD/面试/复盘的删除需求（FR1.8 / FR2.6 / FR3.9 / FR4.7）。修正 5 项一致性问题：F1 里程碑拆分轨一/轨二、FRX.1 明确 M1 交付范围、风险表同步手写客户端与成本/磁盘风险、`job_match_results` 补状态与 Provider 字段、明确 `user_id` 单用户固定为 1。新增完善项：NFR7 资源上限与清理、列表统一分页、简历迭代约定（FR1.9）、复盘可重复分析（FR4.3）。新增本变更记录章节 | §4.1 / 4.2 / 4.3 / 4.4 / 4.5 / 4.6 / 5 / 6.2 / 6.3 / 7 / 8 / 12 / 13 |
-| v1.1 | 2026-08-28 | 收敛 4 个关键决策点：文件存储→本地磁盘（存储层接口隔离）、模型网关→手写 WebClient OpenAI 兼容客户端、前端→Vue3 极简先行、岗位方向→双轨（JD 图谱延后 M2）；文档状态由「待评审」置为「需求已确认」 | §4.2 / 6.1 / 6.2 / 5 / 11 / 附录A |
-| v1.0 | 2026-08-26 | 需求探索完成，首版（智求职 / JobPilot） | 全文 |
+### 一眼看懂的迭代脉络
 
-> 命名沿革：产品名于 2026-10-14 由「智求职（JobPilot）」更名为「**职点（JobPilot）**」，英文名 `JobPilot` 保留不变，文档同步重命名。
+| 版本 | 日期 | 这一版做了什么（一句话） |
+|---|---|---|
+| v1.0 | 2026-08-26 | 从零梳理需求：确定四大场景与技术路线 |
+| v1.1 | 2026-08-28 | 拍板 4 个关键选择，需求正式定稿（产品更名「职点」） |
+| v1.2 | 2026-10-14 | 补上开发时会卡住的空缺（评分怎么算、答题怎么判、数据怎么删） |
+| v1.3 | 2026-11-03 | 模型可以自由选择：一个服务商挂多个模型，会话内随时切，但任务跑着不许切 |
+| v1.4 | 2026-11-03 | 模型从"改配置重启"变成"页面上随时改"；前后端按统一契约开发；定下界面风格与测试标准 |
+| v1.5 | 2026-11-05 | 新增「求职洞察」：每次面试沉淀成文档，自动找出你反复栽跟头的地方 |
+
+---
+
+### v1.5 · 2026-11-05 —— 新增「求职洞察」，面试不再白面
+
+**多了什么**
+
+- **面试经历可以沉淀下来**：录完音复盘后，自动生成一份 Markdown 文档（问了什么、我怎么答的、更好的答法、结论），可下载存档。
+- **按公司 / 岗位 / 轮次三层归档**：同一岗位的多轮面试放在一起，同一公司的不同岗位放在上一层，点开就能看到完整脉络。
+- **自动找规律（这一版的核心）**：不再是"翻文档回忆"，而是系统直接告诉你——
+  - "考 JVM 的 5 场里挂了 4 场"
+  - "表达混乱出现了 7 次"
+  - "这家公司两轮都在问算法"
+  - "最近一个月比之前，短板有没有改善"
+- **面试记录结构化**：每场面试登记公司、岗位、第几轮、面试时间、结果（过 / 挂 / 待定），可按这些条件筛选。
+
+**变了什么**
+
+- 复盘时可以把**公司介绍、岗位 JD、简历**一起交给 AI，诊断结论更贴合实际。
+- 「岗位」不再有两套数据：我看过的 JD 和我去面试的岗位是同一个对象，靠状态区分（收藏 → 已投 → 面试中 → 已结束）。
+- 公司名录入时**系统会先提示已有的相似公司让你确认**，避免"字节跳动 / 字节 / ByteDance"分裂成三份；若事后发现重复，可手动合并。
+
+**砍了什么**
+
+- **不做语义搜索（RAG）**。理由：一个人一年的面试也就几十场，全部摘要直接交给 AI 完全放得下，为此引入向量数据库得不偿失。改用"结构化统计 + 全文关键词 + 总结"达到同样效果。
+
+**附：技术实现要点**
+
+- 新增 `companies`、`interview_events` 表；`job_positions` 增 `company_id`、`status`；`review_analyses` 增 `topics`（知识点）、`loss_tags`（失分类型）两个结构化字段——这是"能统计"的前提，纯文本做不到。
+- 复盘文档存 `doc_md`，Web 端渲染阅读，导出 `.md`；自包含 HTML 仅作对外分享的二次转换。文档内不放图片。
+- 规律统计复用统一评估骨架：SQL 预聚合 → 一次 LLM 总结 → 总结失败时回退为纯数字展示，不阻塞。
+- **M2 建表时必须预留 `companies` 与 `job_positions.company_id`**，否则 M3 需回填数据。
+- 章节编号调整：原 §4.6 模型网关顺延为 §4.7。
+
+---
+
+### v1.4 · 2026-11-03 —— 模型改成"随时能换"，并立下开发规矩
+
+**多了什么**
+
+- **模型配置在线管理**：不再改配置文件、不用重启，直接在页面上增删服务商和模型。填一个地址 + 密钥就能马上切到新的大模型（内网 / GPT / DeepSeek 均可）。
+- **密钥加密保存**：密钥不再明文躺在文件里，加密入库，界面只显示尾号。
+- **界面设计规范落地**：定下配色、字体、圆角、阴影等一整套视觉标准，风格定位"专业克制"，不做花哨的 AI 风。
+- **测试有了硬指标**：核心逻辑覆盖率不低于 85%、关键模块不低于 95%，接口 100% 与契约一致。
+
+**变了什么**
+
+- 前后端改为**按统一契约开发**：先定接口文档，前端后端各自照文档写，机器自动校验，杜绝"后端改了前端不知道"。
+- 开发方式定为**先写测试再写代码**。
+- 里程碑 M1 拆成四小步（骨架 → 模型网关 → 简历中心 → 前端与测试），每步都有可验收成果。
+
+**砍了什么**
+
+- 不使用 Spring AI / Spring AI Alibaba / LangChain4j / AgentScope 等现成 AI 框架，模型对接自行实现（便于随时换模型、可控性更好）。
+
+**附：技术实现要点**
+
+- `llm_providers` / `llm_models` / `llm_global_setting` 三表取代配置文件；密钥 AES-GCM 加密，主密钥放环境变量。
+- 新增 §6.8 技术选型决策、§6.9 契约与唯一真实源、§6.10 前端设计规范。
+- 目录结构定为 `contracts/`（接口契约）+ `backend/` + `frontend/`。
+
+---
+
+### v1.3 · 2026-11-03 —— 模型可以自由挑，但任务跑着不许换
+
+**多了什么**
+
+- **一个服务商可以挂多个模型**：不用为每个模型重复填一遍地址和密钥。
+- **会话里能同时切"服务商"和"模型"**：换服务商后模型列表自动跟着变。
+- **执行中禁止切换**：任务正在跑（出题、评估）时不允许换模型，避免同一次分析里前后标准不一致；任务已结束的记录也锁定不可改。
+
+**变了什么**
+
+- 每条回答都会记下"当时用的是哪个服务商、哪个模型"，事后可追溯。
+
+**附：技术实现要点**
+
+- 数据结构从"服务商 = 地址 + 密钥 + 模型"改为"服务商 = 地址 + 密钥"，模型作为其下挂载项。
+- 会话表增 `current_model`，各业务表增 `llm_model`；切换时校验会话状态，执行中返回 409。
+
+---
+
+### v1.2 · 2026-10-14 —— 把开发会卡住的空白补齐
+
+**多了什么**
+
+- **分数怎么算说清楚了**：简历五维评分各自权重（技术深度 30%、项目质量 25%、工程能力 20%、表达结构 15%、岗位匹配 10%），岗位匹配分同样定权重。
+- **答题规则说清楚了**：追问怎么触发、跳过题怎么算分（记 0 分且不做点评）、什么时候能交卷、能否提前交卷。
+- **数据能删了**：简历、岗位、面试记录、复盘记录都支持删除，且会连带清理关联数据和磁盘文件。
+- **成本可控**：每一次模型调用都记账（用了哪个模型、多少字、耗时、成败），可查看消耗。
+
+**变了什么**
+
+- 没有简历只选方向去模拟面试时，出题比例改为"全部方向题"（原先只定义了有简历时的 6:4）。
+- 单用户版固定以"用户 1"运行，不再让每个功能各自决定。
+
+**附：技术实现要点**
+
+- 异步任务状态从三件套扩为四件套（增加重试次数字段）；失败自动重试 3 次，超限可手动重试。
+- 新增 `llm_call_logs` 表承载调用埋点与成本统计；列表接口统一分页。
+
+---
+
+### v1.1 · 2026-08-28 —— 拍板四个关键选择
+
+**变了什么（都是方向性决定）**
+
+- **文件存本地磁盘**，不额外搭对象存储服务，省一个组件；将来要上云再换。
+- **模型对接自己写**，不用现成框架，为了能随时换模型、能追溯每次调用。
+- **前端先做极简版**：M1 只求"上传简历 → 看到报告"这条路走通，完整界面留到 M2。
+- **岗位方向推荐分两步**：M1 先按简历推荐；M2 有了 JD 库后，再结合"市场上真实在招的方向"给出推荐。
+
+同时确认了部署形态：本地一键启动，数据库随应用一起跑。
+
+---
+
+### v1.0 · 2026-08-26 —— 首版需求（原名「智求职 / JobPilot」）
+
+**立了什么**
+
+- 产品定位：围绕求职全流程的 AI 辅助平台，覆盖 **改简历 → 选岗位 → 练面试 → 复盘** 四件事。
+- 差异化：市面同类工具只做"模拟面试"，本产品补上「真实面试录音复盘」和「岗位行情分析」。
+- 形态：个人自用版，免登录、单用户、本地部署，数据模型为将来产品化预留空间。
+- 路线图：M1 打基础（模型接入 + 简历分析），M2 扩到岗位与模拟面试，M3 做录音复盘。
+
+**明确不做**
+
+- 不爬招聘网站（合规风险，改为手动导入岗位）。
+- 不做登录与多租户、不做实时语音面试、不做移动端。
+
+---
+
+> **产品命名沿革**：2026-10-14 由「智求职（JobPilot）」更名为「**职点（JobPilot）**」。更名理由：原名称平淡、记忆点弱；「职点」谐音"指点"，且"点"对应产品的核心动作（给简历打分、给回答点评）。英文名 `JobPilot` 保持不变，文档同步重命名。
 
 ---
 
@@ -47,7 +186,7 @@
 | 真实面试录音复盘 | ❌ | ✅（P2，核心差异） |
 | 岗位 JD 库 / 匹配评分 / 行情分析 | ❌ | ✅（P1，核心差异） |
 | 会话内切换模型 | ❌（仅全局默认切换） | ✅ |
-| RAG 知识库 / 题库 / 面试日历 | ✅ | 暂不做 |
+| RAG 知识库 / 题库 / 面试日历 | ✅ | 不做 RAG；面试沉淀检索由 **F5 结构化聚合 + 全文检索** 承担 |
 
 > 合规说明：interview-guide 为 AGPL-3.0 协议。本项目**只借鉴其架构设计思想，所有代码自研**，不复制 `reference/` 目录下任何代码。
 
@@ -55,7 +194,7 @@
 
 - **阶段一（当前）**：个人自用版。免登录、单用户、本地 Docker Compose 部署；所有数据表预留 `user_id` 字段。
 - **阶段二**：基于自用反馈迭代，完善体验与稳定性。
-- **阶段三（可选）**：产品化。补登录/注册、API Key 加密落库、接口限流、多租户数据隔离、云部署。
+- **阶段三（可选）**：产品化。补登录/注册、接口限流、多租户数据隔离、云部署（API Key 加密落库已于 M1 提前实现，见 §4.7）。
 
 > 架构原则：单用户阶段不实现多租户功能，但数据模型与接口形态（无状态 REST、可加鉴权头）不堵死产品化路径。
 
@@ -74,11 +213,12 @@
 
 | 编号 | 功能 | 优先级 | 里程碑 |
 |---|---|---|---|
-| X1 | 模型网关（多模型管理 + 会话内切换） | P0 | M1（全局切换）/ M2（会话级） |
+| X1 | 模型网关（多 Provider / 多 Model 管理 + 会话内两级切换） | P0 | M1 |
 | F1 | 简历中心（上传/解析/分析/岗位方向推荐） | P0 | M1（轨一）/ M2（轨二） |
 | F2 | 岗位库与行情分析 | P1 | M2 |
 | F3 | 模拟面试（文字结构化模式） | P1 | M2 |
-| F4 | 面试复盘（录音 ASR + 分析） | P2 | M3 |
+| F4 | 面试复盘（录音 ASR + 分析 + 文档沉淀） | P2 | M3 |
+| F5 | 求职洞察与规律分析（面试事件 / 三层聚合 / 跨次洞察） | P1 | M3 |
 
 ### 4.2 F1 简历中心（P0）
 
@@ -133,20 +273,39 @@
   - 面试官问题归类（技术 / 项目 / 行为 / 压力 / 反问）；
   - 每个问答：回答质量评分、问题诊断（知识缺口 / 表达混乱 / 深度不足 / 跑题）、改进建议、参考回答；
   - 整体总结：优势、高频失分点、下次面试准备清单。
-- FR4.5 可关联简历上下文增强分析（可选）。
+- FR4.5 **关联上下文**：可关联公司 / 岗位（JD）/ 简历一并送入分析，提升诊断针对性。
 - FR4.6 复盘历史沉淀，与模拟面试记录共同构成"练习-实战-复盘"数据闭环。
 - FR4.7 复盘记录删除：单条删除（二次确认），级联删除转写稿、分析结果与磁盘上的音频文件。
 
-### 4.6 X1 模型网关（P0 横切能力）
+### 4.6 F5 求职洞察与规律分析（P1）
 
-- FRX.1 Provider 配置管理：MVP 阶段通过 `application.yml` + `.env` 静态配置多个 Provider。**M1 交付范围**：配置加载 + 连通性测试 + 全局默认模型切换（后端接口形式，不含管理页面）；Provider 列表查看与选择的页面化随 M2 完整前端提供。产品化阶段升级为页面 CRUD + API Key 加密落库。
-- FRX.2 全部走 OpenAI 兼容协议（`/chat/completions`），Provider = baseUrl + apiKey + model 三要素，不写厂商 if-else。
+> 定位：本功能是本产品的**长期价值核心**。单次复盘价值有限，跨多次面试的规律识别才能暴露真实短板。**优先解决"找规律"（B 场景），"查具体某场"由复盘文档本身承担（A 场景自然满足，不单独立项）。**
+
+- FR5.1 **面试事件管理**：一次面试 = 一条 `interview_events`，含公司、岗位（JD）、轮次号、轮次类型（HR 面 / 技术面 / 交叉面 / 总监面 / 终面）、面试时间、结果（通过 / 挂 / 待定）。
+- FR5.2 **三层聚合浏览**：公司 → 岗位 → 轮次 的树形钻取；同一岗位的多轮面试归在同一层，同一公司的不同岗位归在其上一层。同时提供扁平筛选视图（按公司 / 岗位 / 轮次类型 / 结果 / 时间范围 / 知识点标签），两种视图查同一份数据。
+- FR5.3 **公司归一化（防止层级分裂）**：录入公司时**先模糊检索已有公司并让用户确认复用**，禁止自动合并。`companies.name` 加 UNIQUE 防完全同名；另提供手动「合并公司」操作，把重复公司的岗位与面试事件迁移到目标公司（用于事后补救）。
+- FR5.4 **知识点标签体系**：复盘分析时由 LLM 从受控词表抽取本次涉及的知识点（如 JVM、并发、MySQL 索引）与失分类型，落为结构化字段，用户可手工增删修正。**这是聚合统计的基础**——纯文本复盘无法统计。
+- FR5.5 **跨次聚合洞察（核心）**：
+  - 按知识点 × 结果：如"考察 JVM 的 5 场中挂 4 场"；
+  - 按失分类型 × 频次：如"表达混乱出现 7 次"；
+  - 按公司 / 岗位：该公司、该岗位的常考范围与面试风格画像；
+  - 高频被问问题 Top N（可反哺 F3 模拟面试出题）。
+- FR5.6 **趋势对比**：按时间窗口对比失分类型分布（如近 30 天 vs 之前），让成长可见。
+- FR5.7 **复盘文档沉淀与导出**：每次面试产出一份 **Markdown** 文档（问答、诊断、参考回答、结论、知识点标签），支持系统内渲染阅读与导出 `.md`；需要对外分享时可导出"自包含 HTML"（图片内联），作为二次转换，**不作为主格式**。文档内**不放图片**（评分可视化在 Web UI 呈现，不烙进归档文档）；若将来支持手写题/白板照片，走 `FileStorage` + MD 相对路径引用。
+- FR5.8 **不引入向量检索（RAG）**：几十至数百场面试的语料规模远小于模型上下文窗口，采用「结构化字段聚合 + PostgreSQL 全文检索 + 分层摘要 + 批量 LLM 总结」即可满足「找规律」，且无需额外组件。仅当语料规模量级变化时再评估。
+
+### 4.7 X1 模型网关（P0 横切能力）
+
+- FRX.1 Provider / Model 配置管理（**数据库驱动，运行时可改，不依赖配置文件**）：页面提供 Provider 与 Model 增删改查。新增 Provider 只需填 `label + baseUrl + apiKey`，新增 Model 只需填 `modelName + label`；**保存即生效，无需重启、无需改 yml**。API Key 加密落库，接口返回一律掩码（如 `sk-****MwMY`）。首次启动若表为空，从 `.env` 的 `LLM_BOOTSTRAP_*` 导入一次种子配置作为兜底。
+- FRX.2 全部走 OpenAI 兼容协议（`/chat/completions`），不写厂商 if-else。**Provider 与 Model 解耦：`Provider = baseUrl + apiKey`（不含 model），一个 Provider 下可挂任意多个 model**；请求时由 `providerKey + model` 两个维度共同定位。
 - FRX.3 连通性一键测试。
-- FRX.4 默认模型设置：全局默认 + 会话级覆盖。
-- FRX.5 **会话内切换**：会话页顶部模型选择器；切换后本会话后续回答由新模型生成；历史上下文全量随请求组装（不依赖模型侧记忆）；每条消息记录实际使用的 Provider / 模型（可追溯）。
-- FRX.6 流式输出（SSE）。
-- FRX.7 失败处理：超时 / 报错时提示，支持一键切换备用模型重试。
-- FRX.8 API Key 个人版从 `.env` 环境变量注入，不落库、不入日志。
+- FRX.4 默认设置：全局默认（Provider + Model）+ 会话级覆盖。
+- FRX.5 **会话内切换（两级）**：会话页顶部提供 **Provider 选择器 + Model 选择器**，Model 列表随所选 Provider 联动；切换后本会话后续回答由新的 `providerKey + model` 生成；历史上下文全量随请求组装（不依赖模型侧记忆）；每条消息记录实际使用的 Provider / Model（可追溯）。切换只改会话绑定，不迁移历史。
+- FRX.6 **执行中禁止切换**：会话正在执行异步任务（出题中 / 评估中，即任务状态为 `PROCESSING`）时，切换接口返回 `409 Conflict` 并提示"任务执行中，请等待完成后再切换"，前端选择器置灰；会话进入终态（已交卷 / 已评估）后同样锁定，不可再切换。判定依据以服务端状态为准，不依赖前端。
+- FRX.7 模型列举：`GET /api/llm/providers/{providerKey}/models` 优先调用上游 `/v1/models` 动态获取（可一键"同步到本地"），失败时回退数据库内该 Provider 已登记的 model 列表。
+- FRX.8 流式输出（SSE）。
+- FRX.9 失败处理：超时 / 报错时提示，支持一键切换备用 Provider+Model 重试。
+- FRX.10 API Key 安全：**仅以 AES-GCM 密文落库**（主密钥来自 `.env` 的 `APP_SECRET_KEY`）；任何接口不返回明文、不写入日志、不在异常信息中回显。更新密钥时整体覆写密文。
 
 ## 5. 非功能需求
 
@@ -163,22 +322,27 @@
 ### 6.1 总体架构与分层
 
 ```
-前端 SPA（Vue3；M1 仅极简单页打通核心链路，完整 UI 放 M2）
-   │ REST + SSE
-后端 Spring Boot 3.x（Java 21，Maven）
- ├── common/         通用能力：模型网关、结构化输出、Prompt 模板、统一响应/异常
- ├── infrastructure/  文件解析/清洗/哈希、对象存储、ASR 适配
- └── modules/        业务模块：resume / job / interview / review / llmprovider
-PostgreSQL（预留 pgvector）+ 本地文件系统（本地磁盘，存储层接口隔离）
+contracts/openapi.yaml   ← 接口唯一真实源（前后端均以此为准）
+   │ 生成类型（前端）/ 一致性校验（后端）
+┌──┴─────────────────────────────────────────────┐
+frontend/  Vue3 + TS + Vite（M1 四屏） backend/  Spring Boot 3.5.x（Java 21，Maven 单模块）
+                                        ├── common/         模型网关、结构化输出、Prompt、统一响应/异常
+                                        ├── infrastructure/ 文件解析/清洗/哈希、本地存储、ASR 适配
+                                        └── modules/        resume / job / interview / review / llmprovider
+└── REST + SSE ────────────────────────────────────┘
+PostgreSQL（JSONB + CHECK，预留 pgvector）+ 本地文件系统（FileStorage 接口隔离）
 ```
 
 分层原则：common 通用能力 / infrastructure 技术设施 / modules 自包含业务模块（Controller → Service → Repository）。
 
 ### 6.2 模型网关核心设计
 
-- 统一接入采用 **WebClient 手写的 OpenAI 兼容客户端**（`/chat/completions`，自定义 base-url）。不使用 Spring AI，目的是便于实现"会话级 Provider 绑定 + 每条消息落 Provider 追溯 + 结构化输出修复"等横切能力；客户端接口层隔离，后续如需换框架替换成本低。
-- 注册中心：启动时加载 yml 中多个 Provider 配置 → 惰性构建客户端 → 缓存。
-- 会话绑定：会话表存 `current_provider_key`（字符串标识）；每次请求动态取当前绑定；消息表冗余 `llm_provider` 字段。
+- 统一接入采用 **WebClient 手写的 OpenAI 兼容客户端**（`/chat/completions`，自定义 base-url）。**不使用 Spring AI / Spring AI Alibaba / LangChain4j / AgentScope**，决策依据见 §6.8。客户端接口层隔离，后续如需换框架替换成本低。
+- 注册中心：Provider / Model 配置以**数据库为唯一来源**（`llm_providers` + `llm_models`）；内存维护 `providerKey → 客户端实例` 的缓存，CRUD 时精确失效对应条目，实现**运行时热更新**（无需重启、无需改配置文件）。
+- 客户端构建：`OpenAiCompatibleClient(baseUrl, apiKey)`，按 Provider 维度缓存；Model 不作为客户端构建参数，仅在每次请求体中传入，因此同一 Provider 下新增模型无需重建客户端。
+- API Key：AES-GCM 加密存储，主密钥来自 `.env` 的 `APP_SECRET_KEY`；读取时解密进内存，对外一律掩码。
+- 会话绑定：会话表存 `current_provider_key` + `current_model` 两字段；每次请求按这两个值动态定位客户端与模型；业务表冗余 `llm_provider` + `llm_model` 双字段，保证可追溯。
+- 切换守卫：切换前服务端校验会话状态——存在 `PROCESSING` 的异步任务时拒绝（409）；会话已进入终态时拒绝。校验在服务端做，前端置灰仅作体验优化。
 - 上下文组装：system prompt + 历史消息 + 本轮输入 → 目标模型；统一截断策略（保 system + 最近 N 轮 + 摘要）。
 - 切换语义：切换只改会话绑定，不迁移历史；新模型接管后续回答。
 - 调用埋点：每次调用落 `llm_call_logs`（traceId / 场景 / provider / model / token / 耗时 / 成败），支撑 NFR2 可观测与 NFR6 成本统计。
@@ -215,6 +379,87 @@ PostgreSQL（预留 pgvector）+ 本地文件系统（本地磁盘，存储层�
 
 - 分批评估 → 本地合并 → 二次 LLM 汇总 → 多层降级（批次失败按缺题兜底并标注；汇总失败本地拼接）。
 - 模拟面试评估、面试复盘分析共用同一评估骨架。
+- **F5 跨次聚合洞察复用同一骨架**：SQL 预聚合（按知识点 / 失分类型 / 公司 / 岗位 / 时间窗口）→ 结果作为数据注入 → 一次 LLM 总结生成洞察结论；总结失败时回退为纯统计数字展示，不阻塞功能。
+
+### 6.8 技术选型决策（ADR 摘要）
+
+| 决策 | 结论 | 理由 | 代价（已知） |
+|---|---|---|---|
+| 语言 / 框架 | **Java 21 + Spring Boot 3.5.x** | 项目本身是求职作品，Spring Boot 生态是国内 Java 后端最通用语言；异步、事务、连接池、观测都有成熟方案 | 启动约 3s、内存约 400MB 起，个人工具略显重 |
+| 数据库 | **PostgreSQL** | 本项目 JSONB 使用密度极高（分析报告、关键点、问答分析），PG 的 JSONB 可索引可条件查询；CHECK 约束可实现状态机；预留 pgvector | 国内 Java 岗位以 MySQL 更常见，需在面试中能解释选型理由 |
+| 持久层 | **MyBatis-Plus** | 与国内 Java 岗位技术栈一致；JSONB 用 `JacksonTypeHandler`；统计类聚合 SQL 可控 | 相比 JPA 无自动实体关系映射，需手写映射 |
+| 工程结构 | **单 Maven 模块 + 包分层** | 一人开发拆多模块会引入 `install` 往返成本，收益接近零；边界靠包结构约束 | 缺少编译期模块隔离 |
+| LLM 接入 | **手写 WebClient OpenAI 兼容客户端** | 见下方框架对比 | 自研约 400-600 行，需自行维护 |
+| 迁移工具 | **Flyway** | SQL 版本化直观，与状态机 CHECK 约束配合好 | — |
+| 契约 | **`contracts/openapi.yaml` 为唯一接口源**（见 §6.9） | 前后端独立开发，必须机器可校验 | 需维护契约与一致性测试 |
+
+**LLM 框架对比（为什么都不用）**
+
+| 方案 | 是否采用 | 关键判断 |
+|---|---|---|
+| **手写 WebClient** | ✅ 采用 | Provider 运行时热更、结构化输出加固、分层降级重试这三件事是我们真正的复杂度，任何框架都不直接提供，仍需自写；框架反而会遮蔽我们最需要透明的协议细节（`/v1/models`、`response_format`、SSE 分块、`usage`、错误码） |
+| Spring AI | ❌ | 设计假设是**配置驱动**（启动时装配 ChatModel Bean），与本项目"DB 驱动 + 运行时增删 Provider"的核心需求冲突，需绕开自动配置手动管理实例，收益进一步下降；1.x 迭代快，版本兼容风险高 |
+| Spring AI Alibaba | ❌ | 强绑定 DashScope / 百炼生态，本项目接入任意 OpenAI 兼容端点（当前为自建 new-api 网关），引入后形成不必要的厂商耦合 |
+| LangChain4j | ❌（保留为备选） | 动态构建模型实例的能力最契合本项目，是四个框架中唯一值得考虑的；但 M1 需求（chat + SSE + JSON 输出）自研成本低于学习与适配成本。已通过接口层隔离，后续若需 tool calling / RAG 可平滑替换 |
+| AgentScope | ❌ | 定位是**多智能体编排**，本项目 M1 是确定性批处理调用；M2 面试的"出题-追问-评估"用状态机更可控，且分层降级策略需要深度定制，框架会阻碍降级实现 |
+
+> 结论：M1 全部不使用上述框架。若未来引入 RAG 或多 Agent 协作，优先评估 LangChain4j，并以 `LlmClient` 接口为替换点。
+
+### 6.9 契约与唯一真实源
+
+前后端分离、独立开发，因此确立**两个层面的唯一真实源**，互不替代：
+
+| 真实源 | 管什么 | 谁依赖 |
+|---|---|---|
+| `docs/superpowers/specs/职点（JobPilot）需求文档.md` | **做什么**（业务规则、验收标准） | 人 |
+| `contracts/openapi.yaml` | **怎么调**（路径、入参、出参、错误码、枚举） | 后端 + 前端 |
+
+目录约定：
+
+```
+interview-main/
+├── contracts/openapi.yaml     # 接口唯一真实源（手写，评审后实现）
+├── backend/                   # Spring Boot 工程
+├── frontend/                  # Vue3 + TS + Vite 工程
+└── docs/                      # 需求与设计文档
+```
+
+协作流程（契约先行，四方锁定）：
+
+1. 先写 / 修改 `openapi.yaml`，评审通过后才允许实现；
+2. 后端按契约实现；springdoc 输出**仅用于校验，不作为真实源**；
+3. 前端用 `openapi-typescript` 从契约生成 `src/api/schema.d.ts`，类型由机器保证不漂移；
+4. 后端增加**契约一致性测试**：断言实际暴露的端点、请求体、响应体与 `openapi.yaml` 一致，漂移即测试失败。
+
+> 只写契约不做一致性校验，等于多了一份会过期的文档；三者齐备（契约、生成、校验）才构成唯一真实源。
+
+### 6.10 前端设计规范
+
+**设计立场**：这是求职工具，气质应为「专业、克制、可信」，而非「AI 产品」。明确不采用紫色渐变、发光效果、大圆角糖果卡片、营销风大留白。
+
+**Design Tokens**
+
+| Token | 值 | 用途 |
+|---|---|---|
+| `--bg` | `#F6F7F9` | 页面底色 |
+| `--surface` | `#FFFFFF` | 卡片 |
+| `--border` | `#E4E7EC` | 1px 边框分层（不用重阴影） |
+| `--text` / `--text-2` / `--text-3` | `#1A1D23` / `#5A6472` / `#9BA3AF` | 主 / 次 / 弱 |
+| `--primary` | `#1E4FD8` | 主按钮、选中态、链接 |
+| `--success` / `--warning` / `--danger` | `#0E9F6E` / `#D97706` / `#DC2626` | 仅状态语义 |
+| 分数梯度 | 低 `#DC2626` → 中 `#D97706` → 高 `#0E9F6E` | 评分可视化 |
+| 圆角 | 卡片 10px / 按钮 8px / 标签 6px | |
+| 阴影 | `0 1px 2px rgba(16,24,40,.06)`；悬浮 `0 4px 12px rgba(16,24,40,.08)` | 极轻 |
+| 字体 | `-apple-system, "PingFang SC", "Microsoft YaHei", system-ui` | 中文优先系统字体 |
+| 数字 | `font-variant-numeric: tabular-nums` | 分数与表格对齐 |
+| 间距 | 4 的倍数；页面内边距 24 / 32px | |
+
+**两个硬性设计决策**
+
+1. **五维评分用横向条形图，不用雷达图**：雷达图无法精确比较数值，且长中文标签（如"岗位匹配潜力"）排布困难；横向条形 + 数值更准确。
+2. **空状态给行动指引，不给插画**：例如"还没有简历，上传第一份开始分析"+ 上传按钮，而非装饰性插图。
+
+**落地方式**：先只做「分析报告页」一屏作为视觉样板，评审通过后再推至其余页面，避免全量返工。
 
 ## 7. 数据模型（概要）
 
@@ -223,17 +468,24 @@ PostgreSQL（预留 pgvector）+ 本地文件系统（本地磁盘，存储层�
 | 表 | 关键字段与设计 |
 |---|---|
 | resumes | file_hash UNIQUE、storage_key、resume_text、analyze_status / error / retry_count |
-| resume_analyses | resume_id FK、overall_score、五维分数各自成列、strengths / suggestions / career_directions JSONB、llm_provider |
-| job_positions | title、company、city、salary_min / max、experience、raw_text、structured JSONB |
-| job_match_results | resume_id、job_position_id、match_status / error / retry_count、overall_score、detail JSONB、llm_provider |
-| interview_sessions | direction、resume_id、job_position_id、status、evaluate_status / error / retry_count、current_provider_key、question_snapshot JSONB |
-| interview_questions | session_id、question_index（UNIQUE 组合）、parent_index（追问树）、type（主问题/追问）、content、topic_summary、answer、answer_status（已答 / 跳过 / 未答）、score、feedback、reference_answer、key_points JSONB、llm_provider |
+| resume_analyses | resume_id FK、overall_score、五维分数各自成列、strengths / suggestions / career_directions JSONB、llm_provider、llm_model |
+| job_positions | **company_id FK、status（SAVED / APPLIED / INTERVIEWING / CLOSED）**、title、company、city、salary_min / max、experience、raw_text、structured JSONB |
+| job_match_results | resume_id、job_position_id、match_status / error / retry_count、overall_score、detail JSONB、llm_provider、llm_model |
+| interview_sessions | direction、resume_id、job_position_id、status、evaluate_status / error / retry_count、current_provider_key、current_model、question_snapshot JSONB |
+| interview_questions | session_id、question_index（UNIQUE 组合）、parent_index（追问树）、type（主问题/追问）、content、topic_summary、answer、answer_status（已答 / 跳过 / 未答）、score、feedback、reference_answer、key_points JSONB、llm_provider、llm_model |
 | review_sessions | audio storage_key、duration、asr_status / error / retry_count、analyze_status / error / retry_count |
 | review_transcripts | review_session_id、speaker、text、start / end_time |
-| review_analyses | review_session_id、qa_analysis JSONB、summary JSONB、llm_provider |
+| review_analyses | review_session_id、qa_analysis JSONB、summary JSONB、**topics JSONB（本次知识点标签）、loss_tags JSONB（失分类型）**、llm_provider、llm_model |
+| companies | name UNIQUE、intro（公司介绍文本）、tags JSONB；不做模糊自动合并，仅录入时联想 + 人工确认 |
+| interview_events | company_id FK、job_position_id FK、round_no、round_type（HR面 / 技术面 / 交叉面 / 总监面 / 终面）、interview_time、result（PASS / FAIL / PENDING）、review_session_id FK、doc_md（复盘文档 Markdown 全文） |
 | llm_call_logs | trace_id、scene（resume_analyze / jd_parse / job_match / interview_question / interview_evaluate / review_asr / review_analyze / connectivity_test）、provider_key、model、prompt_tokens、completion_tokens、total_tokens、duration_ms、success、error、created_at |
+| llm_providers | provider_key UNIQUE、label、base_url、api_key_cipher（AES-GCM）、enabled、sort_order |
+| llm_models | provider_id FK、model_name、label、enabled、is_default、sort_order；`(provider_id, model_name)` UNIQUE |
+| llm_global_setting | 单行（id=1）、default_provider_key、default_model |
+| chat_sessions | title、current_provider_key、current_model、status（IDLE / PROCESSING / LOCKED） |
+| chat_messages | session_id FK、role、content、llm_provider、llm_model、trace_id、created_at |
 
-> MVP 阶段 Provider 为 yml 静态配置，`llm_provider_config` / `llm_global_setting` 表推迟到产品化阶段（M3）。
+> Provider / Model 配置**以数据库为唯一来源**（M1 落地，不再依赖 yml）；`.env` 仅提供 `APP_SECRET_KEY`（加密主密钥）与 `LLM_BOOTSTRAP_*`（首次启动种子）。`chat_sessions` / `chat_messages` 为 M1 的「能力验证载体」，不做业务包装（无多轮记忆增强、无分支对话、无导出），M2 面试会话复用同一套绑定与切换守卫逻辑。
 
 ## 8. 接口设计原则
 
@@ -256,16 +508,28 @@ PostgreSQL（预留 pgvector）+ 本地文件系统（本地磁盘，存储层�
 
 ## 10. 测试策略
 
-- 单元测试：模型网关（Mock HTTP）、结构化输出修复器、文本清洗、哈希去重、状态机流转。
-- 集成测试：Testcontainers 起 PostgreSQL；关键链路（上传 → 分析 → 查询）全流程。
-- LLM 相关测试全部 Mock 适配层，不依赖真实 API。
-- Prompt 质量用真实模型人工评估迭代，不做自动化。
+开发方式采用 **TDD**（先写失败测试，再实现）。测试由开发方全权负责，按下表分层覆盖：
+
+| 层 | 范围 | 覆盖目标 |
+|---|---|---|
+| 单元 | 全部 Service 逻辑、结构化输出修复器、文本清洗、哈希去重、异步状态机、切换守卫、AES 加解密、Provider 校验 | 行覆盖 **≥ 85%** |
+| 关键模块 | 模型网关客户端、结构化输出、异步状态机、切换守卫 | **≥ 95%** |
+| 集成 | Testcontainers 起 PostgreSQL + MockWebServer 模拟 LLM；覆盖「上传→解析→分析→查报告」「Provider CRUD→热更新→切模型→执行中 409」全链路 | 全部主链路 |
+| 契约 | 实际暴露端点与 `contracts/openapi.yaml` 一致性断言 | **100% 端点** |
+| 前端 | Vitest 覆盖评分计算、选择器联动、状态判断等纯逻辑；Playwright 覆盖主流程 E2E | 主流程全覆盖 |
+| 不覆盖 | LLM 输出质量、Prompt 效果 | 真实模型人工评估（不做自动化） |
+
+> 说明：不承诺 100% 行覆盖——Mock 只能覆盖预设世界。上表是**可机器校验的承诺**，由 CI 或构建脚本输出覆盖率报告佐证。
 
 ## 11. 里程碑规划
 
-- **M1（MVP）**：工程骨架 + docker-compose + 模型网关（多 Provider 静态配置 / 连通测试 / 全局默认切换 / SSE 流式）+ 简历上传 / 解析 / AI 分析报告 / 岗位方向推荐（轨一）+ 极简单页打通"上传→报告"链路。
-- **M2**：完整前端 + JD 导入 / 匹配评分 / 行情统计 + 结构化模拟面试（Skill 出题 / 追问 / 统一评估 / 会话内模型切换）。
-- **M3**：面试复盘（ASR / 分析 / 报告）+ PDF 报告导出 + token 成本统计 + 产品化准备（登录 / API Key 加密落库 / 限流）。
+- **M1（MVP）**：按四个阶段推进，每阶段有独立可验收产出。
+  - **M1-a 骨架与契约**：`backend/` `frontend/` `contracts/` 三目录 + Spring Boot 骨架 + docker-compose（PG + 应用）+ Flyway + 统一响应/异常/traceId + `contracts/openapi.yaml` 全量契约 + 契约一致性测试骨架。
+  - **M1-b 模型网关与 Provider 管理**：手写 OpenAI 兼容客户端（chat / SSE / 结构化输出 / 去围栏 / 重试修复）+ `llm_providers`/`llm_models`/`llm_global_setting` 表 + Provider/Model CRUD（含 AES-GCM 加密与掩码）+ 连通测试 + 模型列举与同步 + 全局默认 + **会话内两级切换与执行中禁切（409）** + `chat_sessions`/`chat_messages` 载体 + `llm_call_logs` 埋点。
+  - **M1-c 简历中心（轨一）**：上传（文件/粘贴）+ Tika 解析清洗 + SHA-256 去重 + `FileStorage` 本地实现 + 异步分析状态机 + 五维报告 + 优势短板 + 优化建议 + 岗位方向推荐 + 删除 + 分页列表。
+  - **M1-d 前端与测试收口**：4 屏（简历上传列表 / 分析报告 / 模型设置 / 模型对话）+ 设计 tokens 落地 + 报告页做视觉样板先行评审 + 全量单测/集成/契约/E2E 补齐。
+- **M2**：完整前端 + JD 导入 / 匹配评分 / 行情统计 + 结构化模拟面试（Skill 出题 / 追问 / 统一评估），面试会话直接复用 M1 的两级切换机制。**建表时必须预留 `companies` 表与 `job_positions.company_id`**（F5 要用，否则 M3 需回填数据）。
+- **M3**：面试复盘（ASR / 分析 / MD 文档沉淀）+ **F5 求职洞察**（面试事件、三层聚合浏览、公司归一化与合并、知识点标签、跨次聚合洞察、趋势对比）+ PDF 报告导出 + token 成本统计 + 产品化准备（登录 / 限流）。
 
 ## 12. 风险与对策
 
@@ -279,15 +543,21 @@ PostgreSQL（预留 pgvector）+ 本地文件系统（本地磁盘，存储层�
 | 手写 OpenAI 客户端自研成本 | 接口层隔离；M1 只做必要能力（chat / SSE 流式 / 结构化输出），跑通后再扩展 |
 | LLM 成本失控 | `llm_call_logs` 埋点 + 单任务 token 上限（NFR7） |
 | 本地磁盘无限增长 | 音频文件可选清理 + 上传大小硬限制（FR4.1） |
-| 单人开发进度风险 | 严格里程碑，每期只做核心闭环 |
+| 网关存在模型别名（不同 model 名路由到同一后端，切换名义生效但实际无差别） | 连通测试与调用埋点均回显上游响应中的真实 `model` 字段，便于识别别名；切换选择器展示配置名，日志保留实际后端名 |
+| 契约与实现漂移 | 契约一致性测试纳入构建，端点/请求/响应不符即失败；前端类型由契约生成，禁止手写接口类型 |
+| **洞察失真（F5）**：知识点标签不统一、公司/岗位重复录入，会导致规律统计错误 | 标签走**受控词表 + 用户可修正**；公司录入强制"联想 + 人工确认"，禁止自动合并，并提供手动合并补救（FR5.3） |
+| ASR 转写错误传导至聚合洞察 | 转写稿必须先经用户校对再分析（FR4.3）；聚合只依赖校对后的结构化标签，不直接依赖原始转写文本 |
+| API Key 加密主密钥丢失导致存量密钥不可解 | `APP_SECRET_KEY` 不入库、不随包分发；文档明确备份要求，并提供"重新录入密钥"兜底路径 |
+| 单人开发进度风险 | 严格里程碑，M1 内部分四阶段，每阶段独立可验收 |
 
 ## 13. 明确不做（Out of Scope）
 
 - 招聘网站爬虫（法律 / 封号风险，改为手动导入 JD）。
 - MVP 阶段登录 / 多租户（数据层预留 user_id 即可）。
 - 实时语音面试（P2 之后探索 WebRTC）。
-- RAG 知识库 / 题库系统（复杂度高，参考知识用文件注入即可）。
+- RAG / 向量检索（**F5 不使用**：几十至数百场面试语料远小于上下文窗口，改用结构化聚合 + PG 全文检索 + 分层摘要 + 批量 LLM 总结，见 FR5.8）；**RAG 知识库 / 题库系统**同样不做（参考知识用文件注入即可）。
 - 简历多版本对比 / diff（FR1.9 仅做列表区分，不做版本对比）。
+- **LLM 重框架**：Spring AI / Spring AI Alibaba / LangChain4j / AgentScope 一律不引入（决策依据见 §6.8），统一走手写 `LlmClient`。
 - 移动端。
 
 ## 附录 A：借鉴自 interview-guide 的设计模式

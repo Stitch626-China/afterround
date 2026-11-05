@@ -7,19 +7,20 @@
 
 - 产品：职点（JobPilot），AI 求职辅助平台（简历分析 → 岗位匹配 → 模拟面试 → 面试复盘）
 - 形态：个人自用版，免登录、单用户，本地 Docker Compose
-- 阶段：M1（MVP）待开工；需求文档 v1.2 已确认
+- 阶段：M1（MVP）待开工；需求文档 **v1.5** 已确认
 
 ## 当前状态
 
 - 进行中：无
-- 已完成：需求文档 v1.2、README、AI 跨设备记忆机制（`AGENTS.md` + `docs/agent-memory/`）、记忆机制加固（`.gitattributes` 统一 LF、会话文件命名与 push 失败重试规则、PROGRESS 冲突取并集）
+- 已完成：需求文档 v1.5（新增 F5 求职洞察与规律分析、明确不做 RAG、数据模型扩 companies/interview_events）；v1.4（Provider/Model 数据库驱动热更新、M1 会话载体、技术选型 §6.8、契约唯一源 §6.9、前端设计规范 §6.10、测试分层承诺、M1 拆四阶段）；README 同步；LLM 网关实测（new-api / Qwen3.8-27B / SSE 与 json_object 可用）
 - 阻塞：无
 
 ## 下一步
 
-1. 工程骨架：Spring Boot 3 + PostgreSQL + Docker Compose
-2. 模型网关：多 Provider 配置 / 连通测试 / 全局切换 / SSE
-3. 简历上传解析分析 + 岗位方向推荐（轨一）+ 极简单页
+1. **M1-a 骨架与契约**：建 `backend/` `frontend/` `contracts/` 三目录；Spring Boot 3.5.x + Java 21 骨架、Docker Compose（PG + 应用）、Flyway、统一响应/异常/traceId
+2. 写 `contracts/openapi.yaml` 全量契约（评审后才实现）
+3. 再做模型网关与 Provider 管理（M1-b）
+4. M2 建 F2 表时**必须预留 `companies` 与 `job_positions.company_id`**（F5 依赖，否则 M3 要回填）
 
 ## 关键决策
 
@@ -29,3 +30,19 @@
 | 2026-10-14 | 手写 WebClient 调模型，不用 Spring AI | 会话级模型绑定 + Provider 追溯 + 结构化修复 |
 | 2026-10-14 | 前端 Vue3，M1 只做极简单页 | 先打通「上传 → 报告」链路 |
 | 2026-10-27 | 记忆入库，git 作为跨设备同步通道 | 两台设备记忆不互通，AI 易冲突与重复劳动 |
+| 2026-11-03 | Provider 与 Model 解耦：`Provider = baseUrl + apiKey`，1 个 Provider 挂 N 个 model | 同一网关下多模型不应重复配 baseUrl/key |
+| 2026-11-03 | 会话内切换为 Provider + Model 两级；执行中（PROCESSING）禁止切换返回 409 | 任务执行期换模型会导致同一会话内上下文含义漂移 |
+| 2026-11-03 | Provider/Model 改为**数据库驱动 + 页面 CRUD 热更新**，API Key AES-GCM 加密落库 | 用户会从内网模型切到 GPT/DeepSeek，不能每次改 yml；原 M3 的产品化项提前到 M1 |
+| 2026-11-03 | M1 引入极简会话载体 `chat_sessions`/`chat_messages` | M1 无会话实体则"会话内切换"无法验证；仅作能力载体，不做业务包装，M2 面试会话复用 |
+| 2026-11-03 | 技术栈定 Java 21 + Spring Boot 3.5.x + PostgreSQL + MyBatis-Plus + Flyway，单 Maven 模块 | Java 是本项目的求职作品；PG 因 JSONB 使用密集；单模块避免一人开发的多模块构建成本 |
+| 2026-11-03 | **不引入** Spring AI / Spring AI Alibaba / LangChain4j / AgentScope | 真正复杂度在热更新、结构化加固、分层降级，框架都不提供且会遮蔽协议细节；LangChain4j 留作备选 |
+| 2026-11-03 | 契约先行：`contracts/openapi.yaml` 为接口唯一源，前端类型由契约生成 | 前后端独立开发，必须机器保证不漂移 |
+| 2026-11-03 | 前端设计基调「专业克制」：五维用横向条形图而非雷达图 | 雷达图无法精确比较、长中文标签排不下 |
+| 2026-11-05 | 新增 F5 求职洞察，**优先解决"找规律"（B 场景）**，不单独立项"查具体某场" | 单次复盘价值有限，跨次规律才暴露真实短板；"查具体"由复盘文档本身承担 |
+| 2026-11-05 | **不做 RAG / 向量检索** | 几十至数百场面试约 15 万字，远小于模型上下文窗口，RAG 无收益且增组件；改用结构化聚合 + PG 全文检索 + 分层摘要 + 批量 LLM 总结 |
+| 2026-11-05 | 复盘文档格式定为 **Markdown**，不放图片；Web 端负责渲染好看，HTML 仅为可选二次转换 | MD 通用（Obsidian/Notion/语雀/飞书可吃）、可 diff、不污染全文索引 |
+| 2026-11-05 | 层级为**三层强结构**（公司 → 岗位 → 轮次），不做无限树 | 查询与展示都清晰，避免文件系统式过度设计 |
+| 2026-11-05 | 公司归一化用**联想 + 用户确认**，禁止自动合并，另提供手动「合并公司」 | 自动合并出错代价高（层级与统计全错），必须人工把关 |
+| 2026-11-05 | `job_positions` 与 F2 JD 库**合并为一张表**，用 `status` 管生命周期 | 避免同一份 JD 录两遍 |
+| 2026-11-05 | F5 聚合依赖**知识点标签结构化**（`topics` / `loss_tags`），纯文本无法统计 | "找规律"的前提是可聚合 |
+| 2026-11-05 | 需求文档「变更记录」重写为「**迭代历程**」，改为**产品语言**叙述（多了什么 / 变了什么 / 砍了什么），技术细节降为附注 | 原表格只记技术变更，非技术读者看不出需求演进 |

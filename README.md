@@ -13,6 +13,9 @@ AI 求职辅助平台，围绕求职全流程构建闭环：
 ```
 interview-main/
 ├── AGENTS.md               # AI 协作契约（跨设备记忆与开工/收工流程，优先级最高）
+├── contracts/              # 接口唯一真实源（openapi.yaml），前后端均以此为准
+├── backend/                # Spring Boot 后端工程
+├── frontend/               # Vue3 + TS + Vite 前端工程
 ├── docs/
 │   ├── agent-memory/       # AI 记忆（随 git 同步）
 │   │   ├── PROGRESS.md     # 当前进度 / 阻塞 / 下一步 / 关键决策
@@ -23,6 +26,15 @@ interview-main/
 └── README.md
 ```
 
+## 两个「唯一真实源」
+
+| 真实源 | 管什么 | 谁依赖 |
+|---|---|---|
+| `docs/superpowers/specs/职点（JobPilot）需求文档.md` | **做什么**（业务规则、验收标准） | 人 |
+| `contracts/openapi.yaml` | **怎么调**（路径、入参、出参、错误码、枚举） | 后端 + 前端 |
+
+流程：先改契约 → 评审通过 → 后端实现（加契约一致性测试）→ 前端用 `openapi-typescript` 由契约生成类型，禁止手写接口类型。
+
 ## 文档索引
 
 | 文档 | 说明 |
@@ -32,7 +44,7 @@ interview-main/
 | [PROGRESS.md](docs/agent-memory/PROGRESS.md) | 当前进度、阻塞、下一步、关键决策 |
 | [sessions/](docs/agent-memory/sessions/) | 会话记录：跨日/换设备新建，同日同机追加，不改已有段落 |
 
-> 需求文档维护规则：每次修改必须在文内「变更记录」表格追加一行（版本 / 日期 / 变更内容 / 影响章节），禁止只改正文不记录。
+> 需求文档维护规则：每次修改必须在文内「迭代历程」章节追加记录，且**用产品语言写**——说清这一版多了什么、变了什么、砍了什么，让不看代码的人也能看懂迭代思路；技术细节只作附注。
 
 ## AI 协作与跨设备同步
 
@@ -47,22 +59,30 @@ interview-main/
 
 | 层 | 选型 | 说明 |
 |---|---|---|
-| 后端 | Spring Boot 3（Java） | REST + SSE 流式输出 |
-| 数据库 | PostgreSQL | 异步任务表含 `status` / `error` / `retry_count` |
+| 后端 | Java 21 + Spring Boot 3.5.x | REST + SSE 流式输出 |
+| 持久层 | MyBatis-Plus + Flyway | JSONB 用 `JacksonTypeHandler`；SQL 版本化迁移 |
+| 数据库 | PostgreSQL | JSONB + CHECK 约束（状态机），预留 pgvector |
 | 文件存储 | 本地磁盘 | `FileStorage` 接口隔离，产品化再换 MinIO |
-| 模型网关 | 手写 WebClient（OpenAI 兼容） | 不用 Spring AI，便于会话级模型绑定与调用追溯 |
-| 前端 | Vue3 单页 | M1 极简，M2 完整 |
-| 部署 | Docker Compose | 本地一键启动 |
+| 模型网关 | 手写 WebClient（OpenAI 兼容） | **不用** Spring AI / Spring AI Alibaba / LangChain4j / AgentScope，理由见需求文档 §6.8 |
+| Provider 配置 | **数据库驱动，运行时可改** | 页面 CRUD 即时生效，无需改 yml、无需重启；API Key AES-GCM 加密落库并掩码 |
+| 前端 | Vue3 + TypeScript + Vite | 无 UI 库；设计规范见需求文档 §6.10 |
+| 接口契约 | `contracts/openapi.yaml` | 唯一接口源，前端类型由契约生成 |
+| 测试 | JUnit5 + Testcontainers + Vitest + Playwright | TDD；LLM 全 Mock |
+| 部署 | Docker Compose | PostgreSQL + 应用（无 MinIO） |
 
 ## 里程碑
 
-- **M1（MVP）**：工程骨架 + 模型网关（多 Provider 配置 / 连通测试 / 全局切换 / SSE）+ 简历上传解析分析 + 岗位方向推荐（轨一）+ 极简单页
+- **M1（MVP）**，内部四阶段：
+  - M1-a 骨架与契约：`backend/` `frontend/` `contracts/` + Spring Boot 骨架 + Docker Compose + Flyway + 统一响应/异常 + `openapi.yaml` 全量契约
+  - M1-b 模型网关与 Provider 管理：手写客户端（chat / SSE / 结构化输出）+ Provider/Model CRUD（加密落库、热更新）+ 连通测试 + 模型列举 + 会话内两级切换（执行中禁切 409）+ 对话载体
+  - M1-c 简历中心（轨一）：上传 / Tika 解析 / 去重 / 异步分析 / 五维报告 / 优化建议 / 岗位方向推荐
+  - M1-d 前端与测试收口：4 屏 + 设计 tokens + 报告页视觉样板先行评审 + 全量测试
 - **M2**：完整前端 + JD 导入 / 匹配评分 / 行情统计 + 结构化模拟面试
 - **M3**：面试复盘（ASR / 分析 / 报告）+ PDF 导出 + Token 成本统计 + 产品化准备
 
 ## 当前进度
 
-需求文档 v1.2 已确认，工程代码尚未开始（M1 待开工）。
+需求文档 v1.4 已确认；工程代码尚未开始，M1 待开工（详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)）。
 
 ## 合规说明
 
