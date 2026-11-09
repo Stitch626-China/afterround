@@ -1,0 +1,54 @@
+# 项目级 Docker Compose：PostgreSQL + 应用
+#
+# 日常开发推荐只起数据库，应用在 IDE 里跑（可断点调试）：
+#   docker compose up -d postgres
+#
+# 交付前验证「从零一条命令能跑起来」时全量起：
+#   docker compose up --build
+#
+# 注意：`docker compose down -v` 会连数据卷一起删除（数据库清空），日常用 `down` 即可。
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: jobpilot-postgres
+    environment:
+      POSTGRES_DB: jobpilot
+      POSTGRES_USER: jobpilot
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-jobpilot}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # 关键：确认能接受连接，否则应用会因连不上而启动失败
+      test: ["CMD-SHELL", "pg_isready -U jobpilot -d jobpilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build:
+      context: ./backend
+    container_name: jobpilot-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/jobpilot
+      DB_USER: jobpilot
+      DB_PASSWORD: ${DB_PASSWORD:-jobpilot}
+      # 容器内路径，配合 appdata 卷持久化上传的原始文件
+      STORAGE_ROOT: /app/data/files
+    ports:
+      - "8080:8080"
+    volumes:
+      - appdata:/app/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  appdata:

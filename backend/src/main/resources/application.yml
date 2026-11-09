@@ -1,0 +1,70 @@
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: jobpilot
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jobpilot}
+    username: ${DB_USER:jobpilot}
+    password: ${DB_PASSWORD:jobpilot}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 5000
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  servlet:
+    multipart:
+      # FR1.1：单文件 ≤ 5MB
+      max-file-size: 5MB
+      max-request-size: 6MB
+
+  jackson:
+    default-property-inclusion: always
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  security:
+    # AES-GCM 主密钥，仅从环境变量注入，不得入库、不得提交（FRX.10）
+    secret-key: ${APP_SECRET_KEY:}
+  storage:
+    # 本地磁盘存储根目录（FR1.4：FileStorage 接口隔离）
+    root: ${STORAGE_ROOT:./data/files}
+  async:
+    # 有界线程池，避免多任务并发触发厂商限流（§6.3）
+    core-pool-size: ${ASYNC_CORE_POOL_SIZE:2}
+    max-pool-size: ${ASYNC_MAX_POOL_SIZE:4}
+    queue-capacity: ${ASYNC_QUEUE_CAPACITY:20}
+
+logging:
+  # traceId 贯穿全链路（NFR2）
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%X{traceId:-}] %logger{40} - %msg%n"
+  level:
+    com.jobpilot: INFO

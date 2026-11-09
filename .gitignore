@@ -27,3 +27,13 @@ logs/
 .env
 .env.local
 application-local.yml
+
+# 后端
+backend/target/
+backend/data/
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/src/api/schema.d.ts
+*.tsbuildinfo

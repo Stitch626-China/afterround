@@ -12,15 +12,20 @@
 ## 当前状态
 
 - 进行中：无
-- 已完成：**M1-a 接口契约**（`contracts/openapi.yaml`，25 个接口 / 45 个模型，redocly 校验 0 error 0 warning；新增根目录 `redocly.yaml`）；需求文档 v1.5（新增 F5 求职洞察与规律分析、明确不做 RAG、数据模型扩 companies/interview_events）；v1.4（Provider/Model 数据库驱动热更新、M1 会话载体、技术选型 §6.8、契约唯一源 §6.9、前端设计规范 §6.10、测试分层承诺、M1 拆四阶段）；README 同步；LLM 网关实测（new-api / Qwen3.8-27B / SSE 与 json_object 可用）
-- 阻塞：无
+- 已完成：
+  - **M1-a 工程骨架**：`backend/`（Spring Boot 3.5.0 + Java 21 + MyBatis-Plus + Flyway + Tika + WebFlux，统一 `Result<T>` / `PageResult<T>` / `ErrorCode` / 全局异常 / traceId 过滤器 + `V1__init.sql` 八张表 + Dockerfile）；`frontend/`（Vue3 + TS + Vite + vue-router 三屏骨架 + design tokens + 契约生成 TS 类型）；根 `docker-compose.yml` + `.env.example`
+  - **M1-a 接口契约**：`contracts/openapi.yaml` 25 接口 / 45 schema，redocly 0 error 0 warning
+  - 需求文档 v1.5 / v1.4（F5 求职洞察、不做 RAG、Provider 数据库驱动热更新、技术选型、契约唯一源、前端设计规范、测试分层、M1 拆四阶段）
+  - LLM 网关实测（new-api / Qwen3.8-27B / SSE 与 json_object 可用）
+- 阻塞：**Flyway V1 迁移尚未在真实 PostgreSQL 上验证** —— ①Docker 拉取 `postgres:16-alpine` 被网络阻断；②Testcontainers 1.21.0 与本机 Docker 29.6.1（API 1.55）客户端不兼容，集成测试自动跳过。需能联网拉镜像或提供可用 PG 后再验证
 
 ## 下一步
 
-1. **M1-a 剩余**：建 `backend/` 工程骨架（Spring Boot 3.5.x + Java 21、Docker Compose（PG + 应用）、Flyway、统一响应/异常/traceId）与 `frontend/` 工程骨架 + 由契约生成 TS 类型
-2. M1-b 模型网关与 Provider 管理
-3. M1-c 简历中心
-4. M2 建 F2 表时**必须预留 `companies` 与 `job_positions.company_id`**（F5 依赖，否则 M3 要回填）
+1. 验证 Flyway 迁移（`cd backend && DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine mvn test`，或本地 PG 手工执行 `V1__init.sql`）
+2. M1-b 模型网关与 Provider 管理：手写 OpenAI 客户端（chat / SSE / 结构化输出）、Provider/Model CRUD（AES-GCM 加密）、连通测试、模型列举、两级切换与 409 守卫、会话载体
+3. M1-c 简历中心：上传 / Tika 解析 / 去重 / 异步分析 / 五维报告 / 方向推荐
+4. M1-d 前端四屏 + 测试收口
+5. M2 建 F2 表时**必须预留 `companies` 与 `job_positions.company_id`**（F5 依赖）
 
 ## 关键决策
 

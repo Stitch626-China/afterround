@@ -51,6 +51,64 @@ npx openapi-typescript ../contracts/openapi.yaml -o src/api/schema.d.ts
 - 校验规则配置在根目录 `redocly.yaml`，其中 `no-server-example.com` 与 `operation-4xx-response` 因本地部署、无鉴权查询接口而关闭，理由写在配置注释里。
 - 契约当前覆盖 **M1 全量**（模型配置 / 对话会话 / 简历），F2~F5 随里程碑追加。
 
+## 快速开始
+
+### 1. 配置环境变量
+
+```bash
+cp .env.example .env
+# 编辑 .env：至少改 DB_PASSWORD；填 APP_SECRET_KEY（加密 Provider 密钥用）
+```
+
+### 2. 启动数据库
+
+```bash
+docker compose up -d postgres
+```
+
+日常开发只用这一条，应用在 IDE 里跑（可断点调试）。表结构由 Flyway 在应用启动时自动创建。
+
+### 3. 启动后端
+
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+- 默认端口 `8080`；健康检查 `GET /actuator/health`
+- OpenAPI 文档（仅用于与契约比对，不是真实源）`GET /v3/api-docs`、`/swagger-ui.html`
+- **需要 JDK 21**。若本机 `JAVA_HOME` 指向其他版本，可单次指定：
+  `JAVA_HOME=D:\Java\21 mvn spring-boot:run`（不要为此改系统环境变量）
+
+### 4. 启动前端
+
+```bash
+cd frontend
+npm install
+npm run gen:api   # 由 contracts/openapi.yaml 生成 TS 类型（首次及契约变更后必跑）
+npm run dev       # http://localhost:5173，/api 已代理到 8080
+```
+
+## 构建与测试
+
+```bash
+# 后端：单元测试 + 集成测试
+cd backend && mvn test
+
+# 前端：生产构建（构建前会自动重新生成接口类型）
+cd frontend && npm run build
+
+# 契约校验（提交前必须 0 error / 0 warning）
+npx @redocly/cli lint contracts/openapi.yaml
+```
+
+> **集成测试说明**：`JobPilotApplicationTests` 用 Testcontainers 起真实 PostgreSQL 验证 Flyway 迁移，
+> 需要本机 Docker 守护进程可用，并且能拉取 `postgres:16-alpine` 镜像。
+> Docker 不可用或镜像缺失时该测试类会**自动跳过**（不判失败），此时迁移 SQL 尚未经过真实验证。
+> Windows + Docker Desktop 若报 "Could not find a valid Docker environment"，需把 `DOCKER_HOST`
+> 指向实际管道，例如：
+> `DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine mvn test`
+
 ## 文档索引
 
 | 文档 | 说明 |

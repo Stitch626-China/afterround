@@ -1,0 +1,105 @@
+/*
+ * 设计令牌（Design Tokens）
+ * 依据需求文档 §6.10：风格定位「专业、克制、可信」，不使用紫色渐变/AI 风。
+ * 任何组件都必须使用这里的变量，禁止写死色值。
+ */
+
+:root {
+  /* 背景与层次 */
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-muted: #fbfcfd;
+  --border: #e4e7ec;
+  --border-strong: #d3d8e0;
+
+  /* 文本 */
+  --text: #1a1d23;
+  --text-2: #5a6472;
+  --text-3: #9ba3af;
+
+  /* 主色与语义色（语义色仅用于状态，不做装饰） */
+  --primary: #1e4fd8;
+  --primary-hover: #1a45bd;
+  --primary-soft: #eef2fe;
+  --success: #0e9f6e;
+  --warning: #d97706;
+  --danger: #dc2626;
+
+  /* 分数梯度：低 → 中 → 高 */
+  --score-low: #dc2626;
+  --score-mid: #d97706;
+  --score-high: #0e9f6e;
+
+  /* 圆角 */
+  --radius-card: 10px;
+  --radius-btn: 8px;
+  --radius-tag: 6px;
+
+  /* 阴影：极轻，层次靠 1px 边框而非重阴影 */
+  --shadow-rest: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-hover: 0 4px 12px rgba(16, 24, 40, 0.08);
+
+  /* 间距：4 的倍数 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* 字体 */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei',
+    'Hiragino Sans GB', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+
+  --nav-width: 216px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 数字统一等宽对齐，分数与表格不会跳动 */
+.numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
