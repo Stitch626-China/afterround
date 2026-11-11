@@ -18,7 +18,8 @@
   - 需求文档 v1.5 / v1.4（F5 求职洞察、不做 RAG、Provider 数据库驱动热更新、技术选型、契约唯一源、前端设计规范、测试分层、M1 拆四阶段）
   - LLM 网关实测（new-api / Qwen3.8-27B / SSE 与 json_object 可用）
   - **Flyway V1 迁移已真实验证（2026-11-11）**：在临时 PostgreSQL 18.3 隔离实例上执行 `V1__init.sql`，8 张表、11 个命名约束全部建立；CHECK（单行表 / 会话状态 / 消息角色 / 简历分析状态）、UNIQUE（file_hash / provider+model）、FK 级联删除、`user_id=1` 等默认值均实测生效；应用启动经 Flyway 执行迁移，`flyway_schema_history` 记录 `version=1, success=t`（PG 18 仅有「Flyway 未测到 18」的升级提示，生产目标 PG 16 无此问题）
-- 阻塞：本机 **Testcontainers 1.21.0 与 Docker 29.6.1 不兼容**（docker-java 默认 API 1.32 被 Docker 29 最低 1.44 拒绝，返回 400），`JobPilotApplicationTests` 仍自动跳过；已确认 Testcontainers 2.x 修复了该问题但模块坐标改名（`testcontainers-*`）且 Spring Boot 3.5.0 的依赖管理不兼容，暂不升级。迁移本身已由上述真实 PG 验证覆盖，不阻塞 M1-b
+  - **Testcontainers 与 Docker 29 兼容已解决（2026-11-11）**：`backend/src/test/resources/docker-java.properties` 固定 `api.version=1.44`，`JobPilotApplicationTests` 3 个测试全部真实执行（0 跳过），Flyway 在 `postgres:16-alpine` 容器内成功迁移
+- 阻塞：无
 
 ## 下一步
 

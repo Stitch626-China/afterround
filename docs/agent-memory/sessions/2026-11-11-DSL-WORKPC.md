@@ -25,3 +25,27 @@
 
 ## 阻塞
 - 无（Testcontainers 集成测试在本机仍自动跳过，属环境限制，不影响迁移验证结论）
+
+---
+
+## 2026-11-11 补充：Testcontainers × Docker 29 兼容处理 + 临时实例清停
+
+> 本节结论覆盖上文「未完成 / 阻塞」中关于 Testcontainers 仍跳过的描述。
+
+### 改动（文件 → 说明）
+- 新增 `backend/src/test/resources/docker-java.properties` → 固定 `api.version=1.44`
+
+### 决策（为什么）
+- Docker 29 起最低 API 1.44，docker-java 3.4（Testcontainers 1.21）默认 1.32 被 400 拒绝（testcontainers-java#11210 / #11212）
+- 用 docker-java 配置文件是官方推荐的最小 workaround：零依赖变更、零生产代码改动
+- 不升 Testcontainers 2.x：模块坐标改名为 `testcontainers-*`，Spring Boot 3.5.0 依赖管理不兼容；待 Spring Boot 原生支持 2.x 后删除该配置文件
+
+### 验证结果
+- `mvn test -Dtest=JobPilotApplicationTests`：Tests run 3 / Failures 0 / Errors 0 / **Skipped 0**
+- 容器内 Flyway：`Migrating schema "public" to version "1 - init"` → `Successfully applied 1 migration`
+
+### 临时实例清停（用户要求重新执行）
+- `pg_ctl -m fast -w stop` 成功，`%TEMP%\jobpilot-pg-verify` 已删除，55433 无监听
+
+### 未完成 / 下一步
+- M1-b 开工
