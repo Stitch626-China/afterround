@@ -17,15 +17,15 @@
   - **M1-a 接口契约**：`contracts/openapi.yaml` 25 接口 / 45 schema，redocly 0 error 0 warning
   - 需求文档 v1.5 / v1.4（F5 求职洞察、不做 RAG、Provider 数据库驱动热更新、技术选型、契约唯一源、前端设计规范、测试分层、M1 拆四阶段）
   - LLM 网关实测（new-api / Qwen3.8-27B / SSE 与 json_object 可用）
-- 阻塞：**Flyway V1 迁移尚未在真实 PostgreSQL 上验证** —— ①Docker 拉取 `postgres:16-alpine` 被网络阻断；②Testcontainers 1.21.0 与本机 Docker 29.6.1（API 1.55）客户端不兼容，集成测试自动跳过。需能联网拉镜像或提供可用 PG 后再验证
+  - **Flyway V1 迁移已真实验证（2026-11-11）**：在临时 PostgreSQL 18.3 隔离实例上执行 `V1__init.sql`，8 张表、11 个命名约束全部建立；CHECK（单行表 / 会话状态 / 消息角色 / 简历分析状态）、UNIQUE（file_hash / provider+model）、FK 级联删除、`user_id=1` 等默认值均实测生效；应用启动经 Flyway 执行迁移，`flyway_schema_history` 记录 `version=1, success=t`（PG 18 仅有「Flyway 未测到 18」的升级提示，生产目标 PG 16 无此问题）
+- 阻塞：本机 **Testcontainers 1.21.0 与 Docker 29.6.1 不兼容**（docker-java 默认 API 1.32 被 Docker 29 最低 1.44 拒绝，返回 400），`JobPilotApplicationTests` 仍自动跳过；已确认 Testcontainers 2.x 修复了该问题但模块坐标改名（`testcontainers-*`）且 Spring Boot 3.5.0 的依赖管理不兼容，暂不升级。迁移本身已由上述真实 PG 验证覆盖，不阻塞 M1-b
 
 ## 下一步
 
-1. 验证 Flyway 迁移（`cd backend && DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine mvn test`，或本地 PG 手工执行 `V1__init.sql`）
-2. M1-b 模型网关与 Provider 管理：手写 OpenAI 客户端（chat / SSE / 结构化输出）、Provider/Model CRUD（AES-GCM 加密）、连通测试、模型列举、两级切换与 409 守卫、会话载体
-3. M1-c 简历中心：上传 / Tika 解析 / 去重 / 异步分析 / 五维报告 / 方向推荐
-4. M1-d 前端四屏 + 测试收口
-5. M2 建 F2 表时**必须预留 `companies` 与 `job_positions.company_id`**（F5 依赖）
+1. M1-b 模型网关与 Provider 管理：手写 OpenAI 客户端（chat / SSE / 结构化输出）、Provider/Model CRUD（AES-GCM 加密）、连通测试、模型列举、两级切换与 409 守卫、会话载体
+2. M1-c 简历中心：上传 / Tika 解析 / 去重 / 异步分析 / 五维报告 / 方向推荐
+3. M1-d 前端四屏 + 测试收口
+4. M2 建 F2 表时**必须预留 `companies` 与 `job_positions.company_id`**（F5 依赖）
 
 ## 关键决策
 
