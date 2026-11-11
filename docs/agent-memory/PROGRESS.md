@@ -19,14 +19,14 @@
   - LLM 网关实测（new-api / Qwen3.8-27B / SSE 与 json_object 可用）
   - **Flyway V1 迁移已真实验证（2026-11-11）**：在临时 PostgreSQL 18.3 隔离实例上执行 `V1__init.sql`，8 张表、11 个命名约束全部建立；CHECK（单行表 / 会话状态 / 消息角色 / 简历分析状态）、UNIQUE（file_hash / provider+model）、FK 级联删除、`user_id=1` 等默认值均实测生效；应用启动经 Flyway 执行迁移，`flyway_schema_history` 记录 `version=1, success=t`（PG 18 仅有「Flyway 未测到 18」的升级提示，生产目标 PG 16 无此问题）
   - **Testcontainers 与 Docker 29 兼容已解决（2026-11-11）**：`backend/src/test/resources/docker-java.properties` 固定 `api.version=1.44`，`JobPilotApplicationTests` 3 个测试全部真实执行（0 跳过），Flyway 在 `postgres:16-alpine` 容器内成功迁移
+  - **M1-b 后端已完成（2026-11-11）**：手写 OpenAI 兼容客户端（chat / SSE / `/models` / JSON 模式）、JSON 去围栏与结构化重试、AES-GCM 密钥加密与掩码、Provider/Model/全局默认 CRUD + 客户端缓存热更新、连通测试（回显上游真实 model）、上游模型列举与本地回退、会话 CRUD、两级切换 409 守卫、SSE 流式对话与消息追溯、`llm_call_logs` 埋点、启动种子；**后端 38 个测试全部通过**（含真实 PostgreSQL + SSE 端到端 + 契约 19 端点覆盖）
 - 阻塞：无
 
 ## 下一步
 
-1. M1-b 模型网关与 Provider 管理：手写 OpenAI 客户端（chat / SSE / 结构化输出）、Provider/Model CRUD（AES-GCM 加密）、连通测试、模型列举、两级切换与 409 守卫、会话载体
-2. M1-c 简历中心：上传 / Tika 解析 / 去重 / 异步分析 / 五维报告 / 方向推荐
-3. M1-d 前端四屏 + 测试收口
-4. M2 建 F2 表时**必须预留 `companies` 与 `job_positions.company_id`**（F5 依赖）
+1. M1-c 简历中心：上传 / Tika 解析 / 去重 / 异步分析 / 五维报告 / 方向推荐
+2. M1-d 前端四屏 + 测试收口
+3. M2 建 F2 表时**必须预留 `companies` 与 `job_positions.company_id`**（F5 依赖）
 
 ## 关键决策
 
@@ -52,3 +52,7 @@
 | 2026-11-05 | `job_positions` 与 F2 JD 库**合并为一张表**，用 `status` 管生命周期 | 避免同一份 JD 录两遍 |
 | 2026-11-05 | F5 聚合依赖**知识点标签结构化**（`topics` / `loss_tags`），纯文本无法统计 | "找规律"的前提是可聚合 |
 | 2026-11-05 | 需求文档「变更记录」重写为「**迭代历程**」，改为**产品语言**叙述（多了什么 / 变了什么 / 砍了什么），技术细节降为附注 | 原表格只记技术变更，非技术读者看不出需求演进 |
+| 2026-11-11 | Testcontainers 通过 `docker-java.properties` 固定 `api.version=1.44` 兼容 Docker 29 | 官方 issue #11210/#11212；零依赖变更；要求 Docker Engine ≥ 25.0 |
+| 2026-11-11 | 补 `mybatis-plus-jsqlparser` 依赖 | MyBatis-Plus 3.5.9 起分页插件拆到独立模块，不引入则 `PaginationInnerInterceptor` 不存在 |
+| 2026-11-11 | 会话 SSE 用 Spring MVC 返回 `Flux<ServerSentEvent>` | 复用已引入的 WebFlux；守卫异常在返回 Flux 前抛出，仍走统一 JSON 错误响应 |
+| 2026-11-11 | `APP_SECRET_KEY` 缺失时启动失败 | 避免空密钥"假加密"；测试用 `src/test/resources/application.properties` 提供测试密钥 |

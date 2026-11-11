@@ -61,6 +61,16 @@ app:
     core-pool-size: ${ASYNC_CORE_POOL_SIZE:2}
     max-pool-size: ${ASYNC_MAX_POOL_SIZE:4}
     queue-capacity: ${ASYNC_QUEUE_CAPACITY:20}
+  llm:
+    # 首次启动且库内无 Provider 时导入一次（FRX.1），日常请在模型设置页维护
+    bootstrap:
+      provider-key: ${LLM_BOOTSTRAP_PROVIDER_KEY:}
+      label: ${LLM_BOOTSTRAP_LABEL:}
+      base-url: ${LLM_BOOTSTRAP_BASE_URL:}
+      api-key: ${LLM_BOOTSTRAP_API_KEY:}
+      model: ${LLM_BOOTSTRAP_MODEL:}
+    # 上下文组装：最多携带最近 N 条历史消息（§6.2）
+    max-history-messages: ${LLM_MAX_HISTORY_MESSAGES:50}
 
 logging:
   # traceId 贯穿全链路（NFR2）

@@ -89,6 +89,15 @@ npm run gen:api   # 由 contracts/openapi.yaml 生成 TS 类型（首次及契�
 npm run dev       # http://localhost:5173，/api 已代理到 8080
 ```
 
+## M1-b 接口（模型配置与对话）
+
+- 模型配置：`/api/llm/providers`（Provider CRUD）、`/providers/{providerKey}/models`（模型 CRUD / 上游模型列举）、
+  `/providers/{providerKey}/test`（连通测试，回显上游真实 model）、`/api/llm/global`（全局默认）
+- 对话会话：`/api/chat/sessions`（创建 / 分页 / 详情 / 删除）、`/sessions/{id}/model`（Provider+Model 两级切换，
+  执行中返回 409/40901、已锁定 409/40902）、`/sessions/{id}/messages`（历史查询 + SSE 流式发送）
+- API Key 只以 AES-GCM 密文落库、接口一律返回掩码；**启动必须配置 `APP_SECRET_KEY`**，缺失会直接启动失败
+- 首次启动可用 `.env` 的 `LLM_BOOTSTRAP_*` 导入一次种子配置，之后请在模型设置页/接口维护（保存即生效）
+
 ## 构建与测试
 
 ```bash
@@ -151,8 +160,8 @@ npx @redocly/cli lint contracts/openapi.yaml
 ## 里程碑
 
 - **M1（MVP）**，内部四阶段：
-  - M1-a 骨架与契约：`backend/` `frontend/` `contracts/` + Spring Boot 骨架 + Docker Compose + Flyway + 统一响应/异常 + `openapi.yaml` 全量契约
-  - M1-b 模型网关与 Provider 管理：手写客户端（chat / SSE / 结构化输出）+ Provider/Model CRUD（加密落库、热更新）+ 连通测试 + 模型列举 + 会话内两级切换（执行中禁切 409）+ 对话载体
+  - M1-a 骨架与契约（已完成）：`backend/` `frontend/` `contracts/` + Spring Boot 骨架 + Docker Compose + Flyway + 统一响应/异常 + `openapi.yaml` 全量契约
+  - M1-b 模型网关与 Provider 管理（已完成）：手写客户端（chat / SSE / 结构化输出）+ Provider/Model CRUD（加密落库、热更新）+ 连通测试 + 模型列举 + 会话内两级切换（执行中禁切 409）+ 对话载体 + `llm_call_logs` 埋点
   - M1-c 简历中心（轨一）：上传 / Tika 解析 / 去重 / 异步分析 / 五维报告 / 优化建议 / 岗位方向推荐
   - M1-d 前端与测试收口：4 屏 + 设计 tokens + 报告页视觉样板先行评审 + 全量测试
 - **M2**：完整前端 + JD 导入 / 匹配评分 / 行情统计 + 结构化模拟面试
@@ -160,7 +169,7 @@ npx @redocly/cli lint contracts/openapi.yaml
 
 ## 当前进度
 
-需求文档 v1.4 已确认；工程代码尚未开始，M1 待开工（详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)）。
+M1-a（骨架与契约）、M1-b（模型网关与 Provider/会话管理）已完成，后端 38 个测试全部通过；下一步 M1-c 简历中心。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
 
 ## 合规说明
 

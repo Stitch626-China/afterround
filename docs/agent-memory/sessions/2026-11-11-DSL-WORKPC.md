@@ -49,3 +49,38 @@
 
 ### 未完成 / 下一步
 - M1-b 开工
+
+---
+
+## 2026-11-11 M1-b 后端实现
+
+### 目标
+实现模型网关与 Provider/会话管理（契约「模型配置 12 + 对话会话 7」共 19 个端点）。
+
+### 改动（文件 → 说明）
+- `common/llm/*`：`ChatMessage` / `ChatResult` / `StreamChunk` / `LlmClient` / `OpenAiCompatibleClient` / `JsonOutputParser` / `StructuredOutputInvoker`
+  - 手写 WebClient：chat、SSE 流式、`/models`、`response_format=json_object`
+  - JSON 去围栏 + 括号配对截取 + 尾随逗号修复；解析失败附错误反馈重试 ≤ 3 次
+- `infrastructure/security/AesGcmCipher`：AES-GCM（随机 IV，Base64 密文）+ 展示掩码；密钥缺失启动失败
+- `infrastructure/llm/ProviderClientRegistry`：按 providerKey 缓存客户端，CRUD 后精确失效；`LlmCallLogger` 落 `llm_call_logs`
+- `modules/llm/*`：Provider/Model/Global CRUD、连通测试（回显上游真实 model）、上游模型列举与本地回退、启动种子
+- `modules/chat/*`：会话分页/创建/详情/删除、Provider+Model 两级切换、PROCESSING/LOCKED 409 守卫、消息历史、SSE 流式发送与追溯
+- `common/config/MybatisPlusConfig`：分页插件；`pom.xml` 新增 `mybatis-plus-jsqlparser`（3.5.9 分页插件独立模块）
+- `JobPilotApplication`：显式 `@MapperScan` 两个模块的 mapper 包
+- `application.yml`：`app.llm.bootstrap.*`、`app.llm.max-history-messages`
+- 测试：`AesGcmCipherTest`、`JsonOutputParserTest`、`StructuredOutputInvokerTest`、`OpenAiCompatibleClientTest`、`ProviderClientRegistryTest`、`ContractCoverageTest`、`M1bApiIntegrationTest`（真实 PostgreSQL + 本地假上游 + SSE）
+
+### 决策（为什么）
+- SSE 用 Spring MVC 返回 `Flux<ServerSentEvent>`：复用已有 WebFlux，守卫异常在返回 Flux 前抛出，仍走统一 JSON 错误响应
+- 并发守卫用条件 `UPDATE ... WHERE status='IDLE'` 原子抢占 PROCESSING，避免两次请求同时通过检查
+- 不新增契约外接口：FRX.7 的「同步到本地」由客户端对选中的上游模型逐个调用 POST 创建模型完成
+- `LlmCallLogger` 内部吞掉写日志异常，埋点失败不影响主流程
+
+### 验证
+- `mvn test`：**38 tests，0 failures / 0 errors / 0 skipped**
+- 端到端覆盖：Provider/Model CRUD、重复键 40903/40904、连通测试成功与 401 失败、上游模型列举、全局默认、SSE delta/done、消息 provider/model 追溯、PROCESSING → 40901、LOCKED → 40902、删除后 404
+- 契约覆盖率：M1-b 19 个端点与 `contracts/openapi.yaml` 完全匹配
+
+### 未完成 / 下一步
+- M1-c 简历中心（上传 / Tika / 去重 / 异步分析 / 五维报告 / 方向推荐）
+- M1-d 前端四屏，模型设置页与对话页接本模块接口
