@@ -105,6 +105,10 @@ npx @redocly/cli lint contracts/openapi.yaml
 > **集成测试说明**：`JobPilotApplicationTests` 用 Testcontainers 起真实 PostgreSQL 验证 Flyway 迁移，
 > 需要本机 Docker 守护进程可用，并且能拉取 `postgres:16-alpine` 镜像。
 > Docker 不可用或镜像缺失时该测试类会**自动跳过**（不判失败），此时迁移 SQL 尚未经过真实验证。
+> Docker 29 起最低 API 版本为 1.44，而 Testcontainers 1.21 内置的 docker-java 默认用 1.32（会被 400 拒绝），
+> 因此测试已在 `backend/src/test/resources/docker-java.properties` 固定 `api.version=1.44`。
+> 该配置要求 **Docker Engine ≥ 25.0（API ≥ 1.44）**；更旧的 Docker 会因请求版本过高而连不上，
+> 需升级 Docker 或删除该文件。后续 Spring Boot 支持 Testcontainers 2.x 后应升级并删除该配置。
 > Windows + Docker Desktop 若报 "Could not find a valid Docker environment"，需把 `DOCKER_HOST`
 > 指向实际管道，例如：
 > `DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine mvn test`
