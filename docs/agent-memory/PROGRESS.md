@@ -20,7 +20,8 @@
   - **Flyway V1 迁移已真实验证（2026-11-11）**：在临时 PostgreSQL 18.3 隔离实例上执行 `V1__init.sql`，8 张表、11 个命名约束全部建立；CHECK（单行表 / 会话状态 / 消息角色 / 简历分析状态）、UNIQUE（file_hash / provider+model）、FK 级联删除、`user_id=1` 等默认值均实测生效；应用启动经 Flyway 执行迁移，`flyway_schema_history` 记录 `version=1, success=t`（PG 18 仅有「Flyway 未测到 18」的升级提示，生产目标 PG 16 无此问题）
   - **Testcontainers 与 Docker 29 兼容已解决（2026-11-11）**：`backend/src/test/resources/docker-java.properties` 固定 `api.version=1.44`，`JobPilotApplicationTests` 3 个测试全部真实执行（0 跳过），Flyway 在 `postgres:16-alpine` 容器内成功迁移
   - **M1-b 后端已完成（2026-11-11）**：手写 OpenAI 兼容客户端（chat / SSE / `/models` / JSON 模式）、JSON 去围栏与结构化重试、AES-GCM 密钥加密与掩码、Provider/Model/全局默认 CRUD + 客户端缓存热更新、连通测试（回显上游真实 model）、上游模型列举与本地回退、会话 CRUD、两级切换 409 守卫、SSE 流式对话与消息追溯、`llm_call_logs` 埋点、启动种子；**后端 38 个测试全部通过**（含真实 PostgreSQL + SSE 端到端 + 契约 19 端点覆盖）
-- 阻塞：无
+  - **M1-c 后端已完成（2026-11-12）**：简历上传（文件 / 粘贴文本）、Tika 解析与文本清洗、SHA-256 去重、`FileStorage` 本地实现与路径穿越防护、异步分析状态机（PENDING/PROCESSING/COMPLETED/FAILED，重试 ≤3）、五维加权报告（本地按权重算总分）、优势/短板/原句优化建议、3-5 个岗位方向推荐、分页/详情/删除（清理文件与分析）、Prompt 外置；**后端 49 个测试全部通过**（含真实 PostgreSQL 端到端 + 契约 25 端点全覆盖）
+- 阻塞：**待补推** —— 本地提交 `c1d800a`（M1-c）尚未推送成功（代理 7890 未启动、直连 GitHub 被重置）；下次开工先启动代理并 `git push`
 
 ## 下一步
 

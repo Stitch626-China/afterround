@@ -89,4 +89,6 @@
 
 ## 阻塞
 
-- 无
+- **待补推**：本地提交 `c1d800a`（feat: 实现 M1-c 简历中心与异步分析）尚未推送成功。
+  代理 `127.0.0.1:7890` 未启动，直连 GitHub 报 `Recv failure: Connection was reset`。
+  下次开工第一件事：启动代理后 `git push`（或 `git -c http.proxy=http://127.0.0.1:7890 push`）。
