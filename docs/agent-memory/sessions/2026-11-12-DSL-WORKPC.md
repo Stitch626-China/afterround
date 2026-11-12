@@ -221,3 +221,42 @@
 ### 未完成 / 下一步
 - M1 已全部完成；下一步启动 M2（先补 JD / 匹配 / 模拟面试 / Offer / 简历对比契约）
 
+---
+
+## 2026-11-12 M1 收口复审
+
+### 目标
+依据需求 v1.7 与 HEAD `816067e` 最新代码独立确认 M1 是否真正收口，并排查实现、测试与部署隐患；本次只审计和记录，不改业务代码。
+
+### 新鲜验证
+- `mvn test`：50 tests，0 failures / 0 errors / 0 skipped；Testcontainers 真实启动 PostgreSQL 16.15，Flyway V1/V2 成功执行。
+- `npx @redocly/cli lint contracts/openapi.yaml`：通过；`npm run build`：契约类型生成、vue-tsc 与 Vite 构建通过。
+- `npx vitest run src`：9 tests 通过；但标准 `npm test` 失败，因为 Vitest 配置未排除 `e2e/app.spec.ts`，误加载 Playwright。
+- `npm run test:e2e`：2 个用例断言均通过，但本机 Edge 的沙箱外系统写入被拦截，命令最终退出码为 1；沙箱外重跑未获授权，因此不能记为干净的全量通过。
+- 后端测试输出另有 Spring MVC 使用 SimpleAsyncTaskExecutor 的生产警告，以及 JaCoCo 插桩 JSQLParser 的 MethodTooLarge 异常；现有报告总行覆盖率 82.01%，未达需求阈值。
+
+### 审计结论
+**M1 暂不能全部收口。** 后端与前端已有完整骨架和主要能力，但存在可复现的主链路阻断、并发与可靠性缺陷，且测试门禁不足以证明需求全部满足。
+
+### 阻断项
+1. 无默认模型时上传保持 PENDING，前端没有「开始分析」入口，反而永久轮询并禁用报告页按钮，与 README 的手动重试说明不符。
+2. ChatSessionService 切换模型先读后整行更新，会和 ChatMessageService 的 PROCESSING 原子抢占竞态，可能执行中换模型或错误释放状态。
+3. SSE 客户端取消不会进入 onErrorResume；异步队列拒绝和进程重启也没有状态回收，可能造成会话/简历永久 PROCESSING。
+4. OpenAiCompatibleClient 未设置 max_tokens，不满足 NFR7 单次任务 token 硬上限。
+5. 标准前端测试命令失败；Playwright 仅覆盖导航、主题和空列表，未覆盖上传→报告、薪资、设置 CRUD、完整 SSE 等主流程。
+
+### 其他重要隐患
+- 前端 SSE 未绑定会话所有权且不可 Abort，慢流期间切换/删除会话可能串写消息；错误会在 finally 刷新时被清空，409 后本地状态不刷新。
+- 列表与报告轮询在在途请求完成后可绕过卸载清 timer，造成离页轮询。
+- 模型设置只能新增/启停/删除，不能编辑 label 等字段；上游模型只展示，没有同步到本地。
+- 契约测试仅检查 26 个方法+路径且允许额外端点，不校验请求/响应 schema；JaCoCo 只有 report 没有 check，关键类覆盖率未达 95%。
+- 文件删除异常被吞掉后继续删库，可能永久遗留磁盘文件；上游错误体与异步 traceId/内部重试埋点也存在安全与可观测缺口。
+- 历史消息按 50 条而非完整轮次+摘要+token 预算截断；坏 SSE JSON 帧被静默忽略后仍可能按成功落 assistant 消息。
+
+### 改动（文件 → 说明）
+- `docs/agent-memory/PROGRESS.md` → 撤回当前「已收口」状态，记录阻断项与修复优先级。
+- `docs/agent-memory/sessions/2026-11-12-DSL-WORKPC.md` → 追加本次审计证据；未改生产代码、契约和需求文档。
+
+### 未完成 / 下一步
+- 先修复阻断项并补回归，再完善契约/覆盖率门禁与主流程 E2E；重新全量验收通过前不启动 M2。
+

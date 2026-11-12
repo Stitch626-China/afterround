@@ -11,7 +11,7 @@
 
 ## 当前状态
 
-- 进行中：无（M1 已收口，待启动 M2）
+- 进行中：M1 收口复审与修复（2026-11-12 审计未通过，原「已收口」结论暂撤回）
 - 已完成：
   - **M1-a 工程骨架**：`backend/`（Spring Boot 3.5.0 + Java 21 + MyBatis-Plus + Flyway + Tika + WebFlux，统一 `Result<T>` / `PageResult<T>` / `ErrorCode` / 全局异常 / traceId 过滤器 + `V1__init.sql` 八张表 + Dockerfile）；`frontend/`（Vue3 + TS + Vite + vue-router 三屏骨架 + design tokens + 契约生成 TS 类型）；根 `docker-compose.yml` + `.env.example`
   - **M1-a 接口契约**：`contracts/openapi.yaml` 26 接口 / 46 schema，redocly 0 error 0 warning
@@ -23,13 +23,17 @@
   - **M1-c 后端已完成（2026-11-12）**：简历上传（文件 / 粘贴文本）、Tika 解析与文本清洗、SHA-256 去重、`FileStorage` 本地实现与路径穿越防护、异步分析状态机（PENDING/PROCESSING/COMPLETED/FAILED，重试 ≤3）、五维加权报告（本地按权重算总分）、优势/短板/原句优化建议、3-5 个岗位方向推荐、分页/详情/删除（清理文件与分析）、Prompt 外置、**薪资字段（`V2__resume_salary.sql`）与编辑接口**（用户值优先、重分析不覆盖、清空回落 LLM 值）；**后端 50 个测试全部通过**（含真实 PostgreSQL 端到端 + 契约 26 端点全覆盖）
   - **M1-d 前端结构已完成（2026-11-12）**：一级导航只留业务主线（简历中心 + M2/M3 占位）、左下角齿轮设置抽屉（模型服务 CRUD / 全局默认 / 连通测试 / 上游列举 + 外观）、`light` / `dark` 主题（跟随系统 + 记忆 + 首屏防闪）、简历列表与上传（拖拽 / 选择 / 粘贴、状态轮询、分页、行内删除确认、点击进报告）、请求失败友好降级；浏览器实测布局 / 抽屉 / 主题切换 PASS，前端生产构建通过
   - **M1-d 收尾完成（2026-11-12）**：模型对话页（会话列表 / 新建删除 / Provider + Model 两级切换 / SSE 流式 / 消息级追溯 / 生成中状态）、`api/chat.ts` + `api/sse.ts` 纯函数解析、Vitest 9 个单测、Playwright 2 个 E2E（接口 mock 自包含，使用本机 Edge）；真实链路联调（临时 PostgreSQL 5433 + 假 OpenAI 上游）PASS：新建会话 → 发送 → 流式返回「你好，这是流式回答。」→ 状态回空闲，控制台 0 error
-- 阻塞：无
+- 阻塞：
+  1. 无全局默认模型时，前端仅对 FAILED 提供重试，PENDING 被当作执行中持续轮询且按钮禁用，无法手动启动简历分析。
+  2. 会话切换采用先读后整行更新，与发送抢占 PROCESSING 存在并发竞态；SSE 取消、异步队列拒绝或进程退出可能让会话/简历永久停留 PROCESSING；LLM 请求未设置 max_tokens，违反 NFR7。
+  3. `npm test` 误收集 Playwright 文件而失败；前端 E2E 仅覆盖导航/主题/空列表，未覆盖主链路。
+  4. 后端现有 JaCoCo 行覆盖率 82.01%，ChatSessionService 81.03%、ResumeAnalysisService 86.89%，未达 85%/95% 承诺且没有 check 门禁；契约测试只校验方法+路径，不校验请求/响应 schema。
 
 ## 下一步
 
-1. 启动 M2：先补 JD / 匹配 / 模拟面试 / Offer / 简历对比的契约，再建表（预留 `companies`、`job_positions.company_id`）
-2. M2 场景级模型绑定：`llm_scene_settings`（未配置回落全局）
-3. 可选体验项：前端设置抽屉增加「场景模型」Tab（依赖 M2 契约）
+1. 先修复 M1 阻断项：PENDING 手动分析、模型切换原子守卫、SSE 取消/队列拒绝/重启后的状态恢复、LLM token 上限，并补对应回归测试。
+2. 修复前端测试配置与 SSE 跨会话写入/错误清理/离页轮询，补模型编辑与同步、主链路 E2E；再处理文件删除失败静默吞错等可靠性问题。
+3. 将契约校验扩展到请求/响应 schema，配置 JaCoCo 阈值门禁并处理插桩告警；全量验证通过后再恢复 M1 已收口状态，之后才启动 M2。
 
 ## 关键决策
 
