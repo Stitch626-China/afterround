@@ -128,6 +128,10 @@ cd backend && mvn test
 # 前端：生产构建（构建前会自动重新生成接口类型）
 cd frontend && npm run build
 
+# 前端：单元测试（Vitest）与 E2E（Playwright，自带 mock，无需后端）
+cd frontend && npm test
+cd frontend && npm run test:e2e
+
 # 契约校验（提交前必须 0 error / 0 warning）
 npx @redocly/cli lint contracts/openapi.yaml
 ```
@@ -190,7 +194,7 @@ npx @redocly/cli lint contracts/openapi.yaml
 
 ## 当前进度
 
-M1-a（骨架与契约）、M1-b（模型网关与 Provider/会话管理）、M1-c（简历中心，含薪资字段与编辑接口）已完成，后端 50 个测试全部通过；M1-d 已完成信息架构重构（业务导航 / 设置抽屉 / Light·Dark 主题）、简历列表与上传、报告页；剩余模型对话页与前端 Vitest/Playwright。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
+M1 四个阶段（骨架与契约、模型网关、简历中心、前端与测试收口）已全部完成：后端 50 个测试通过，前端构建通过、Vitest 9 个单测 + Playwright 2 个 E2E 通过；下一步进入 M2（JD / 模拟面试 / Offer 决策 / 简历版本对比）。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
 
 ## 合规说明
 

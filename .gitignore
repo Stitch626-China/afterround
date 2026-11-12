@@ -8,6 +8,10 @@ out/
 dist/
 node_modules/
 
+# 前端测试产物
+test-results/
+playwright-report/
+
 # IDE
 .idea/
 *.iml

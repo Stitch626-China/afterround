@@ -30,7 +30,7 @@ export class ApiError extends Error {
   }
 }
 
-const BASE_URL = '/api'
+export const BASE_URL = '/api'
 
 /**
  * 发起请求并解包 Result<T>，成功时直接返回 data。

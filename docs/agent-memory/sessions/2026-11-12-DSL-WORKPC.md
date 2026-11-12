@@ -193,3 +193,31 @@
 - 模型对话页（会话列表 + 两级切换 + SSE）+ 前端 Vitest/Playwright
 - 真实后端联调（上传 → 分析 → 报告 → 薪资编辑）
 
+---
+
+## 2026-11-12 M1-d 收尾：模型对话页 + 前端测试
+
+### 目标
+完成 M1 最后一块：模型对话页（会话列表、Provider + Model 两级切换、SSE 流式），并补齐前端 Vitest / Playwright。
+
+### 改动（文件 → 说明）
+- `api/chat.ts`：会话 CRUD / 切换 / 历史 / SSE 发送；`api/sse.ts`：`extractSseEvents` 纯函数（跨 chunk、CRLF、末尾无空行）
+- `ChatView.vue`：双栏布局（会话列表 + 对话区）、新建/删除、两级选择器与「切换」按钮、流式草稿、生成中徽标、消息级 provider/model 追溯
+- 测试：`sse.spec.ts`（3）、`http.spec.ts`（4）、`theme.spec.ts`（2）共 **9 个 Vitest**；`e2e/app.spec.ts`（2 个 Playwright，接口全 mock、本机 Edge）与 `playwright.config.ts`
+- `.gitignore` 增加 `test-results/`、`playwright-report/`；README / PROGRESS 同步
+
+### 验证结果
+- `npm test`：9 tests 通过；`npm run test:e2e`：2 tests 通过；`npm run build` 通过
+- 真实链路联调（临时 PostgreSQL 5433 + 本机假 OpenAI 上游）：
+  - 新建会话 → 两级选择器显示 Fake Local / Fake Model → 发送「你好」→ 流式返回「你好，这是流式回答。」→ 状态回「空闲」→ 控制台 0 error
+  - 联调结束后已停止后端 / 假上游 / 临时数据库并删除临时文件
+
+### 问题与修复
+1. **后端连不上 PostgreSQL（密码认证失败）**：本机 5432 同时被本地 PostgreSQL 与 Docker 占用，`localhost:5432` 命中的不是容器 → 临时用 `docker run -p 5433:5432`，显式 `DB_URL=...:5433`；验证完清理
+2. **Playwright mock 误伤 Vite 模块请求**：`/\/api\/resumes/` 同时匹配 `/src/api/resumes.ts`，导致页面白屏 → 收紧为 `/\/api\/resumes(\?|$)/`
+3. **生成期间徽标仍显示空闲**：发送前只在流结束后刷新状态 → `send()` 本地置 `PROCESSING`，结束后由 `refreshActive()` 回落
+4. 内置浏览器 viewport 为 0x0，改用外部 Chrome 完成真实交互验证
+
+### 未完成 / 下一步
+- M1 已全部完成；下一步启动 M2（先补 JD / 匹配 / 模拟面试 / Offer / 简历对比契约）
+
