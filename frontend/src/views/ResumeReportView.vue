@@ -341,7 +341,7 @@ onBeforeUnmount(clearTimer)
 }
 
 .state-card.failed {
-  border-color: #fecaca;
+  border-color: var(--danger);
   justify-content: space-between;
 }
 

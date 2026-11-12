@@ -97,6 +97,8 @@ public class OpenAiCompatibleClient implements LlmClient {
         Map<String, Object> body = payload(model, messages, false);
         if (jsonMode) {
             body.put("response_format", Map.of("type", "json_object"));
+            // 结构化分析固定低温度，保证同一份输入两次分析的重点与结论稳定
+            body.put("temperature", 0.2);
         }
         JsonNode node = web.post()
                 .uri("/chat/completions")

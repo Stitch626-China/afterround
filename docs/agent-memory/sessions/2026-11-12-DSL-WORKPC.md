@@ -158,3 +158,38 @@
 - M1-d 其余三屏（简历列表/上传、模型设置、对话）+ Vitest/Playwright
 - M2 实现 F6 前先补契约（Offer CRUD / 分组 / 对比 / 前景分析）
 
+---
+
+## 2026-11-12 需求 v1.7：信息架构分层 + 设置抽屉 + Light/Dark
+
+### 需求确认（用户四点 → 决策）
+1. 模型设置不占一级菜单：左下角齿轮 → **右侧抽屉**，分「模型服务 / 外观」两个 Tab。
+2. 历史上传始终在列表显示；上传后**留在列表**观察进度，点击进报告，不自动跳转。
+3. 简历版本对比**列入 M2 F7**（手动选择两份，不引入版本链）；M1-d 先完成收口。
+4. 场景级模型绑定**列入 M2**（`llm_scene_settings`，未配置回落全局）；M1 保持全局默认。
+5. 分析一致性：固定 prompt + 固定五维权重 + 结构化校验 + **固定 temperature 0.2**，LLM 不得改维度/权重/字段。
+
+### 参考开源项目（只借鉴、不复制代码）
+- `srbhr/Resume-Matcher`：上传 + JD 对比的三层评分思路；可借鉴「结果分层展示」与「Provider 可配置」。
+- `JobMatch-AI` 等：单页渐进披露、分析自动运行、失败兜底与明确错误提示可借鉴；其霓虹渐变/发光风格**明确不采用**（违背本项目「专业克制」定位）。
+- 通病规避：不把所有功能塞进一页、不依赖纯关键词匹配、不隐藏模型配置。
+
+### 改动（文件 → 说明）
+- 需求文档 v1.7：迭代历程新增条目；功能总览补 F6 / F7；§4.7 增 FRX.11 场景级模型；新增 §4.8 F6、§4.9 F7；§6.10 增信息架构与 Light/Dark token 表；§11 M1-d / M2 更新
+- 前端主题：`styles/tokens.css` 增 dark 变量与 `--success/warning/danger-soft`；`theme.ts`；`index.html` 首屏前应用主题
+- 布局：`App.vue` 一级导航只留简历中心 + M2/M3 占位；左下角齿轮；`SettingsDrawer.vue`
+- 设置：`ModelSettings.vue`（Provider/Model CRUD、全局默认、连通测试、上游列举）、`AppearanceSettings.vue`（Light/Dark）、`api/llm.ts`
+- 简历：`ResumeListView.vue` 拖拽/选择/粘贴上传、状态轮询、分页、行内删除确认、点击进报告；移除 `/llm` 路由与 `LlmSettingsView.vue`
+- 请求降级：`api/http.ts` 与 `uploadResume` 对非 JSON / 非 2xx 给友好提示
+- 后端：`OpenAiCompatibleClient` JSON 调用固定 `temperature=0.2` + 单测断言
+
+### 验证结果
+- `npm run build`：gen:api + vue-tsc + vite 通过
+- `mvn test`：**50 tests 全部通过**
+- 浏览器实测（外部 Chrome）：导航仅简历中心 + 占位、齿轮抽屉右侧 480px、Light/Dark 背景切换正确、控制台 0 error
+- 实测发现后端未启动时页面暴露 JSON 解析错误 → 已改为友好提示（HTTP 状态 / 连接失败）
+
+### 未完成 / 下一步
+- 模型对话页（会话列表 + 两级切换 + SSE）+ 前端 Vitest/Playwright
+- 真实后端联调（上传 → 分析 → 报告 → 薪资编辑）
+

@@ -1,7 +1,8 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 /**
- * 路由表：M1 四屏（简历中心 / 分析报告 / 模型设置 / 模型对话）。
+ * 路由表：一级业务只保留简历中心；模型配置与主题在左下角设置抽屉中（§6.10）。
+ * `/chat` 为 M1 模型能力验证载体，从设置抽屉进入。
  */
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/resumes' },
@@ -18,16 +19,10 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '分析报告' },
   },
   {
-    path: '/llm',
-    name: 'llm',
-    component: () => import('@/views/LlmSettingsView.vue'),
-    meta: { title: '模型设置' },
-  },
-  {
     path: '/chat',
     name: 'chat',
     component: () => import('@/views/ChatView.vue'),
-    meta: { title: '模型对话' },
+    meta: { title: '模型对话（能力验证）' },
   },
 ]
 

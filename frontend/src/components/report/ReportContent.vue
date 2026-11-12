@@ -460,7 +460,7 @@ watch(() => props.saving, (now, before) => {
 
 .tag.gap {
   color: var(--warning);
-  background: #fdf6ec;
+  background: var(--warning-soft);
 }
 
 .tag.focus {

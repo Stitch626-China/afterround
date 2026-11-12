@@ -38,18 +38,37 @@ const BASE_URL = '/api'
  * @param path 形如 '/resumes'、'/resumes/1'（不含 /api 前缀）
  */
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init.headers ?? {}),
-    },
-    ...init,
-  })
+  let response: Response
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(init.headers ?? {}),
+      },
+      ...init,
+    })
+  } catch {
+    throw new ApiError(-1, '无法连接后端服务，请确认后端已启动（默认 8080）')
+  }
 
   const traceId = response.headers.get('X-Trace-Id') ?? undefined
 
-  // 文件上传等场景可能返回非 JSON，这里只按契约处理 JSON 响应
-  const envelope = (await response.json()) as ResultEnvelope<T>
+  // 非 JSON（如后端未启动、代理 500）时给友好提示，避免把解析异常抛给用户
+  const text = await response.text()
+  let envelope: ResultEnvelope<T> | null = null
+  try {
+    envelope = text ? (JSON.parse(text) as ResultEnvelope<T>) : null
+  } catch {
+    envelope = null
+  }
+
+  if (!envelope) {
+    throw new ApiError(
+      response.status || -1,
+      response.ok ? '响应格式异常，请稍后重试' : `请求失败（HTTP ${response.status}）`,
+      traceId,
+    )
+  }
 
   if (envelope.code !== 0) {
     throw new ApiError(envelope.code, envelope.message, envelope.traceId ?? traceId)

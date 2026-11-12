@@ -57,9 +57,15 @@ export async function uploadResume(input: { file?: File; text?: string }): Promi
     form.append('text', input.text)
   }
   const response = await fetch('/api/resumes', { method: 'POST', body: form })
-  const envelope = await response.json()
-  if (envelope.code !== 0) {
-    throw new Error(envelope.message ?? '上传失败')
+  const text = await response.text()
+  let envelope: { code: number; message?: string; data?: unknown } | null = null
+  try {
+    envelope = text ? JSON.parse(text) : null
+  } catch {
+    envelope = null
+  }
+  if (!envelope || envelope.code !== 0) {
+    throw new Error(envelope?.message ?? `上传失败（HTTP ${response.status}）`)
   }
   return envelope.data as ResumeUpload
 }

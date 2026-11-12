@@ -109,6 +109,16 @@ npm run dev       # http://localhost:5173，/api 已代理到 8080
 - 上传后若已配置全局默认模型会自动异步分析；未配置则保持 `PENDING`，配置后手动触发
 - 原始文件默认存 `app.storage.root`（`STORAGE_ROOT`，默认 `./data/files`），解析文本落库
 
+## M1-d 前端（信息架构）
+
+- **一级导航只放业务主线**：简历中心（M1）→ 模拟面试（M2）→ 面试复盘 / 求职洞察（M3，占位灰显）。
+- **设置入口**：左下角齿轮 → 右侧抽屉，两个 Tab：
+  - 模型服务：Provider / Model 增删改、全局默认、连通测试、上游模型列举，保存即生效；
+  - 外观：`Light` / `Dark` 主题，默认跟随系统，手动选择后记住（`html[data-theme]` + design tokens，首屏前应用避免闪白）。
+- **简历中心**：拖拽 / 选择 / 粘贴文本上传 → 留在列表观察「分析中 → 已完成」→ 点击进入报告；历史上传分页保留，删除为行内二次确认。
+- **未配置全局默认模型时**，上传后不会自动分析：到设置抽屉配置后，在列表点「重试」即可。
+- `/chat` 为 M1 模型能力验证载体，从设置抽屉进入，不占一级导航。
+
 ## 构建与测试
 
 ```bash
@@ -174,13 +184,13 @@ npx @redocly/cli lint contracts/openapi.yaml
   - M1-a 骨架与契约（已完成）：`backend/` `frontend/` `contracts/` + Spring Boot 骨架 + Docker Compose + Flyway + 统一响应/异常 + `openapi.yaml` 全量契约
   - M1-b 模型网关与 Provider 管理（已完成）：手写客户端（chat / SSE / 结构化输出）+ Provider/Model CRUD（加密落库、热更新）+ 连通测试 + 模型列举 + 会话内两级切换（执行中禁切 409）+ 对话载体 + `llm_call_logs` 埋点
   - M1-c 简历中心（轨一）：上传 / Tika 解析 / 去重 / 异步分析 / 五维报告 / 优化建议 / 岗位方向推荐 / 薪资可见可改
-  - M1-d 前端与测试收口：4 屏 + 设计 tokens + 报告页视觉样板先行评审 + 全量测试
+  - M1-d 前端与测试收口：业务导航分层 + 简历列表/上传 + 分析报告页 + 左下角设置抽屉（模型服务 / 外观 Light·Dark）+ 设计 tokens + 全量测试
 - **M2**：完整前端 + JD 导入 / 匹配评分 / 行情统计 + 结构化模拟面试 + Offer 决策（多 Offer 同维度对比、保留/淘汰可反悔）
 - **M3**：面试复盘（ASR / 分析 / 报告）+ PDF 导出 + Token 成本统计 + 产品化准备
 
 ## 当前进度
 
-M1-a（骨架与契约）、M1-b（模型网关与 Provider/会话管理）、M1-c（简历中心，含薪资字段与编辑接口）已完成，后端 50 个测试全部通过；M1-d 报告页视觉样板已评审通过，下一步其余三屏与前端测试收口。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
+M1-a（骨架与契约）、M1-b（模型网关与 Provider/会话管理）、M1-c（简历中心，含薪资字段与编辑接口）已完成，后端 50 个测试全部通过；M1-d 已完成信息架构重构（业务导航 / 设置抽屉 / Light·Dark 主题）、简历列表与上传、报告页；剩余模型对话页与前端 Vitest/Playwright。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
 
 ## 合规说明
 

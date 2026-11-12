@@ -5,6 +5,8 @@
  */
 
 :root {
+  color-scheme: light;
+
   /* 背景与层次 */
   --bg: #f6f7f9;
   --surface: #ffffff;
@@ -22,8 +24,12 @@
   --primary-hover: #1a45bd;
   --primary-soft: #eef2fe;
   --success: #0e9f6e;
+  --success-soft: #ecfdf5;
   --warning: #d97706;
+  --warning-soft: #fdf6ec;
   --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --overlay: rgba(16, 24, 40, 0.32);
 
   /* 分数梯度：低 → 中 → 高 */
   --score-low: #dc2626;
@@ -53,6 +59,35 @@
   --font-mono: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
 
   --nav-width: 216px;
+}
+
+/* 黑夜主题：只替换颜色，布局与字号不变（§6.10） */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0f1115;
+  --surface: #15181e;
+  --surface-muted: #1a1e25;
+  --border: #262b34;
+  --border-strong: #343b46;
+
+  --text: #e6e8ec;
+  --text-2: #a3abb8;
+  --text-3: #6b7482;
+
+  --primary: #4c7df0;
+  --primary-hover: #6690f2;
+  --primary-soft: #1b2740;
+  --success: #34b98a;
+  --success-soft: #10281f;
+  --warning: #e0a032;
+  --warning-soft: #2a2113;
+  --danger: #e86a6a;
+  --danger-soft: #2a1618;
+  --overlay: rgba(0, 0, 0, 0.55);
+
+  --shadow-rest: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.45);
 }
 
 * {

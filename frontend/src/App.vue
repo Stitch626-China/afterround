@@ -1,15 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+/**
+ * 应用外壳（§6.10）：一级导航只放业务主线；模型配置/主题收进左下角齿轮的右侧抽屉。
+ */
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
 
 const route = useRoute()
 const pageTitle = computed(() => (route.meta.title as string) ?? '职点')
-
-const navs = [
-  { path: '/resumes', label: '简历中心' },
-  { path: '/llm', label: '模型设置' },
-  { path: '/chat', label: '模型对话' },
-]
+const settingsOpen = ref(false)
 </script>
 
 <template>
@@ -24,14 +23,36 @@ const navs = [
       </div>
 
       <nav class="nav">
-        <RouterLink v-for="item in navs" :key="item.path" :to="item.path" class="nav-item">
-          {{ item.label }}
-        </RouterLink>
+        <RouterLink to="/resumes" class="nav-item">简历中心</RouterLink>
+        <span class="nav-item planned">模拟面试<em>M2</em></span>
+        <span class="nav-item planned">面试复盘<em>M3</em></span>
+        <span class="nav-item planned">求职洞察<em>M3</em></span>
       </nav>
 
-      <div class="sidebar-foot">
-        <span class="dot" />
-        M1 · 个人自用版
+      <div class="sidebar-bottom">
+        <button type="button" class="settings-btn" @click="settingsOpen = true">
+          <svg
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+            />
+          </svg>
+          设置
+        </button>
+        <div class="sidebar-foot">
+          <span class="dot" />
+          M1 · 个人自用版
+        </div>
       </div>
     </aside>
 
@@ -43,6 +64,8 @@ const navs = [
         <RouterView />
       </section>
     </main>
+
+    <SettingsDrawer :open="settingsOpen" @close="settingsOpen = false" />
   </div>
 </template>
 
@@ -108,6 +131,9 @@ const navs = [
 }
 
 .nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-btn);
   color: var(--text-2);
@@ -126,13 +152,57 @@ const navs = [
   font-weight: 500;
 }
 
-.sidebar-foot {
+.nav-item.planned {
+  color: var(--text-3);
+  cursor: default;
+}
+
+.nav-item.planned:hover {
+  background: none;
+  color: var(--text-3);
+}
+
+.nav-item em {
+  font-style: normal;
+  font-size: 10.5px;
+  padding: 0 5px;
+  border-radius: var(--radius-tag);
+  background: var(--surface-muted);
+  color: var(--text-3);
+}
+
+.sidebar-bottom {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.settings-btn {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-3) 0;
-  border-top: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-btn);
+  background: none;
+  color: var(--text-2);
+  font-size: 13px;
+  text-align: left;
+}
+
+.settings-btn:hover {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.sidebar-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
   color: var(--text-3);
   font-size: 11.5px;
 }

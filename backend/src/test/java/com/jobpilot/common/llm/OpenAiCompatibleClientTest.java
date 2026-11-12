@@ -76,6 +76,7 @@ class OpenAiCompatibleClientTest {
                 .chatJson("m", List.of(ChatMessage.user("hi")));
 
         assertThat(LAST_BODY.get()).contains("\"response_format\":{\"type\":\"json_object\"}");
+        assertThat(LAST_BODY.get()).contains("\"temperature\":0.2");
     }
 
     @Test
