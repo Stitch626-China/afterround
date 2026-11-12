@@ -87,9 +87,74 @@
 - M1-d 前端四屏：简历列表/上传、分析报告（视觉样板先行）、模型设置、对话页；前端 Vitest + Playwright
 - 前端模型设置页/对话页接 M1-b 接口，简历页接 M1-c 接口
 
+---
+
+## 2026-11-12 M1-d 报告页视觉样板
+
+### 目标与需求确认
+- 按需求 §6.10「先只做分析报告页一屏作为视觉样板，评审通过后再推其余页面」
+- 风格：专业、克制、可信；不用紫色渐变/发光/糖果卡片
+- 五维评分用横向条形图（不用雷达图）；空状态给行动指引不给插画
+- 本页需覆盖：总分、五维、基本信息、优势/短板（带原句）、原句 vs 优化句、3-5 个岗位方向
+
+### 架构与实现
+- `api/resumes.ts`：接口函数与类型全部来自契约生成的 `schema.d.ts`，不手写数据结构
+- `components/report/ScoreBar.vue`：单维横条（低/中/高三档语义色 + 权重）
+- `components/report/ReportContent.vue`：纯展示组件，真实页与预览共用
+- `views/ResumeReportView.vue`：数据加载与状态机（加载 / PENDING / PROCESSING 轮询 2s / FAILED 重试 / COMPLETED 报告），支持重新分析
+- `views/ReportPreviewView.vue` + 仅 DEV 注册的 `/preview/report`：不接后端即可评审视觉
+- 路由新增 `/resumes/:id/report`
+
+### 验证
+- `npm run build`：gen:api + vue-tsc 类型检查 + vite 构建全部通过
+- 浏览器实测 `/preview/report`：标题/四类章节/5 条评分条/总分 76 全部正确，条形宽度与分值比例一致，控制台 0 错误
+- 截图：`C:\Users\Leno\AppData\Local\Temp\trae\screenshots\preview-report-top.png` 等
+
+### 待评审 / 下一步
+- 用户评审样板观感与信息层级
+- 通过后实现：简历列表/上传（含去重提示、状态轮询、删除确认）、模型设置（Provider/Model CRUD + 连通测试 + 全局默认）、对话（会话列表 + 两级切换 + SSE 流式）
+- 前端测试：Vitest + Playwright 关键链路
+
 ## 阻塞
 
 - **待补推**：本地提交 `c1d800a`（feat: 实现 M1-c 简历中心与异步分析）尚未推送成功。
   代理 `127.0.0.1:7890` 未启动，直连 GitHub 报 `Recv failure: Connection was reset`。
   下次开工第一件事：启动代理后 `git push`（或 `git -c http.proxy=http://127.0.0.1:7890 push`）。
 - 已补推完成（2026-11-12）：`6cb2ba5..231252d` 已成功推送到 origin/main。
+
+---
+
+## 2026-11-12 需求 v1.6：薪资可见可改 + Offer 决策规划
+
+### 需求确认（用户原话 → 结论）
+- 报告基本信息新增「当前月薪 / 期望月薪」：LLM 从简历提取，用户可改；**用户值优先，重分析不覆盖，清空回落 LLM 值**
+- 新增 Offer 决策板块：多 Offer 同维度对比（薪资 / 五险一金基数与比例 / 双休 / 福利补贴 / 上下班时间 / 底薪与绩效占比 / 年终奖 / 季度奖 / 公司前景与成长空间），保留 / 淘汰分组、可反悔
+- 对比一致性：**固定字段 schema + 缺失统一「未填写」+ 前端固定行渲染**，不建 Skill
+- 对比上限 4 个；前景分析默认基于用户粘贴的文本/图片，联网搜索为开关（默认关闭）
+- 归属：薪资归 M1（当前实现）；**Offer 决策记为 M2 F6，仅落需求与契约规划，不现在实现**
+
+### 改动（文件 → 说明）
+- `docs/superpowers/specs/职点（JobPilot）需求文档.md` → v1.6：迭代历程新增条目；功能总览新增 F6；FR1.6 加薪资；新增 §4.8 FR6.1~FR6.6；M2 里程碑加 F6
+- `contracts/openapi.yaml` → 新增 `PUT /api/resumes/{resumeId}/salary`（`UpdateSalaryRequest`）；`ResumeBasicInfo` 加 `currentMonthlySalary` / `expectedMonthlySalary`；端点 25 → **26**
+- `backend/.../db/migration/V2__resume_salary.sql` → `resumes` 加 `current_salary` / `expected_salary`
+- `Resume` / `UpdateSalaryRequest` / `ResumeBasicInfoResponse` / `AiResumeAnalysis.BasicInfo` / `resume-analysis-system.st` → 薪资字段与提取要求（元/月，无则 null，禁止编造）
+- `ResumeService.updateSalary` + `ResumeController` PUT 端点 → 落用户值后返回最新状态
+- `ResumeAnalysisService` → `mergedBasicInfo` 用户值优先 + `toReport(analysis, resume)` 统一出口
+- `frontend`：`api/resumes.ts` 类型与 `updateResumeSalary`；`ReportContent.vue` 薪资展示 + 编辑（`salaryEditable` / `saving` / `save-salary`）；`ResumeReportView.vue` 保存逻辑 + 错误横幅
+- `ContractCoverageTest` → 断言 26 端点；`M1cResumeApiIntegrationTest` → 新增 `salaryOverrideSurvivesReanalysis`（LLM 值 → 用户改 → 重分析不覆盖 → 清空回落 → 负数 400）
+- README / PROGRESS / 本记录同步
+
+### 验证结果
+- `mvn test`：全量 49 → 新增薪资用例后 **50 tests 全部通过**；Flyway V1+V2 在 `postgres:16-alpine` 真实执行
+- `npm run build`：gen:api + vue-tsc + vite 全部通过
+- `npx @redocly/cli lint contracts/openapi.yaml` → valid（0 error / 0 warning）
+
+### 问题与修复
+1. **工具编辑多次回退**：`api/resumes.ts` 类型别名、`ReportContent.vue` 的 props/emit/薪资 UI、`ResumeReportView.vue` 的 import/ref/函数、后端 `toReport` 调用均出现"报告成功但实际未落盘"→ 每处改完立即 Grep/Read 验证，缺失即重写；最终以编译/测试结果为准
+2. **PUT 薪资后仍返回 LLM 值 30000**：`status()` 仍调用单参 `toReport(analysis)`，`mergedBasicInfo` 未接入 → 改为 `toReport(analysis, resume)` 并在报告构造中使用 `mergedBasicInfo`
+3. **npm 默认 cache 在 D 盘**（`D:\nodejs\node_cache`）被沙箱拦截 → 统一 `npm_config_cache=$env:TEMP\npm-cache-jobpilot` 后 lint/build 正常
+
+### 未完成 / 下一步
+- M1-d 其余三屏（简历列表/上传、模型设置、对话）+ Vitest/Playwright
+- M2 实现 F6 前先补契约（Offer CRUD / 分组 / 对比 / 前景分析）
+

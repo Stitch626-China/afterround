@@ -17,7 +17,8 @@ public record AiResumeAnalysis(
         List<Suggestion> suggestions,
         List<Career> careerDirections) {
 
-    public record BasicInfo(String name, Double yearsOfExperience, String techDirection) {
+    public record BasicInfo(String name, Double yearsOfExperience, String techDirection,
+                            Integer currentMonthlySalary, Integer expectedMonthlySalary) {
     }
 
     public record Quote(String quote, String comment) {

@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.OffsetDateTime;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -17,9 +18,11 @@ import com.jobpilot.common.api.PageResult;
 import com.jobpilot.common.exception.BizException;
 import com.jobpilot.common.text.TextCleaner;
 import com.jobpilot.infrastructure.storage.FileStorage;
+import com.jobpilot.modules.resume.dto.ResumeAnalysisStatusResponse;
 import com.jobpilot.modules.resume.dto.ResumeDetailResponse;
 import com.jobpilot.modules.resume.dto.ResumeListItemResponse;
 import com.jobpilot.modules.resume.dto.ResumeUploadResponse;
+import com.jobpilot.modules.resume.dto.UpdateSalaryRequest;
 import com.jobpilot.modules.resume.entity.Resume;
 import com.jobpilot.modules.resume.entity.ResumeAnalysis;
 import com.jobpilot.modules.resume.mapper.ResumeAnalysisMapper;
@@ -76,6 +79,17 @@ public class ResumeService {
         Integer overall = analysis == null || analysis.getOverallScore() == null
                 ? null : analysis.getOverallScore();
         return ResumeDetailResponse.from(resume, overall);
+    }
+
+    /** 保存用户填写的薪资；null 表示清空用户值、回落为 LLM 提取值。 */
+    public ResumeAnalysisStatusResponse updateSalary(Long resumeId, UpdateSalaryRequest request) {
+        require(resumeId);
+        resumeMapper.update(null, Wrappers.<Resume>lambdaUpdate()
+                .eq(Resume::getId, resumeId)
+                .set(Resume::getCurrentSalary, request.currentMonthlySalary())
+                .set(Resume::getExpectedSalary, request.expectedMonthlySalary())
+                .set(Resume::getUpdatedAt, OffsetDateTime.now()));
+        return analysisService.status(resumeId);
     }
 
     /** 文件与粘贴文本二选一；内容相同直接返回已有记录，不重复触发分析。 */

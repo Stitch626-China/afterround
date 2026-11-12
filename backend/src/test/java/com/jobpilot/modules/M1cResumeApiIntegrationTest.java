@@ -46,7 +46,8 @@ class M1cResumeApiIntegrationTest extends AbstractIntegrationTest {
             {
               "technicalDepth": 82, "projectQuality": 75, "engineeringAbility": 70,
               "expressionStructure": 65, "jobMatchPotential": 90,
-              "basicInfo": {"name": "张三", "yearsOfExperience": 3, "techDirection": "Java 后端"},
+              "basicInfo": {"name": "张三", "yearsOfExperience": 3, "techDirection": "Java 后端",
+                            "currentMonthlySalary": 30000, "expectedMonthlySalary": 40000},
               "strengths": [{"quote": "负责订单系统重构", "comment": "有主导经验"}],
               "weaknesses": [{"quote": "参与需求评审", "comment": "缺少量化结果"}],
               "suggestions": [{"original": "负责订单系统重构", "improved": "主导订单系统重构，QPS 提升 3 倍",
@@ -236,6 +237,44 @@ class M1cResumeApiIntegrationTest extends AbstractIntegrationTest {
         assertThat(status.path("retryCount").asInt()).isEqualTo(3);
         assertThat(status.path("error").asText()).contains("HTTP 401");
         assertThat(status.path("report").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("用户填写的薪资优先于 LLM 提取值；重分析不覆盖，清空后回落")
+    void salaryOverrideSurvivesReanalysis() {
+        configureDefaultProvider();
+        long resumeId = uploadText("薪资覆盖测试\nJava 后端").path("data").path("resume").path("id").asLong();
+        JsonNode status = awaitStatus(resumeId, "COMPLETED");
+        assertThat(status.path("report").path("basicInfo").path("currentMonthlySalary").asInt()).isEqualTo(30000);
+        assertThat(status.path("report").path("basicInfo").path("expectedMonthlySalary").asInt()).isEqualTo(40000);
+
+        // 用户修改后立即以用户值返回
+        client.put().uri("/api/resumes/{id}/salary", resumeId).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("currentMonthlySalary", 25000, "expectedMonthlySalary", 35000))
+                .exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.report.basicInfo.currentMonthlySalary").isEqualTo(25000)
+                .jsonPath("$.data.report.basicInfo.expectedMonthlySalary").isEqualTo(35000);
+
+        // 重新分析不会覆盖用户值
+        client.post().uri("/api/resumes/{id}/analyze", resumeId).exchange().expectStatus().isOk();
+        JsonNode reanalyzed = awaitStatus(resumeId, "COMPLETED");
+        assertThat(reanalyzed.path("report").path("basicInfo").path("currentMonthlySalary").asInt()).isEqualTo(25000);
+        assertThat(reanalyzed.path("report").path("basicInfo").path("expectedMonthlySalary").asInt()).isEqualTo(35000);
+
+        // 清空用户值后回落为 LLM 提取值
+        client.put().uri("/api/resumes/{id}/salary", resumeId).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of())
+                .exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.report.basicInfo.currentMonthlySalary").isEqualTo(30000)
+                .jsonPath("$.data.report.basicInfo.expectedMonthlySalary").isEqualTo(40000);
+
+        // 负数被拒绝
+        client.put().uri("/api/resumes/{id}/salary", resumeId).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("currentMonthlySalary", -1))
+                .exchange().expectStatus().isBadRequest()
+                .expectBody().jsonPath("$.code").isEqualTo(40001);
     }
 
     private void configureDefaultProvider() {

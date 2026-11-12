@@ -7,26 +7,28 @@
 
 - 产品：职点（JobPilot），AI 求职辅助平台（简历分析 → 岗位匹配 → 模拟面试 → 面试复盘）
 - 形态：个人自用版，免登录、单用户，本地 Docker Compose
-- 阶段：M1（MVP）待开工；需求文档 **v1.5** 已确认
+- 阶段：M1-a / M1-b / M1-c 已完成；M1-d 前端进行中（报告页样板已评审通过）；需求文档 **v1.6** 已确认
 
 ## 当前状态
 
-- 进行中：无
+- 进行中：**M1-d 前端四屏** —— 报告页视觉样板已评审通过（`/preview/report` 开发预览 + `/resumes/:id/report` 真实页），下一步推其余三屏（简历列表/上传、模型设置、对话）与前端测试
 - 已完成：
   - **M1-a 工程骨架**：`backend/`（Spring Boot 3.5.0 + Java 21 + MyBatis-Plus + Flyway + Tika + WebFlux，统一 `Result<T>` / `PageResult<T>` / `ErrorCode` / 全局异常 / traceId 过滤器 + `V1__init.sql` 八张表 + Dockerfile）；`frontend/`（Vue3 + TS + Vite + vue-router 三屏骨架 + design tokens + 契约生成 TS 类型）；根 `docker-compose.yml` + `.env.example`
-  - **M1-a 接口契约**：`contracts/openapi.yaml` 25 接口 / 45 schema，redocly 0 error 0 warning
-  - 需求文档 v1.5 / v1.4（F5 求职洞察、不做 RAG、Provider 数据库驱动热更新、技术选型、契约唯一源、前端设计规范、测试分层、M1 拆四阶段）
+  - **M1-a 接口契约**：`contracts/openapi.yaml` 26 接口 / 46 schema，redocly 0 error 0 warning
+  - 需求文档 v1.6 / v1.5 / v1.4（F6 Offer 决策、薪资可见可改、F5 求职洞察、不做 RAG、Provider 数据库驱动热更新、技术选型、契约唯一源、前端设计规范、测试分层、M1 拆四阶段）
   - LLM 网关实测（new-api / Qwen3.8-27B / SSE 与 json_object 可用）
   - **Flyway V1 迁移已真实验证（2026-11-11）**：在临时 PostgreSQL 18.3 隔离实例上执行 `V1__init.sql`，8 张表、11 个命名约束全部建立；CHECK（单行表 / 会话状态 / 消息角色 / 简历分析状态）、UNIQUE（file_hash / provider+model）、FK 级联删除、`user_id=1` 等默认值均实测生效；应用启动经 Flyway 执行迁移，`flyway_schema_history` 记录 `version=1, success=t`（PG 18 仅有「Flyway 未测到 18」的升级提示，生产目标 PG 16 无此问题）
   - **Testcontainers 与 Docker 29 兼容已解决（2026-11-11）**：`backend/src/test/resources/docker-java.properties` 固定 `api.version=1.44`，`JobPilotApplicationTests` 3 个测试全部真实执行（0 跳过），Flyway 在 `postgres:16-alpine` 容器内成功迁移
   - **M1-b 后端已完成（2026-11-11）**：手写 OpenAI 兼容客户端（chat / SSE / `/models` / JSON 模式）、JSON 去围栏与结构化重试、AES-GCM 密钥加密与掩码、Provider/Model/全局默认 CRUD + 客户端缓存热更新、连通测试（回显上游真实 model）、上游模型列举与本地回退、会话 CRUD、两级切换 409 守卫、SSE 流式对话与消息追溯、`llm_call_logs` 埋点、启动种子；**后端 38 个测试全部通过**（含真实 PostgreSQL + SSE 端到端 + 契约 19 端点覆盖）
-  - **M1-c 后端已完成（2026-11-12）**：简历上传（文件 / 粘贴文本）、Tika 解析与文本清洗、SHA-256 去重、`FileStorage` 本地实现与路径穿越防护、异步分析状态机（PENDING/PROCESSING/COMPLETED/FAILED，重试 ≤3）、五维加权报告（本地按权重算总分）、优势/短板/原句优化建议、3-5 个岗位方向推荐、分页/详情/删除（清理文件与分析）、Prompt 外置；**后端 49 个测试全部通过**（含真实 PostgreSQL 端到端 + 契约 25 端点全覆盖）
+  - **M1-c 后端已完成（2026-11-12）**：简历上传（文件 / 粘贴文本）、Tika 解析与文本清洗、SHA-256 去重、`FileStorage` 本地实现与路径穿越防护、异步分析状态机（PENDING/PROCESSING/COMPLETED/FAILED，重试 ≤3）、五维加权报告（本地按权重算总分）、优势/短板/原句优化建议、3-5 个岗位方向推荐、分页/详情/删除（清理文件与分析）、Prompt 外置、**薪资字段（`V2__resume_salary.sql`）与编辑接口**（用户值优先、重分析不覆盖、清空回落 LLM 值）；**后端 50 个测试全部通过**（含真实 PostgreSQL 端到端 + 契约 26 端点全覆盖）
 - 阻塞：无
 
 ## 下一步
 
-1. M1-d 前端四屏 + 测试收口（报告页视觉样板先行评审）
-2. M2 建 F2 表时**必须预留 `companies` 与 `job_positions.company_id`**（F5 依赖）
+1. 推 M1-d 其余三屏（简历列表/上传、模型设置、对话），复用报告页设计规范
+2. 前端测试收口：Vitest 组件/逻辑测试 + Playwright 关键链路
+3. M2 落地数据模型时**必须预留 `companies` 与 `job_positions.company_id`**（F5 依赖）；Offer 决策（F6）新增 `offers` 表，最多 4 个参与对比
+4. M2 实现 F6 前先补契约：Offer CRUD / 保留淘汰分组 / 同维度对比 / 前景分析（联网开关默认关闭）
 
 ## 关键决策
 
@@ -61,3 +63,6 @@
 | 2026-11-12 | JSONB 字段用自定义 `JsonbStringTypeHandler`（`setObject(Types.OTHER)`） | pgjdbc 的 `setString` 无法直接写 jsonb；避免为驱动改 compile scope |
 | 2026-11-12 | 集成测试改为 **JVM 级单例容器**（`@EnabledIf` 控制无 Docker 跳过） | `@Container` 会随测试类停止容器，而 Spring 上下文跨类复用，导致后续类连已关闭端口 |
 | 2026-11-12 | 测试直连 DB 清理后显式 `ProviderClientRegistry.invalidate` | 绕过了 CRUD 的缓存失效逻辑，否则会复用已停止假上游的客户端 |
+| 2026-11-12 | 薪资采用「LLM 提取 + 用户可改」：用户值存 `resumes`，展示时用户值优先、清空回落，重分析不覆盖 | 简历常不写薪资，但决策必须要；用户修正值必须稳定，不能被重分析冲掉 |
+| 2026-11-12 | Offer 决策（F6）归 **M2**，保留组最多 4 个；对比维度固定、缺失统一「未填写」，**不建 Skill** | 固定字段 + 固定行渲染即可保证同一行比同一项；Skill 反而引入不确定性 |
+| 2026-11-12 | Offer 前景分析默认**基于用户提供的文本/图片**，联网搜索做成开关（默认关闭） | 内网模型无联网能力；开关让用户按当前 Provider 能力决定 |

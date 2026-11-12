@@ -6,12 +6,16 @@ import com.jobpilot.modules.resume.dto.ResumeAnalysisStatusResponse;
 import com.jobpilot.modules.resume.dto.ResumeDetailResponse;
 import com.jobpilot.modules.resume.dto.ResumeListItemResponse;
 import com.jobpilot.modules.resume.dto.ResumeUploadResponse;
+import com.jobpilot.modules.resume.dto.UpdateSalaryRequest;
 import com.jobpilot.modules.resume.service.ResumeAnalysisService;
 import com.jobpilot.modules.resume.service.ResumeService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -19,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 简历中心 API（contracts/openapi.yaml：简历 6 个接口）。
+ * 简历中心 API（contracts/openapi.yaml：简历 7 个接口）。
  */
 @RestController
 @RequestMapping("/api/resumes")
@@ -55,6 +59,13 @@ public class ResumeController {
     public Result<Void> delete(@PathVariable Long resumeId) {
         resumeService.delete(resumeId);
         return Result.ok();
+    }
+
+    @PutMapping("/{resumeId}/salary")
+    public Result<ResumeAnalysisStatusResponse> updateSalary(
+            @PathVariable Long resumeId,
+            @Valid @RequestBody UpdateSalaryRequest request) {
+        return Result.ok(resumeService.updateSalary(resumeId, request));
     }
 
     @PostMapping("/{resumeId}/analyze")

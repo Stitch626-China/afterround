@@ -16,29 +16,27 @@ import com.jobpilot.modules.chat.controller.ChatController;
 import com.jobpilot.modules.llm.controller.LlmController;
 import com.jobpilot.modules.resume.controller.ResumeController;
 import org.junit.jupiter.api.Test;
-import org.yaml.snakeyaml.Yaml;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.yaml.snakeyaml.Yaml;
 
 /**
- * 契约覆盖率检查：M1-b 涉及的 19 个端点必须与 {@code contracts/openapi.yaml} 完全一致。
- *
- * <p>只覆盖 M1-b（模型配置 12 + 对话会话 7）；简历端点随 M1-c 加入。
+ * 契约覆盖率检查：M1 全部 26 个端点必须与 {@code contracts/openapi.yaml} 完全一致。
  */
 class ContractCoverageTest {
 
     private static final Set<String> HTTP_METHODS = Set.of("get", "post", "put", "patch", "delete");
 
     @Test
-    void allM1bEndpointsFromContractAreMapped() throws Exception {
+    void allContractEndpointsAreMapped() throws Exception {
         Set<String> expected = contractEndpoints();
         Set<String> actual = controllerEndpoints();
 
-        assertThat(expected).hasSize(19);
+        assertThat(expected).hasSize(26);
         assertThat(actual).containsAll(expected);
     }
 
@@ -49,14 +47,9 @@ class ContractCoverageTest {
             Map<String, Object> doc = new Yaml().load(in);
             Map<String, Object> paths = (Map<String, Object>) doc.get("paths");
             Set<String> endpoints = new HashSet<>();
-            paths.forEach((path, value) -> {
-                if (!path.startsWith("/api/llm") && !path.startsWith("/api/chat")) {
-                    return;
-                }
-                ((Map<String, Object>) value).keySet().stream()
-                        .filter(HTTP_METHODS::contains)
-                        .forEach(method -> endpoints.add(method.toUpperCase() + " " + path));
-            });
+            paths.forEach((path, value) -> ((Map<String, Object>) value).keySet().stream()
+                    .filter(HTTP_METHODS::contains)
+                    .forEach(method -> endpoints.add(method.toUpperCase() + " " + path)));
             return endpoints;
         }
     }

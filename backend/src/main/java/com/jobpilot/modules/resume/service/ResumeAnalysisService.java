@@ -117,7 +117,7 @@ public class ResumeAnalysisService {
         ResumeAnalysis analysis = analysisMapper.selectOne(Wrappers.<ResumeAnalysis>lambdaQuery()
                 .eq(ResumeAnalysis::getResumeId, resumeId));
         ResumeAnalysisReportResponse report = "COMPLETED".equals(resume.getAnalyzeStatus()) && analysis != null
-                ? toReport(analysis) : null;
+                ? toReport(analysis, resume) : null;
         return new ResumeAnalysisStatusResponse(resumeId, resume.getAnalyzeStatus(),
                 resume.getAnalyzeError(), resume.getRetryCount(), report);
     }
@@ -221,7 +221,7 @@ public class ResumeAnalysisService {
         }
     }
 
-    private ResumeAnalysisReportResponse toReport(ResumeAnalysis entity) {
+    private ResumeAnalysisReportResponse toReport(ResumeAnalysis entity, Resume resume) {
         List<AnalysisDimensionResponse> dimensions = List.of(
                 new AnalysisDimensionResponse("technicalDepth", "技术深度",
                         entity.getScoreTechnicalDepth(), 30),
@@ -234,12 +234,28 @@ public class ResumeAnalysisService {
                 new AnalysisDimensionResponse("jobMatchPotential", "岗位匹配潜力",
                         entity.getScoreJobMatchPotential(), 10));
         return new ResumeAnalysisReportResponse(entity.getOverallScore(), dimensions,
-                parse(entity.getBasicInfo(), new TypeReference<ResumeBasicInfoResponse>() { }),
+                mergedBasicInfo(entity, resume),
                 parseList(entity.getStrengths(), new TypeReference<List<QuoteItemResponse>>() { }),
                 parseList(entity.getWeaknesses(), new TypeReference<List<QuoteItemResponse>>() { }),
                 parseList(entity.getSuggestions(), new TypeReference<List<SuggestionItemResponse>>() { }),
                 parseList(entity.getCareerDirections(), new TypeReference<List<CareerDirectionResponse>>() { }),
                 entity.getLlmProvider(), entity.getLlmModel());
+    }
+
+    /** 用户填写的薪资优先于 LLM 提取值；两者都没有时返回 null。 */
+    private ResumeBasicInfoResponse mergedBasicInfo(ResumeAnalysis entity, Resume resume) {
+        ResumeBasicInfoResponse extracted = parse(entity.getBasicInfo(),
+                new TypeReference<ResumeBasicInfoResponse>() { });
+        Integer current = resume.getCurrentSalary() != null ? resume.getCurrentSalary()
+                : extracted == null ? null : extracted.currentMonthlySalary();
+        Integer expected = resume.getExpectedSalary() != null ? resume.getExpectedSalary()
+                : extracted == null ? null : extracted.expectedMonthlySalary();
+        if (extracted == null) {
+            return current == null && expected == null ? null
+                    : new ResumeBasicInfoResponse(null, null, null, current, expected);
+        }
+        return new ResumeBasicInfoResponse(extracted.name(), extracted.yearsOfExperience(),
+                extracted.techDirection(), current, expected);
     }
 
     private void finish(Long resumeId, String status, String error, int retryCount) {

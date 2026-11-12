@@ -14,7 +14,7 @@
   "engineeringAbility": 0-100,
   "expressionStructure": 0-100,
   "jobMatchPotential": 0-100,
-  "basicInfo": {"name": "string|null", "yearsOfExperience": number|null, "techDirection": "string|null"},
+  "basicInfo": {"name": "string|null", "yearsOfExperience": number|null, "techDirection": "string|null", "currentMonthlySalary": number|null, "expectedMonthlySalary": number|null},
   "strengths": [{"quote": "简历原句", "comment": "说明"}],
   "weaknesses": [{"quote": "简历原句", "comment": "说明"}],
   "suggestions": [{"original": "简历原句", "improved": "优化后的写法", "reason": "理由"}],
@@ -25,3 +25,4 @@
 1. strengths / weaknesses 必须引用简历原句，不能编造。
 2. careerDirections 给出 3-5 个方向，按匹配度从高到低。
 3. 评分严格、可解释，不要一律给高分。
+4. 薪资单位为「元/月」，只提取简历中明确写出的数字；没有就返回 null，禁止猜测或编造。

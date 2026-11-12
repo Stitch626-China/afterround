@@ -104,6 +104,7 @@ npm run dev       # http://localhost:5173，/api 已代理到 8080
 - `/api/resumes/{id}`：详情（含清洗后的解析文本）/ 删除（硬删除 + 清理磁盘文件与分析结果）
 - `/api/resumes/{id}/analyze`：触发或重试分析（执行中 409/40910）
 - `/api/resumes/{id}/analysis`：轮询状态与报告（五维评分、优势短板、原句 vs 优化句、3-5 个岗位方向）
+- `/api/resumes/{id}/salary`：保存用户填写的当前 / 期望月薪（元/月，0~1000000）；用户值优先于 LLM 提取值，传 `null` 即清空并回落，重新分析不会覆盖用户值
 - SHA-256 内容去重：重复上传返回已有记录（`duplicated=true`）且不重复触发分析
 - 上传后若已配置全局默认模型会自动异步分析；未配置则保持 `PENDING`，配置后手动触发
 - 原始文件默认存 `app.storage.root`（`STORAGE_ROOT`，默认 `./data/files`），解析文本落库
@@ -172,14 +173,14 @@ npx @redocly/cli lint contracts/openapi.yaml
 - **M1（MVP）**，内部四阶段：
   - M1-a 骨架与契约（已完成）：`backend/` `frontend/` `contracts/` + Spring Boot 骨架 + Docker Compose + Flyway + 统一响应/异常 + `openapi.yaml` 全量契约
   - M1-b 模型网关与 Provider 管理（已完成）：手写客户端（chat / SSE / 结构化输出）+ Provider/Model CRUD（加密落库、热更新）+ 连通测试 + 模型列举 + 会话内两级切换（执行中禁切 409）+ 对话载体 + `llm_call_logs` 埋点
-  - M1-c 简历中心（轨一）：上传 / Tika 解析 / 去重 / 异步分析 / 五维报告 / 优化建议 / 岗位方向推荐
+  - M1-c 简历中心（轨一）：上传 / Tika 解析 / 去重 / 异步分析 / 五维报告 / 优化建议 / 岗位方向推荐 / 薪资可见可改
   - M1-d 前端与测试收口：4 屏 + 设计 tokens + 报告页视觉样板先行评审 + 全量测试
-- **M2**：完整前端 + JD 导入 / 匹配评分 / 行情统计 + 结构化模拟面试
+- **M2**：完整前端 + JD 导入 / 匹配评分 / 行情统计 + 结构化模拟面试 + Offer 决策（多 Offer 同维度对比、保留/淘汰可反悔）
 - **M3**：面试复盘（ASR / 分析 / 报告）+ PDF 导出 + Token 成本统计 + 产品化准备
 
 ## 当前进度
 
-M1-a（骨架与契约）、M1-b（模型网关与 Provider/会话管理）、M1-c（简历中心）已完成，后端 49 个测试全部通过；下一步 M1-d 前端四屏与测试收口。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
+M1-a（骨架与契约）、M1-b（模型网关与 Provider/会话管理）、M1-c（简历中心，含薪资字段与编辑接口）已完成，后端 50 个测试全部通过；M1-d 报告页视觉样板已评审通过，下一步其余三屏与前端测试收口。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
 
 ## 合规说明
 

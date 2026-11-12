@@ -24,6 +24,10 @@ public class Resume {
     private String analyzeStatus;
     private String analyzeError;
     private Integer retryCount;
+    /** 用户填写的当前月薪（元/月），优先于 LLM 提取值。 */
+    private Integer currentSalary;
+    /** 用户填写的期望月薪（元/月）。 */
+    private Integer expectedSalary;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

@@ -618,6 +618,36 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /api/resumes/{resumeId}/salary:
+    parameters:
+      - $ref: '#/components/parameters/ResumeId'
+    put:
+      tags: [简历]
+      operationId: updateResumeSalary
+      summary: 更新当前月薪与期望月薪
+      description: |
+        用户填写的值优先于 LLM 从简历提取的值，重新分析不会覆盖用户值。
+        传入 null 表示清空对应用户值（回落为 LLM 提取值）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSalaryRequest'
+      responses:
+        '200':
+          description: 保存成功，返回合并后的最新分析状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultResumeAnalysisStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /api/resumes/{resumeId}/analyze:
     parameters:
       - $ref: '#/components/parameters/ResumeId'
@@ -1406,6 +1436,30 @@ components:
         techDirection:
           type: [string, "null"]
           example: Java 后端
+        currentMonthlySalary:
+          type: [integer, "null"]
+          description: 当前月薪（元/月）；用户填写值优先于 LLM 提取值
+          example: 18000
+        expectedMonthlySalary:
+          type: [integer, "null"]
+          description: 期望月薪（元/月）
+          example: 25000
+
+    UpdateSalaryRequest:
+      type: object
+      properties:
+        currentMonthlySalary:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 1000000
+          description: 当前月薪（元/月）；null 表示清空用户值
+          example: 18000
+        expectedMonthlySalary:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 1000000
+          description: 期望月薪（元/月）；null 表示清空用户值
+          example: 25000
 
     QuoteItem:
       type: object
