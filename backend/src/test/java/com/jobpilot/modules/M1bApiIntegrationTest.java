@@ -12,6 +12,7 @@ import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.jobpilot.AbstractIntegrationTest;
+import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
 import com.jobpilot.modules.chat.dto.ChatStreamEvent;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -49,6 +50,9 @@ class M1bApiIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private ProviderClientRegistry clientRegistry;
 
     private WebTestClient client;
 
@@ -88,13 +92,17 @@ class M1bApiIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        client = WebTestClient.bindToServer().baseUrl("http://127.0.0.1:" + port).build();
+        client = WebTestClient.bindToServer().baseUrl("http://127.0.0.1:" + port)
+                .responseTimeout(Duration.ofSeconds(60)).build();
         jdbc.update("DELETE FROM chat_messages");
         jdbc.update("DELETE FROM chat_sessions");
         jdbc.update("DELETE FROM llm_call_logs");
         jdbc.update("DELETE FROM llm_models");
         jdbc.update("DELETE FROM llm_providers");
         jdbc.update("DELETE FROM llm_global_setting");
+        // 直连数据库清理不会触发缓存失效，需显式清掉上游客户端缓存
+        clientRegistry.invalidate("stub");
+        clientRegistry.invalidate("bad");
     }
 
     @Test

@@ -24,9 +24,8 @@
 
 ## 下一步
 
-1. M1-c 简历中心：上传 / Tika 解析 / 去重 / 异步分析 / 五维报告 / 方向推荐
-2. M1-d 前端四屏 + 测试收口
-3. M2 建 F2 表时**必须预留 `companies` 与 `job_positions.company_id`**（F5 依赖）
+1. M1-d 前端四屏 + 测试收口（报告页视觉样板先行评审）
+2. M2 建 F2 表时**必须预留 `companies` 与 `job_positions.company_id`**（F5 依赖）
 
 ## 关键决策
 
@@ -56,3 +55,8 @@
 | 2026-11-11 | 补 `mybatis-plus-jsqlparser` 依赖 | MyBatis-Plus 3.5.9 起分页插件拆到独立模块，不引入则 `PaginationInnerInterceptor` 不存在 |
 | 2026-11-11 | 会话 SSE 用 Spring MVC 返回 `Flux<ServerSentEvent>` | 复用已引入的 WebFlux；守卫异常在返回 Flux 前抛出，仍走统一 JSON 错误响应 |
 | 2026-11-11 | `APP_SECRET_KEY` 缺失时启动失败 | 避免空密钥"假加密"；测试用 `src/test/resources/application.properties` 提供测试密钥 |
+| 2026-11-12 | 简历分析总分由**本地按权重计算**，不采用模型自报总分 | 避免模型算错总分导致与五维不一致 |
+| 2026-11-12 | 上传后**仅在已配置全局默认模型时自动触发分析** | 未配置模型时不会产生失败任务；前端仍可手动触发 |
+| 2026-11-12 | JSONB 字段用自定义 `JsonbStringTypeHandler`（`setObject(Types.OTHER)`） | pgjdbc 的 `setString` 无法直接写 jsonb；避免为驱动改 compile scope |
+| 2026-11-12 | 集成测试改为 **JVM 级单例容器**（`@EnabledIf` 控制无 Docker 跳过） | `@Container` 会随测试类停止容器，而 Spring 上下文跨类复用，导致后续类连已关闭端口 |
+| 2026-11-12 | 测试直连 DB 清理后显式 `ProviderClientRegistry.invalidate` | 绕过了 CRUD 的缓存失效逻辑，否则会复用已停止假上游的客户端 |

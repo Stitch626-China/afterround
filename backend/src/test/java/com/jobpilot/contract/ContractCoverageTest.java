@@ -14,6 +14,7 @@ import java.util.Set;
 
 import com.jobpilot.modules.chat.controller.ChatController;
 import com.jobpilot.modules.llm.controller.LlmController;
+import com.jobpilot.modules.resume.controller.ResumeController;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -62,7 +63,7 @@ class ContractCoverageTest {
 
     private Set<String> controllerEndpoints() {
         Set<String> endpoints = new HashSet<>();
-        for (Class<?> controller : List.of(LlmController.class, ChatController.class)) {
+        for (Class<?> controller : List.of(LlmController.class, ChatController.class, ResumeController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (Method method : controller.getDeclaredMethods()) {
                 for (Annotation annotation : method.getAnnotations()) {

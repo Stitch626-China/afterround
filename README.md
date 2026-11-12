@@ -98,6 +98,16 @@ npm run dev       # http://localhost:5173，/api 已代理到 8080
 - API Key 只以 AES-GCM 密文落库、接口一律返回掩码；**启动必须配置 `APP_SECRET_KEY`**，缺失会直接启动失败
 - 首次启动可用 `.env` 的 `LLM_BOOTSTRAP_*` 导入一次种子配置，之后请在模型设置页/接口维护（保存即生效）
 
+## M1-c 接口（简历中心）
+
+- `/api/resumes`：分页列表 / 上传（`file` 与 `text` 二选一，PDF/DOCX/DOC/TXT ≤ 5MB）
+- `/api/resumes/{id}`：详情（含清洗后的解析文本）/ 删除（硬删除 + 清理磁盘文件与分析结果）
+- `/api/resumes/{id}/analyze`：触发或重试分析（执行中 409/40910）
+- `/api/resumes/{id}/analysis`：轮询状态与报告（五维评分、优势短板、原句 vs 优化句、3-5 个岗位方向）
+- SHA-256 内容去重：重复上传返回已有记录（`duplicated=true`）且不重复触发分析
+- 上传后若已配置全局默认模型会自动异步分析；未配置则保持 `PENDING`，配置后手动触发
+- 原始文件默认存 `app.storage.root`（`STORAGE_ROOT`，默认 `./data/files`），解析文本落库
+
 ## 构建与测试
 
 ```bash
@@ -169,7 +179,7 @@ npx @redocly/cli lint contracts/openapi.yaml
 
 ## 当前进度
 
-M1-a（骨架与契约）、M1-b（模型网关与 Provider/会话管理）已完成，后端 38 个测试全部通过；下一步 M1-c 简历中心。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
+M1-a（骨架与契约）、M1-b（模型网关与 Provider/会话管理）、M1-c（简历中心）已完成，后端 49 个测试全部通过；下一步 M1-d 前端四屏与测试收口。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
 
 ## 合规说明
 

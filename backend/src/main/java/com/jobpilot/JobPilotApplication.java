@@ -13,7 +13,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
  */
 @SpringBootApplication
 @EnableAsync
-@MapperScan({"com.jobpilot.modules.llm.mapper", "com.jobpilot.modules.chat.mapper"})
+@MapperScan({"com.jobpilot.modules.llm.mapper", "com.jobpilot.modules.chat.mapper",
+        "com.jobpilot.modules.resume.mapper"})
 public class JobPilotApplication {
 
     public static void main(String[] args) {
