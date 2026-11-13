@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -38,6 +39,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
  * 会话创建、SSE 流式对话、消息追溯、两级切换与 409 守卫。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@EnabledIf("com.jobpilot.AbstractIntegrationTest#dockerAvailable")
 class M1bApiIntegrationTest extends AbstractIntegrationTest {
 
     private static final String MODEL = "Qwen3.8-27B";

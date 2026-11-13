@@ -26,6 +26,8 @@ const busy = ref(false)
 const savingSalary = ref(false)
 const error = ref('')
 let timer: ReturnType<typeof setTimeout> | undefined
+/** 加载序号：触发分析后让更早发出的加载响应失效。 */
+let loadSeq = 0
 
 const status = computed(() => analysis.value?.status ?? resume.value?.analyzeStatus ?? 'PENDING')
 const report = computed(() => analysis.value?.report ?? null)
@@ -78,16 +80,22 @@ function clearTimer(): void {
 }
 
 async function load(): Promise<void> {
+  const seq = ++loadSeq
   try {
     const [detail, current] = await Promise.all([getResume(resumeId), getAnalysis(resumeId)])
+    if (disposed || seq !== loadSeq) {
+      return
+    }
     resume.value = detail
     analysis.value = current
     error.value = ''
   } catch (ex) {
-    error.value = ex instanceof Error ? ex.message : '加载失败'
+    if (!disposed && seq === loadSeq) {
+      error.value = ex instanceof Error ? ex.message : '加载失败'
+    }
   } finally {
-    loading.value = false
-    if (!disposed) {
+    if (!disposed && seq === loadSeq) {
+      loading.value = false
       schedule()
     }
   }
@@ -95,7 +103,7 @@ async function load(): Promise<void> {
 
 function schedule(): void {
   clearTimer()
-  if (running.value) {
+  if (!disposed && running.value) {
     timer = setTimeout(load, 2000)
   }
 }
@@ -104,10 +112,18 @@ async function reanalyze(): Promise<void> {
   busy.value = true
   error.value = ''
   try {
-    analysis.value = await triggerAnalysis(resumeId)
+    const next = await triggerAnalysis(resumeId)
+    if (disposed) {
+      return
+    }
+    // 让触发前发出的加载响应失效，避免旧 PENDING 覆盖 PROCESSING
+    loadSeq += 1
+    analysis.value = next
     schedule()
   } catch (ex) {
-    error.value = ex instanceof Error ? ex.message : '触发分析失败'
+    if (!disposed) {
+      error.value = ex instanceof Error ? ex.message : '触发分析失败'
+    }
   } finally {
     busy.value = false
   }
@@ -132,6 +148,7 @@ async function saveSalary(payload: {
 onMounted(load)
 onBeforeUnmount(() => {
   disposed = true
+  loadSeq += 1
   clearTimer()
 })
 </script>

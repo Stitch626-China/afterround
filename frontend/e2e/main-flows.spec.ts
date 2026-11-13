@@ -41,7 +41,7 @@ test('上传简历后留在列表并显示待分析入口', async ({ page }) => 
     buffer: Buffer.from('%PDF-1.4'),
   })
 
-  await expect(page.getByText('已上传，正在自动分析；完成后点击卡片查看报告。')).toBeVisible()
+  await expect(page.getByText('已上传，点击「开始分析」生成报告；也可先在设置中配置默认模型。')).toBeVisible()
   await expect(page.getByText('resume.pdf')).toBeVisible()
   await expect(page.getByText('待分析')).toBeVisible()
   await expect(page.getByRole('button', { name: '开始分析' })).toBeVisible()
@@ -90,6 +90,8 @@ test('模型对话页完成一次 SSE 流式回答', async ({ page }) => {
   await page.route(/\/api\/chat\/sessions\/1\/messages$/, async (route) => {
     if (route.request().method() === 'POST') {
       sent = true
+      // 延迟返回，先断言页面进入“生成中”再校验最终回答
+      await new Promise((resolve) => setTimeout(resolve, 600))
       return route.fulfill({
         status: 200,
         headers: { ...CORS, 'content-type': 'text/event-stream' },
@@ -105,6 +107,7 @@ test('模型对话页完成一次 SSE 流式回答', async ({ page }) => {
   await page.getByPlaceholder('输入问题，Enter 发送，Shift + Enter 换行').fill('你好')
   await page.getByRole('button', { name: '发送' }).click()
 
+  await expect(page.locator('.badge').filter({ hasText: '生成中' })).toBeVisible()
   await expect(page.getByText('你好，这是流式回答。').first()).toBeVisible()
   await expect(page.getByText('fake · m').first()).toBeVisible()
   await expect(page.getByText('空闲')).toBeVisible()

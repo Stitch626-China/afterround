@@ -38,6 +38,10 @@ const error = ref('')
 const notice = ref('')
 const messageBox = ref<HTMLElement | null>(null)
 let controller: AbortController | null = null
+/** 会话世代：切换 / 删除 / 翻页 / 离页后让旧请求的迟到响应失效。 */
+let epoch = 0
+/** 列表请求序号：避免较慢的旧列表响应覆盖新列表。 */
+let listSeq = 0
 
 const pages = computed(() => Math.max(1, Math.ceil(total.value / size)))
 const models = computed<LlmModel[]>(() => {
@@ -77,8 +81,12 @@ function syncSelectors(value: ChatSession): void {
 }
 
 async function loadSessions(preferredId?: number): Promise<void> {
+  const seq = ++listSeq
   try {
     const result = await listChatSessions(page.value, size)
+    if (seq !== listSeq) {
+      return
+    }
     sessions.value = result.items
     total.value = result.total
     error.value = ''
@@ -90,9 +98,30 @@ async function loadSessions(preferredId?: number): Promise<void> {
       messages.value = []
     }
   } catch (ex) {
-    fail(ex)
+    if (seq === listSeq) {
+      fail(ex)
+    }
   } finally {
-    loading.value = false
+    if (seq === listSeq) {
+      loading.value = false
+    }
+  }
+}
+
+/** 仅刷新左侧列表，不改变当前选中会话（流式结束收尾用，避免切回旧会话）。 */
+async function refreshSessionList(): Promise<void> {
+  const current = epoch
+  try {
+    const result = await listChatSessions(page.value, size)
+    if (current !== epoch) {
+      return
+    }
+    sessions.value = result.items
+    total.value = result.total
+  } catch (ex) {
+    if (current === epoch) {
+      fail(ex)
+    }
   }
 }
 
@@ -104,9 +133,13 @@ function cancelStream(): void {
 }
 
 async function selectSession(id: number): Promise<void> {
+  const current = ++epoch
   cancelStream()
   try {
     const [detail, history] = await Promise.all([getChatSession(id), listChatMessages(id)])
+    if (current !== epoch) {
+      return
+    }
     session.value = detail
     messages.value = history
     syncSelectors(detail)
@@ -114,28 +147,38 @@ async function selectSession(id: number): Promise<void> {
     error.value = ''
     await scrollToBottom()
   } catch (ex) {
-    fail(ex)
+    if (current === epoch) {
+      fail(ex)
+    }
   }
 }
 
-async function refreshActive(): Promise<void> {
-  if (!session.value) {
+async function refreshActive(id?: number): Promise<void> {
+  const target = id ?? session.value?.id
+  if (!target) {
     return
   }
+  const current = epoch
   try {
     const [detail, history] = await Promise.all([
-      getChatSession(session.value.id),
-      listChatMessages(session.value.id),
+      getChatSession(target),
+      listChatMessages(target),
     ])
+    if (current !== epoch || session.value?.id !== target) {
+      return
+    }
     session.value = detail
     messages.value = history
     syncSelectors(detail)
   } catch (ex) {
-    fail(ex)
+    if (current === epoch) {
+      fail(ex)
+    }
   }
 }
 
 async function createSession(): Promise<void> {
+  epoch += 1
   cancelStream()
   busy.value = true
   error.value = ''
@@ -155,14 +198,21 @@ async function removeSession(): Promise<void> {
   if (!session.value) {
     return
   }
+  const id = session.value.id
+  const lastOnPage = sessions.value.length === 1
+  epoch += 1
   cancelStream()
   busy.value = true
   error.value = ''
   try {
-    await deleteChatSession(session.value.id)
+    await deleteChatSession(id)
     confirming.value = false
     session.value = null
     messages.value = []
+    // 删除末页唯一会话后回到上一页，避免停在空页无法分页
+    if (lastOnPage && page.value > 1) {
+      page.value -= 1
+    }
     await loadSessions()
   } catch (ex) {
     fail(ex)
@@ -179,19 +229,27 @@ async function applySwitch(): Promise<void> {
   if (!session.value || !canSwitch.value) {
     return
   }
+  const current = epoch
+  const id = session.value.id
   busy.value = true
   error.value = ''
   try {
-    session.value = await switchChatModel(session.value.id, {
+    const updated = await switchChatModel(id, {
       providerKey: selectedProvider.value,
       model: selectedModel.value,
     })
-    syncSelectors(session.value)
+    if (current !== epoch || session.value?.id !== id) {
+      return
+    }
+    session.value = updated
+    syncSelectors(updated)
     notice.value = `已切换到 ${selectedProvider.value} · ${selectedModel.value}`
   } catch (ex) {
-    fail(ex)
-    if (session.value) {
-      syncSelectors(session.value)
+    if (current === epoch) {
+      fail(ex)
+      if (session.value) {
+        syncSelectors(session.value)
+      }
     }
   } finally {
     busy.value = false
@@ -204,6 +262,7 @@ async function send(): Promise<void> {
   }
   const content = input.value.trim()
   const id = session.value.id
+  const sendEpoch = epoch
   input.value = ''
   draft.value = ''
   streaming.value = true
@@ -250,13 +309,16 @@ async function send(): Promise<void> {
     controller = null
     streaming.value = false
     draft.value = ''
-    if (session.value?.id === id) {
+    // 只有仍停留在本次发送的会话与世代时才回读，避免旧流把新会话顶掉
+    if (session.value?.id === id && epoch === sendEpoch) {
       const failure = error.value
-      await refreshActive()
-      await loadSessions(id)
-      // loadSessions 会清空错误提示，这里恢复本次流式产生的错误（如 409）
-      if (failure) {
-        error.value = failure
+      await refreshActive(id)
+      if (epoch === sendEpoch) {
+        await refreshSessionList()
+        // 回读可能覆盖本次流式错误（如 409），这里恢复它
+        if (failure && session.value?.id === id) {
+          error.value = failure
+        }
       }
     }
   }
@@ -275,6 +337,8 @@ async function go(delta: number): Promise<void> {
     return
   }
   cancelStream()
+  epoch += 1
+  listSeq += 1
   page.value = next
   session.value = null
   messages.value = []

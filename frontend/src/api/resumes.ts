@@ -16,11 +16,9 @@ export type SuggestionItem = components['schemas']['SuggestionItem']
 export type ResumeBasicInfo = components['schemas']['ResumeBasicInfo']
 export type UpdateSalaryRequest = components['schemas']['UpdateSalaryRequest']
 
-export interface ResumePage {
+/** 分页结构由契约派生，仅把 items 收紧为必填避免页面重复判空。 */
+export type ResumePage = NonNullable<components['schemas']['ResultResumePage']['data']> & {
   items: ResumeListItem[]
-  total: number
-  page: number
-  size: number
 }
 
 export function listResumes(page = 1, size = 20): Promise<ResumePage> {

@@ -3,7 +3,7 @@ package com.jobpilot.modules.llm.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -106,16 +106,20 @@ class LlmProviderServiceTest {
     }
 
     @Test
-    void updateInvalidatesClientOnlyWhenConnectionChanges() {
+    void updateInvalidatesClientOnConnectionOrEnabledChange() {
         when(providerMapper.selectOne(any())).thenReturn(provider());
         when(modelMapper.selectList(any())).thenReturn(List.of());
 
-        service().update("p", new UpdateProviderRequest("新名字", null, null, false, null));
-        verify(registry, never()).invalidate(any());
+        // 仅改展示名不应重建客户端；启停必须失效缓存（禁用立即生效）
+        service().update("p", new UpdateProviderRequest("新名字", null, null, null, null));
+        verify(registry, times(0)).invalidate(any());
+
+        service().update("p", new UpdateProviderRequest(null, null, null, false, null));
+        verify(registry).invalidate("p");
 
         when(cipher.encrypt("sk-new")).thenReturn("cipher2");
         service().update("p", new UpdateProviderRequest(null, "http://other:3000/v1", "sk-new", null, null));
-        verify(registry).invalidate("p");
+        verify(registry, times(2)).invalidate("p");
     }
 
     @Test

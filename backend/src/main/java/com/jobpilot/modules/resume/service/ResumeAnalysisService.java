@@ -14,7 +14,6 @@ import com.jobpilot.common.llm.ChatMessage;
 import com.jobpilot.common.llm.ChatResult;
 import com.jobpilot.common.llm.LlmClient;
 import com.jobpilot.common.llm.StructuredOutputInvoker;
-import com.jobpilot.common.web.TraceIdFilter;
 import com.jobpilot.infrastructure.llm.LlmCallLogger;
 import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
 import com.jobpilot.modules.llm.entity.LlmGlobalSetting;

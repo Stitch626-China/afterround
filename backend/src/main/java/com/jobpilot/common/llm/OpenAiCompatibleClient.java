@@ -6,10 +6,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.channel.ChannelOption;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
@@ -18,6 +21,7 @@ import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 
 /**
@@ -32,6 +36,7 @@ public class OpenAiCompatibleClient implements LlmClient {
     private static final int ERROR_BODY_LIMIT = 300;
     private static final int DEFAULT_MAX_TOKENS = 4096;
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final Logger log = LoggerFactory.getLogger(OpenAiCompatibleClient.class);
 
     private final WebClient web;
     private final int maxTokens;
@@ -66,6 +71,7 @@ public class OpenAiCompatibleClient implements LlmClient {
     public Flux<StreamChunk> stream(String model, List<ChatMessage> messages) {
         Map<String, Object> body = payload(model, messages, true);
         body.put("stream_options", Map.of("include_usage", true));
+        AtomicBoolean finished = new AtomicBoolean(false);
         return web.post()
                 .uri("/chat/completions")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -74,11 +80,20 @@ public class OpenAiCompatibleClient implements LlmClient {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, this::toError)
                 .bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>() { })
+                .doOnNext(event -> {
+                    if ("[DONE]".equals(event.data())) {
+                        finished.set(true);
+                    }
+                })
                 .takeUntil(event -> "[DONE]".equals(event.data()))
                 .map(ServerSentEvent::data)
                 .filter(data -> data != null && !data.isBlank() && !"[DONE]".equals(data))
                 .map(this::toChunk)
-                .filter(Objects::nonNull);
+                .filter(Objects::nonNull)
+                // 上游未发送 [DONE] 就正常断开时不能把残缺回答当成功
+                .concatWith(Mono.defer(() -> finished.get()
+                        ? Mono.empty()
+                        : Mono.error(new LlmException(502, "上游流式响应未正常结束"))));
     }
 
     @Override
@@ -133,11 +148,13 @@ public class OpenAiCompatibleClient implements LlmClient {
         try {
             node = MAPPER.readTree(data);
         } catch (Exception ex) {
-            // 坏帧不能静默丢弃，否则上层会把残缺回答当作成功落库
-            throw new LlmException(502, "上游流式响应不是合法 JSON: " + truncate(data));
+            // 坏帧不能静默丢弃，也不能把上游原文透传给调用方
+            log.warn("上游流式响应不是合法 JSON: {}", truncate(data));
+            throw new LlmException(502, "上游流式响应格式错误");
         }
         if (node.has("error")) {
-            throw new LlmException(502, "上游流式响应错误: " + truncate(node.get("error").toString()));
+            log.warn("上游流式响应返回错误: {}", truncate(node.get("error").toString()));
+            throw new LlmException(502, "上游流式响应返回错误");
         }
         JsonNode choices = node.path("choices");
         String content = choices.isArray() && !choices.isEmpty()
@@ -151,8 +168,12 @@ public class OpenAiCompatibleClient implements LlmClient {
             org.springframework.web.reactive.function.client.ClientResponse response) {
         return response.bodyToMono(String.class)
                 .defaultIfEmpty("")
-                .map(body -> new LlmException(response.statusCode().value(),
-                        "HTTP " + response.statusCode().value() + " " + truncate(body)));
+                .map(body -> {
+                    int status = response.statusCode().value();
+                    // 上游错误原文只进日志，不回显给前端、不落库，避免内部信息透传
+                    log.warn("上游 HTTP {} 错误响应: {}", status, truncate(body));
+                    return new LlmException(status, "上游服务返回 HTTP " + status);
+                });
     }
 
     private Map<String, Object> payload(String model, List<ChatMessage> messages, boolean stream) {

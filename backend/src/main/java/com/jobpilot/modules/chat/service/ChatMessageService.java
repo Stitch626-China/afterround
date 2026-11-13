@@ -27,6 +27,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.SignalType;
 import reactor.core.scheduler.Schedulers;
 
 /**
@@ -103,6 +104,7 @@ public class ChatMessageService {
                     .concatWith(Flux.defer(() -> Mono.fromCallable(() -> {
                         com.jobpilot.modules.chat.entity.ChatMessage saved = save(sessionId, "ASSISTANT",
                                 answer.toString(), providerKey, actualModel.get(), traceId);
+                        // 先释放再发 done：客户端收到 done 后立刻再发不会被误判 409
                         release(sessionId);
                         callLogger.log("CHAT", providerKey, actualModel.get(), null, null,
                                 totalTokens.get(), elapsed(start), true, null);
@@ -116,8 +118,14 @@ public class ChatMessageService {
                         return ChatStreamEvent.error(ErrorCode.INTERNAL_ERROR.code(),
                                 ex.getMessage() == null ? "模型调用失败" : ex.getMessage());
                     }).subscribeOn(Schedulers.boundedElastic()).flux())
-                    // 客户端断开（cancel）不会进入 onErrorResume，这里兜底释放，避免永久 PROCESSING
-                    .doFinally(signal -> release(sessionId));
+                    // 客户端取消不会进入 onErrorResume，仅在这种情况下兜底释放并落调用日志
+                    .doFinally(signal -> {
+                        if (signal == SignalType.CANCEL) {
+                            release(sessionId);
+                            callLogger.log("CHAT", providerKey, model, null, null, null,
+                                    elapsed(start), false, "客户端取消");
+                        }
+                    });
         } catch (RuntimeException ex) {
             release(sessionId);
             throw ex;

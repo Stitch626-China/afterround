@@ -200,7 +200,7 @@ npx @redocly/cli lint contracts/openapi.yaml
 
 ## 当前进度
 
-M1 四个阶段（骨架与契约、模型网关、简历中心、前端与测试收口）已全部完成：后端 50 个测试通过，前端构建通过、Vitest 9 个单测 + Playwright 2 个 E2E 通过；下一步进入 M2（JD / 模拟面试 / Offer 决策 / 简历版本对比）。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
+M1 四个阶段（骨架与契约、模型网关、简历中心、前端与测试收口）已全部完成：后端 88 个测试通过（总行覆盖 91.49%，JaCoCo 门禁通过），前端构建通过、Vitest 9 个单测 + Playwright 6 个 E2E 通过；Provider 启停热更新、MVC 异步执行器与 SSE 异常结束已加固。下一步进入 M2（JD / 模拟面试 / Offer 决策 / 简历版本对比）。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
 
 ## 合规说明
 

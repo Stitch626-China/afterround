@@ -12,11 +12,9 @@ export type ChatStreamEvent = components['schemas']['ChatStreamEvent']
 export type CreateChatSessionRequest = components['schemas']['CreateChatSessionRequest']
 export type SwitchModelRequest = components['schemas']['SwitchModelRequest']
 
-export interface ChatSessionPage {
+/** 分页结构由契约派生，仅把 items 收紧为必填避免页面重复判空。 */
+export type ChatSessionPage = NonNullable<components['schemas']['ResultChatSessionPage']['data']> & {
   items: ChatSession[]
-  total: number
-  page: number
-  size: number
 }
 
 export function listChatSessions(page = 1, size = 20): Promise<ChatSessionPage> {

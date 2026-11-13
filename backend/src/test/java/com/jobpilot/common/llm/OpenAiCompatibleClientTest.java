@@ -48,6 +48,22 @@ class OpenAiCompatibleClientTest {
         });
         server.createContext("/v1/models", exchange ->
                 respond(exchange, 200, "{\"data\":[{\"id\":\"Qwen3.8-27B\"},{\"id\":\"other\"}]}"));
+        server.createContext("/v1/nodone/chat/completions", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            exchange.getResponseHeaders().add("Content-Type", "text/event-stream; charset=utf-8");
+            exchange.sendResponseHeaders(200, 0);
+            try (OutputStream out = exchange.getResponseBody()) {
+                write(out, "data: {\"choices\":[{\"delta\":{\"content\":\"残\"}}]}\n\n");
+            }
+        });
+        server.createContext("/v1/errorframe/chat/completions", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            exchange.getResponseHeaders().add("Content-Type", "text/event-stream; charset=utf-8");
+            exchange.sendResponseHeaders(200, 0);
+            try (OutputStream out = exchange.getResponseBody()) {
+                write(out, "data: {\"error\":{\"message\":\"secret-internal\"}}\n\n");
+            }
+        });
         server.createContext("/bad/chat/completions", exchange ->
                 respond(exchange, 401, "{\"error\":\"invalid token\"}"));
         server.start();
@@ -90,6 +106,28 @@ class OpenAiCompatibleClientTest {
         assertThat(chunks).extracting(StreamChunk::content).containsExactly("你", "好", null);
         assertThat(chunks.get(2).totalTokens()).isEqualTo(7);
         assertThat(chunks.get(0).model()).isEqualTo("real-model");
+        assertThat(LAST_BODY.get()).contains("\"max_tokens\":4096");
+    }
+
+    @Test
+    void streamWithoutDoneMarkerFails() {
+        assertThatThrownBy(() -> new OpenAiCompatibleClient(baseUrl + "/v1/nodone", "sk-test")
+                .stream("m", List.of(ChatMessage.user("hi")))
+                .collectList()
+                .block(Duration.ofSeconds(10)))
+                .isInstanceOf(LlmException.class)
+                .hasMessageContaining("未正常结束");
+    }
+
+    @Test
+    void streamErrorFrameIsSanitized() {
+        assertThatThrownBy(() -> new OpenAiCompatibleClient(baseUrl + "/v1/errorframe", "sk-test")
+                .stream("m", List.of(ChatMessage.user("hi")))
+                .collectList()
+                .block(Duration.ofSeconds(10)))
+                .isInstanceOf(LlmException.class)
+                .hasMessage("上游流式响应返回错误")
+                .hasMessageNotContaining("secret-internal");
     }
 
     @Test

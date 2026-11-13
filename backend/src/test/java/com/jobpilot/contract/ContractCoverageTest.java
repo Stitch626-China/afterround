@@ -37,7 +37,8 @@ class ContractCoverageTest {
         Set<String> actual = controllerEndpoints();
 
         assertThat(expected).hasSize(26);
-        assertThat(actual).containsAll(expected);
+        // 双向一致：既不允许契约端点未实现，也不允许实现多出契约外端点
+        assertThat(actual).isEqualTo(expected);
     }
 
     @SuppressWarnings("unchecked")

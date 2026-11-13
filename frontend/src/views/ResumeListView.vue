@@ -96,7 +96,9 @@ async function submit(input: { file?: File; text?: string }): Promise<void> {
     const result = await uploadResume(input)
     notice.value = result.duplicated
       ? '这份简历之前上传过，已定位到已有记录，未重复分析。'
-      : '已上传，正在自动分析；完成后点击卡片查看报告。'
+      : result.resume.analyzeStatus === 'PENDING'
+        ? '已上传，点击「开始分析」生成报告；也可先在设置中配置默认模型。'
+        : '已上传，正在自动分析；完成后点击卡片查看报告。'
     pasteOpen.value = false
     pasteText.value = ''
     page.value = 1

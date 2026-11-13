@@ -90,6 +90,8 @@ public class LlmProviderService {
         }
         if (request.enabled() != null) {
             entity.setEnabled(request.enabled());
+            // 启停影响可用性，必须失效缓存，否则禁用后已缓存客户端仍可继续调用
+            changedConnection = true;
         }
         if (request.sortOrder() != null) {
             entity.setSortOrder(request.sortOrder());
@@ -111,7 +113,7 @@ public class LlmProviderService {
         }
         Long referenced = sessionMapper.selectCount(Wrappers.<ChatSession>lambdaQuery()
                 .eq(ChatSession::getCurrentProviderKey, providerKey)
-                .in(ChatSession::getStatus, "IDLE", "PROCESSING"));
+                .in(ChatSession::getStatus, "IDLE", "PROCESSING", "LOCKED"));
         if (referenced > 0) {
             throw BizException.of(ErrorCode.RESOURCE_REFERENCED, "该 Provider 正被会话引用，不可删除");
         }

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -19,6 +20,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * <p><b>需要本机 Docker 守护进程运行</b>；未运行时整类自动跳过（不判定失败）。
  */
 @SpringBootTest
+@EnabledIf("com.jobpilot.AbstractIntegrationTest#dockerAvailable")
 class JobPilotApplicationTests extends AbstractIntegrationTest {
 
     private static final List<String> EXPECTED_TABLES = List.of(

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -38,6 +39,7 @@ import org.springframework.web.reactive.function.BodyInserters;
  * <p>覆盖上传 / 去重 / Tika 解析 / 自动异步分析 / 五维报告 / 分页 / 详情 / 删除 / 失败重试 / 409 守卫。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@EnabledIf("com.jobpilot.AbstractIntegrationTest#dockerAvailable")
 class M1cResumeApiIntegrationTest extends AbstractIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

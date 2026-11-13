@@ -86,8 +86,8 @@ class ContractSchemaTest {
                     .isEqualTo(contractFields);
             checked++;
         }
-        // 防止匹配规则失效后测试空转
-        assertThat(checked).isGreaterThanOrEqualTo(25);
+        // 不允许任何 DTO 因命名规则失效被静默跳过
+        assertThat(checked).isEqualTo(DTOS.size());
     }
 
     private String schemaName(Map<String, Object> schemas, String simple) {
