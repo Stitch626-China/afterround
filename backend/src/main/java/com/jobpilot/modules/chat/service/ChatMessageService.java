@@ -115,7 +115,9 @@ public class ChatMessageService {
                         log.warn("会话 {} 流式对话失败: {}", sessionId, ex.getMessage());
                         return ChatStreamEvent.error(ErrorCode.INTERNAL_ERROR.code(),
                                 ex.getMessage() == null ? "模型调用失败" : ex.getMessage());
-                    }).subscribeOn(Schedulers.boundedElastic()).flux());
+                    }).subscribeOn(Schedulers.boundedElastic()).flux())
+                    // 客户端断开（cancel）不会进入 onErrorResume，这里兜底释放，避免永久 PROCESSING
+                    .doFinally(signal -> release(sessionId));
         } catch (RuntimeException ex) {
             release(sessionId);
             throw ex;
@@ -156,14 +158,19 @@ public class ChatMessageService {
 
     /** 组装上下文：最近 N 条消息（含刚写入的 USER 消息），按时间正序。 */
     private List<ChatMessage> history(Long sessionId) {
-        List<com.jobpilot.modules.chat.entity.ChatMessage> recent = messageMapper.selectList(
+        List<com.jobpilot.modules.chat.entity.ChatMessage> recent = new ArrayList<>(messageMapper.selectList(
                 Wrappers.<com.jobpilot.modules.chat.entity.ChatMessage>lambdaQuery()
                         .eq(com.jobpilot.modules.chat.entity.ChatMessage::getSessionId, sessionId)
                         .orderByDesc(com.jobpilot.modules.chat.entity.ChatMessage::getId)
-                        .last("LIMIT " + maxHistory));
+                        .last("LIMIT " + maxHistory)));
         List<ChatMessage> messages = new ArrayList<>(recent.size());
         Collections.reverse(recent);
-        for (com.jobpilot.modules.chat.entity.ChatMessage entity : recent) {
+        for (int index = 0; index < recent.size(); index++) {
+            com.jobpilot.modules.chat.entity.ChatMessage entity = recent.get(index);
+            // 按条数截断可能从 ASSISTANT 开始，丢掉不完整的半轮
+            if (index == 0 && !"USER".equals(entity.getRole())) {
+                continue;
+            }
             messages.add("USER".equals(entity.getRole())
                     ? ChatMessage.user(entity.getContent())
                     : ChatMessage.assistant(entity.getContent()));

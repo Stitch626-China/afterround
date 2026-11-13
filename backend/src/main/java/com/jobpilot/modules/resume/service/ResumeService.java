@@ -172,6 +172,8 @@ public class ResumeService {
                 storage.delete(resume.getStorageKey());
             } catch (Exception ex) {
                 log.warn("删除简历文件失败 resumeId={} key={}", resumeId, resume.getStorageKey(), ex);
+                // 文件未删干净时保留数据库记录，避免留下不可追踪的孤儿文件
+                throw BizException.of(ErrorCode.INTERNAL_ERROR, "删除简历文件失败，请稍后重试");
             }
         }
         analysisMapper.delete(Wrappers.<ResumeAnalysis>lambdaQuery()

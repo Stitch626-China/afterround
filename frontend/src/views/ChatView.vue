@@ -3,7 +3,7 @@
  * 模型对话（M1 能力验证）：会话列表、Provider + Model 两级切换、SSE 流式回答。
  * 切换守卫以服务端为准：PROCESSING / LOCKED 时按钮置灰，409 时展示原因。
  */
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   createChatSession,
   deleteChatSession,
@@ -37,6 +37,7 @@ const confirming = ref(false)
 const error = ref('')
 const notice = ref('')
 const messageBox = ref<HTMLElement | null>(null)
+let controller: AbortController | null = null
 
 const pages = computed(() => Math.max(1, Math.ceil(total.value / size)))
 const models = computed<LlmModel[]>(() => {
@@ -95,7 +96,15 @@ async function loadSessions(preferredId?: number): Promise<void> {
   }
 }
 
+function cancelStream(): void {
+  controller?.abort()
+  controller = null
+  streaming.value = false
+  draft.value = ''
+}
+
 async function selectSession(id: number): Promise<void> {
+  cancelStream()
   try {
     const [detail, history] = await Promise.all([getChatSession(id), listChatMessages(id)])
     session.value = detail
@@ -127,6 +136,7 @@ async function refreshActive(): Promise<void> {
 }
 
 async function createSession(): Promise<void> {
+  cancelStream()
   busy.value = true
   error.value = ''
   try {
@@ -145,6 +155,7 @@ async function removeSession(): Promise<void> {
   if (!session.value) {
     return
   }
+  cancelStream()
   busy.value = true
   error.value = ''
   try {
@@ -205,9 +216,15 @@ async function send(): Promise<void> {
     createdAt: new Date().toISOString(),
   })
   void scrollToBottom()
+  controller = new AbortController()
+  const signal = controller.signal
 
   try {
     await streamChatMessage(id, content, (event) => {
+      // 慢流期间切换/删除会话时丢弃旧会话的增量，避免串写到当前会话
+      if (session.value?.id !== id) {
+        return
+      }
       if (event.type === 'delta') {
         draft.value += event.content ?? ''
         void scrollToBottom()
@@ -224,14 +241,24 @@ async function send(): Promise<void> {
       } else if (event.type === 'error') {
         error.value = event.message ?? '生成失败'
       }
-    })
+    }, signal)
   } catch (ex) {
-    fail(ex)
+    if (!signal.aborted) {
+      fail(ex)
+    }
   } finally {
+    controller = null
     streaming.value = false
     draft.value = ''
-    await refreshActive()
-    await loadSessions(id)
+    if (session.value?.id === id) {
+      const failure = error.value
+      await refreshActive()
+      await loadSessions(id)
+      // loadSessions 会清空错误提示，这里恢复本次流式产生的错误（如 409）
+      if (failure) {
+        error.value = failure
+      }
+    }
   }
 }
 
@@ -247,6 +274,7 @@ async function go(delta: number): Promise<void> {
   if (next < 1 || next > pages.value) {
     return
   }
+  cancelStream()
   page.value = next
   session.value = null
   messages.value = []
@@ -264,6 +292,8 @@ onMounted(async () => {
   }
   await loadSessions()
 })
+
+onBeforeUnmount(cancelStream)
 </script>
 
 <template>

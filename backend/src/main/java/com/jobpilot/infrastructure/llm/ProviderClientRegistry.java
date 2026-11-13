@@ -11,6 +11,7 @@ import com.jobpilot.common.llm.OpenAiCompatibleClient;
 import com.jobpilot.infrastructure.security.AesGcmCipher;
 import com.jobpilot.modules.llm.entity.LlmProvider;
 import com.jobpilot.modules.llm.mapper.LlmProviderMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
@@ -24,6 +25,10 @@ public class ProviderClientRegistry {
     private final Map<String, LlmClient> cache = new ConcurrentHashMap<>();
     private final LlmProviderMapper providerMapper;
     private final AesGcmCipher cipher;
+
+    /** NFR7：单次调用 token 上限；单元测试直接 new 时保持默认值。 */
+    @Value("${app.llm.max-tokens:4096}")
+    private int maxTokens = 4096;
 
     public ProviderClientRegistry(LlmProviderMapper providerMapper, AesGcmCipher cipher) {
         this.providerMapper = providerMapper;
@@ -41,7 +46,8 @@ public class ProviderClientRegistry {
             if (!Boolean.TRUE.equals(provider.getEnabled())) {
                 throw BizException.of(ErrorCode.BAD_REQUEST, "Provider 已禁用: " + key);
             }
-            return new OpenAiCompatibleClient(provider.getBaseUrl(), cipher.decrypt(provider.getApiKeyCipher()));
+            return new OpenAiCompatibleClient(provider.getBaseUrl(), cipher.decrypt(provider.getApiKeyCipher()),
+                    maxTokens);
         });
     }
 

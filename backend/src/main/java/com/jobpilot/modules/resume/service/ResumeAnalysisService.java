@@ -2,6 +2,7 @@ package com.jobpilot.modules.resume.service;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -13,6 +14,7 @@ import com.jobpilot.common.llm.ChatMessage;
 import com.jobpilot.common.llm.ChatResult;
 import com.jobpilot.common.llm.LlmClient;
 import com.jobpilot.common.llm.StructuredOutputInvoker;
+import com.jobpilot.common.web.TraceIdFilter;
 import com.jobpilot.infrastructure.llm.LlmCallLogger;
 import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
 import com.jobpilot.modules.llm.entity.LlmGlobalSetting;
@@ -32,6 +34,7 @@ import com.jobpilot.modules.resume.mapper.ResumeMapper;
 import com.jobpilot.modules.resume.prompt.ResumePromptFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
@@ -87,7 +90,14 @@ public class ResumeAnalysisService {
         if (updated == 0) {
             throw BizException.of(ErrorCode.ANALYSIS_IN_PROGRESS);
         }
-        executor.execute(() -> analyze(resumeId));
+        try {
+            submit(resumeId);
+        } catch (RuntimeException ex) {
+            // 队列拒绝时回滚状态，避免简历永久停留在 PROCESSING
+            resetToPending(resumeId, "分析任务队列已满，请稍后重试");
+            log.warn("简历分析任务入队失败 resumeId={}", resumeId, ex);
+            throw BizException.of(ErrorCode.INTERNAL_ERROR, "分析任务队列已满，请稍后重试");
+        }
         return new ResumeAnalysisStatusResponse(resumeId, "PROCESSING", null, 0, null);
     }
 
@@ -104,7 +114,12 @@ public class ResumeAnalysisService {
                     .set(Resume::getRetryCount, 0)
                     .set(Resume::getUpdatedAt, OffsetDateTime.now()));
             if (updated > 0) {
-                executor.execute(() -> analyze(resumeId));
+                try {
+                    submit(resumeId);
+                } catch (RuntimeException ex) {
+                    resetToPending(resumeId, "分析任务队列已满，请稍后重试");
+                    log.warn("自动触发简历分析入队失败 resumeId={}", resumeId, ex);
+                }
             }
         } catch (Exception ex) {
             log.warn("自动触发简历分析失败 resumeId={}", resumeId, ex);
@@ -120,6 +135,21 @@ public class ResumeAnalysisService {
                 ? toReport(analysis, resume) : null;
         return new ResumeAnalysisStatusResponse(resumeId, resume.getAnalyzeStatus(),
                 resume.getAnalyzeError(), resume.getRetryCount(), report);
+    }
+
+    /** 提交异步任务并透传请求线程的 traceId，保证 llm_call_logs 可串联。 */
+    private void submit(Long resumeId) {
+        Map<String, String> context = MDC.getCopyOfContextMap();
+        executor.execute(() -> {
+            if (context != null) {
+                MDC.setContextMap(context);
+            }
+            try {
+                analyze(resumeId);
+            } finally {
+                MDC.clear();
+            }
+        });
     }
 
     /** 异步 worker：首次 + 最多 3 次重试。 */
@@ -264,6 +294,16 @@ public class ResumeAnalysisService {
                 .set(Resume::getAnalyzeStatus, status)
                 .set(Resume::getAnalyzeError, truncate(error))
                 .set(Resume::getRetryCount, retryCount)
+                .set(Resume::getUpdatedAt, OffsetDateTime.now()));
+    }
+
+    /** 仅把仍在 PROCESSING 的简历回退为 PENDING，避免覆盖已经完成或失败的结果。 */
+    private void resetToPending(Long resumeId, String error) {
+        resumeMapper.update(null, Wrappers.<Resume>lambdaUpdate()
+                .eq(Resume::getId, resumeId)
+                .eq(Resume::getAnalyzeStatus, "PROCESSING")
+                .set(Resume::getAnalyzeStatus, "PENDING")
+                .set(Resume::getAnalyzeError, truncate(error))
                 .set(Resume::getUpdatedAt, OffsetDateTime.now()));
     }
 

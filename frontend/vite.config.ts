@@ -22,5 +22,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // 只收集 src 下的单测，避免把 e2e/*.spec.ts（Playwright）误当 Vitest 用例
+    include: ['src/**/*.{test,spec}.ts'],
   },
 })

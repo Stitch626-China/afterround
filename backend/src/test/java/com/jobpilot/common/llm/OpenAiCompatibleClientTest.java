@@ -77,6 +77,7 @@ class OpenAiCompatibleClientTest {
 
         assertThat(LAST_BODY.get()).contains("\"response_format\":{\"type\":\"json_object\"}");
         assertThat(LAST_BODY.get()).contains("\"temperature\":0.2");
+        assertThat(LAST_BODY.get()).contains("\"max_tokens\":4096");
     }
 
     @Test

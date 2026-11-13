@@ -84,11 +84,20 @@ public class ChatSessionService {
             throw BizException.of(ErrorCode.SESSION_LOCKED);
         }
         requireEnabledModel(request.providerKey(), request.model());
-        entity.setCurrentProviderKey(request.providerKey());
-        entity.setCurrentModel(request.model());
-        entity.setUpdatedAt(OffsetDateTime.now());
-        sessionMapper.updateById(entity);
-        return ChatSessionResponse.from(entity);
+        // 条件更新保证「检查状态 + 写入绑定」原子：避免与发送消息的 PROCESSING 抢占竞态，
+        // 也避免整行回写把并发抢占的 PROCESSING 覆盖回 IDLE。
+        int updated = sessionMapper.update(null, Wrappers.<ChatSession>lambdaUpdate()
+                .eq(ChatSession::getId, sessionId)
+                .eq(ChatSession::getStatus, "IDLE")
+                .set(ChatSession::getCurrentProviderKey, request.providerKey())
+                .set(ChatSession::getCurrentModel, request.model())
+                .set(ChatSession::getUpdatedAt, OffsetDateTime.now()));
+        if (updated == 0) {
+            ChatSession latest = require(sessionId);
+            throw BizException.of("LOCKED".equals(latest.getStatus())
+                    ? ErrorCode.SESSION_LOCKED : ErrorCode.SESSION_SWITCH_FORBIDDEN);
+        }
+        return ChatSessionResponse.from(require(sessionId));
     }
 
     public ChatSession require(Long sessionId) {

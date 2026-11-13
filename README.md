@@ -106,7 +106,8 @@ npm run dev       # http://localhost:5173，/api 已代理到 8080
 - `/api/resumes/{id}/analysis`：轮询状态与报告（五维评分、优势短板、原句 vs 优化句、3-5 个岗位方向）
 - `/api/resumes/{id}/salary`：保存用户填写的当前 / 期望月薪（元/月，0~1000000）；用户值优先于 LLM 提取值，传 `null` 即清空并回落，重新分析不会覆盖用户值
 - SHA-256 内容去重：重复上传返回已有记录（`duplicated=true`）且不重复触发分析
-- 上传后若已配置全局默认模型会自动异步分析；未配置则保持 `PENDING`，配置后手动触发
+- 上传后若已配置全局默认模型会自动异步分析；未配置则保持 `PENDING`，列表与报告页都提供「开始分析」手动触发
+- 单次 LLM 调用受 `LLM_MAX_TOKENS`（默认 4096）硬上限约束（NFR7）；进程重启后遗留的 `PROCESSING` 会被启动恢复自动回收
 - 原始文件默认存 `app.storage.root`（`STORAGE_ROOT`，默认 `./data/files`），解析文本落库
 
 ## M1-d 前端（信息架构）
@@ -122,8 +123,11 @@ npm run dev       # http://localhost:5173，/api 已代理到 8080
 ## 构建与测试
 
 ```bash
-# 后端：单元测试 + 集成测试
+# 后端：单元测试 + 集成测试（含 JaCoCo 门禁：总行覆盖 ≥85%、关键类 ≥95%）
 cd backend && mvn test
+
+# 只跑部分测试时跳过覆盖率门禁（否则分母不足会失败）
+cd backend && mvn -Djacoco.skip=true test -Dtest=SomeTest
 
 # 前端：生产构建（构建前会自动重新生成接口类型）
 cd frontend && npm run build
@@ -135,6 +139,8 @@ cd frontend && npm run test:e2e
 # 契约校验（提交前必须 0 error / 0 warning）
 npx @redocly/cli lint contracts/openapi.yaml
 ```
+
+> 后端 `ContractSchemaTest` 还会比对契约 schema 与 DTO 字段：任意一侧漏改都会直接失败，避免接口文档与实现漂移。
 
 > **集成测试说明**：`JobPilotApplicationTests` 用 Testcontainers 起真实 PostgreSQL 验证 Flyway 迁移，
 > 需要本机 Docker 守护进程可用，并且能拉取 `postgres:16-alpine` 镜像。

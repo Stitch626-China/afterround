@@ -47,6 +47,52 @@ const drafts = reactive<Record<string, { modelName: string; label: string }>>({}
 const tests = reactive<Record<string, ConnectivityTest | null>>({})
 const upstream = reactive<Record<string, UpstreamModelList | null>>({})
 const confirming = ref('')
+const editingModelKey = ref('')
+const editingLabel = ref('')
+
+function modelKey(provider: LlmProvider, model: LlmModel): string {
+  return `${provider.providerKey}/${model.modelName}`
+}
+
+function beginEditModel(provider: LlmProvider, model: LlmModel): void {
+  editingModelKey.value = modelKey(provider, model)
+  editingLabel.value = model.label
+}
+
+async function saveModelLabel(provider: LlmProvider, model: LlmModel): Promise<void> {
+  busy.value = true
+  error.value = ''
+  try {
+    await updateModel(provider.providerKey, model.modelName, { label: editingLabel.value.trim() || model.modelName })
+    editingModelKey.value = ''
+    notice.value = '模型展示名已更新'
+    await load()
+  } catch (ex) {
+    fail(ex)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function addUpstreamModel(provider: LlmProvider, modelName: string): Promise<void> {
+  busy.value = true
+  error.value = ''
+  try {
+    await createModel(provider.providerKey, {
+      modelName,
+      label: modelName,
+      enabled: true,
+      isDefault: modelsOf(provider).length === 0,
+      sortOrder: 10,
+    })
+    notice.value = `已添加模型 ${modelName}`
+    await load()
+  } catch (ex) {
+    fail(ex)
+  } finally {
+    busy.value = false
+  }
+}
 
 const globalProvider = computed(() =>
   providers.value.find((item) => item.providerKey === global.value.defaultProviderKey),
@@ -347,31 +393,46 @@ onMounted(load)
       <ul class="models">
         <li v-for="model in modelsOf(provider)" :key="model.modelName" class="model">
           <div class="model-title">
-            <span>{{ model.label }}</span>
+            <input
+              v-if="editingModelKey === modelKey(provider, model)"
+              v-model="editingLabel"
+              class="inline-input"
+              :disabled="busy"
+            />
+            <span v-else>{{ model.label }}</span>
             <code>{{ model.modelName }}</code>
             <span v-if="model.enabled === false" class="tag muted">停用</span>
             <span v-if="isGlobal(provider, model)" class="tag primary">全局默认</span>
           </div>
           <div class="row-actions">
-            <button type="button" class="link" :disabled="busy || isGlobal(provider, model)" @click="setGlobal(provider, model)">
-              设为默认
-            </button>
-            <button type="button" class="link" :disabled="busy" @click="toggleModel(provider, model)">
-              {{ model.enabled === false ? '启用' : '停用' }}
-            </button>
-            <button
-              v-if="confirming === `model:${provider.providerKey}/${model.modelName}`"
-              type="button"
-              class="link danger"
-              :disabled="busy"
-              @click="removeModel(provider, model)"
-            >确认删除</button>
-            <button
-              v-else
-              type="button"
-              class="link danger"
-              @click="confirming = `model:${provider.providerKey}/${model.modelName}`"
-            >删除</button>
+            <template v-if="editingModelKey === modelKey(provider, model)">
+              <button type="button" class="link" :disabled="busy" @click="saveModelLabel(provider, model)">保存</button>
+              <button type="button" class="link" @click="editingModelKey = ''">取消</button>
+            </template>
+            <template v-else>
+              <button type="button" class="link" :disabled="busy || isGlobal(provider, model)" @click="setGlobal(provider, model)">
+                设为默认
+              </button>
+              <button type="button" class="link" :disabled="busy" @click="beginEditModel(provider, model)">
+                编辑
+              </button>
+              <button type="button" class="link" :disabled="busy" @click="toggleModel(provider, model)">
+                {{ model.enabled === false ? '启用' : '停用' }}
+              </button>
+              <button
+                v-if="confirming === `model:${provider.providerKey}/${model.modelName}`"
+                type="button"
+                class="link danger"
+                :disabled="busy"
+                @click="removeModel(provider, model)"
+              >确认删除</button>
+              <button
+                v-else
+                type="button"
+                class="link danger"
+                @click="confirming = `model:${provider.providerKey}/${model.modelName}`"
+              >删除</button>
+            </template>
           </div>
         </li>
       </ul>
@@ -386,7 +447,16 @@ onMounted(load)
 
       <p v-if="upstream[provider.providerKey]" class="upstream">
         上游 {{ upstream[provider.providerKey]!.source === 'UPSTREAM' ? '实时' : '回退本地' }}模型：
-        <code v-for="name in upstream[provider.providerKey]!.models" :key="name">{{ name }}</code>
+        <span v-for="name in upstream[provider.providerKey]!.models" :key="name" class="upstream-item">
+          <code>{{ name }}</code>
+          <button
+            v-if="!modelsOf(provider).some((model) => model.modelName === name)"
+            type="button"
+            class="link"
+            :disabled="busy"
+            @click="addUpstreamModel(provider, name)"
+          >添加</button>
+        </span>
       </p>
     </section>
   </div>
@@ -636,6 +706,22 @@ input:focus-visible {
   gap: var(--space-2);
   flex-wrap: wrap;
   align-items: center;
+}
+
+.upstream-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.inline-input {
+  width: 140px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-btn);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
 }
 
 .muted {

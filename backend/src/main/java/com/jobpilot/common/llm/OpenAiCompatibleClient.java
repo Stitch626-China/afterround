@@ -30,11 +30,17 @@ public class OpenAiCompatibleClient implements LlmClient {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
     private static final int ERROR_BODY_LIMIT = 300;
+    private static final int DEFAULT_MAX_TOKENS = 4096;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final WebClient web;
+    private final int maxTokens;
 
     public OpenAiCompatibleClient(String baseUrl, String apiKey) {
+        this(baseUrl, apiKey, DEFAULT_MAX_TOKENS);
+    }
+
+    public OpenAiCompatibleClient(String baseUrl, String apiKey, int maxTokens) {
         HttpClient http = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5_000)
                 .responseTimeout(TIMEOUT);
@@ -43,6 +49,7 @@ public class OpenAiCompatibleClient implements LlmClient {
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .clientConnector(new ReactorClientHttpConnector(http))
                 .build();
+        this.maxTokens = maxTokens;
     }
 
     @Override
@@ -122,17 +129,22 @@ public class OpenAiCompatibleClient implements LlmClient {
     }
 
     private StreamChunk toChunk(String data) {
+        JsonNode node;
         try {
-            JsonNode node = MAPPER.readTree(data);
-            JsonNode choices = node.path("choices");
-            String content = choices.isArray() && !choices.isEmpty()
-                    ? choices.path(0).path("delta").path("content").asText(null) : null;
-            String model = node.hasNonNull("model") ? node.get("model").asText() : null;
-            Integer total = intOrNull(node.path("usage").path("total_tokens"));
-            return content == null && model == null && total == null ? null : new StreamChunk(content, model, total);
+            node = MAPPER.readTree(data);
         } catch (Exception ex) {
-            return null;
+            // 坏帧不能静默丢弃，否则上层会把残缺回答当作成功落库
+            throw new LlmException(502, "上游流式响应不是合法 JSON: " + truncate(data));
         }
+        if (node.has("error")) {
+            throw new LlmException(502, "上游流式响应错误: " + truncate(node.get("error").toString()));
+        }
+        JsonNode choices = node.path("choices");
+        String content = choices.isArray() && !choices.isEmpty()
+                ? choices.path(0).path("delta").path("content").asText(null) : null;
+        String model = node.hasNonNull("model") ? node.get("model").asText() : null;
+        Integer total = intOrNull(node.path("usage").path("total_tokens"));
+        return content == null && model == null && total == null ? null : new StreamChunk(content, model, total);
     }
 
     private reactor.core.publisher.Mono<? extends Throwable> toError(
@@ -148,6 +160,8 @@ public class OpenAiCompatibleClient implements LlmClient {
         body.put("model", model);
         body.put("messages", messages);
         body.put("stream", stream);
+        // NFR7：单次任务 token 硬上限，超限由上游中断并返回明确错误
+        body.put("max_tokens", maxTokens);
         return body;
     }
 

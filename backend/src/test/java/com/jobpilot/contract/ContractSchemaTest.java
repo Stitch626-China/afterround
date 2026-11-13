@@ -1,0 +1,130 @@
+package com.jobpilot.contract;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.InputStream;
+import java.lang.reflect.RecordComponent;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
+
+import com.jobpilot.modules.chat.dto.ChatMessageResponse;
+import com.jobpilot.modules.chat.dto.ChatSessionResponse;
+import com.jobpilot.modules.chat.dto.ChatStreamEvent;
+import com.jobpilot.modules.chat.dto.CreateChatSessionRequest;
+import com.jobpilot.modules.chat.dto.SendMessageRequest;
+import com.jobpilot.modules.chat.dto.SwitchModelRequest;
+import com.jobpilot.modules.llm.dto.ConnectivityTestResponse;
+import com.jobpilot.modules.llm.dto.CreateModelRequest;
+import com.jobpilot.modules.llm.dto.CreateProviderRequest;
+import com.jobpilot.modules.llm.dto.GlobalSettingResponse;
+import com.jobpilot.modules.llm.dto.LlmModelResponse;
+import com.jobpilot.modules.llm.dto.LlmProviderResponse;
+import com.jobpilot.modules.llm.dto.TestProviderRequest;
+import com.jobpilot.modules.llm.dto.UpdateGlobalSettingRequest;
+import com.jobpilot.modules.llm.dto.UpdateModelRequest;
+import com.jobpilot.modules.llm.dto.UpdateProviderRequest;
+import com.jobpilot.modules.llm.dto.UpstreamModelListResponse;
+import com.jobpilot.modules.resume.dto.AnalysisDimensionResponse;
+import com.jobpilot.modules.resume.dto.CareerDirectionResponse;
+import com.jobpilot.modules.resume.dto.QuoteItemResponse;
+import com.jobpilot.modules.resume.dto.ResumeAnalysisReportResponse;
+import com.jobpilot.modules.resume.dto.ResumeAnalysisStatusResponse;
+import com.jobpilot.modules.resume.dto.ResumeBasicInfoResponse;
+import com.jobpilot.modules.resume.dto.ResumeDetailResponse;
+import com.jobpilot.modules.resume.dto.ResumeListItemResponse;
+import com.jobpilot.modules.resume.dto.ResumeUploadResponse;
+import com.jobpilot.modules.resume.dto.SuggestionItemResponse;
+import com.jobpilot.modules.resume.dto.UpdateSalaryRequest;
+import org.junit.jupiter.api.Test;
+import org.yaml.snakeyaml.Yaml;
+
+/**
+ * 契约 schema 与 DTO 字段对齐检查：契约改了字段而实现没跟（或反之）时直接失败。
+ *
+ * <p>按「schema 名 = DTO 简单名，或 DTO 去 Response 后缀」匹配；Result 包装、枚举等无对应 DTO 的 schema 跳过。
+ */
+class ContractSchemaTest {
+
+    private static final List<Class<?>> DTOS = List.of(
+            LlmProviderResponse.class, LlmModelResponse.class, CreateProviderRequest.class,
+            UpdateProviderRequest.class, CreateModelRequest.class, UpdateModelRequest.class,
+            TestProviderRequest.class, ConnectivityTestResponse.class, UpstreamModelListResponse.class,
+            GlobalSettingResponse.class, UpdateGlobalSettingRequest.class,
+            ChatSessionResponse.class, CreateChatSessionRequest.class, SwitchModelRequest.class,
+            ChatMessageResponse.class, SendMessageRequest.class, ChatStreamEvent.class,
+            ResumeListItemResponse.class, ResumeUploadResponse.class, ResumeDetailResponse.class,
+            ResumeAnalysisStatusResponse.class, ResumeAnalysisReportResponse.class,
+            AnalysisDimensionResponse.class, ResumeBasicInfoResponse.class, UpdateSalaryRequest.class,
+            QuoteItemResponse.class, SuggestionItemResponse.class, CareerDirectionResponse.class);
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void dtoFieldsMatchContractSchemas() throws Exception {
+        Map<String, Object> schemas = loadSchemas();
+        int checked = 0;
+        for (Class<?> dto : DTOS) {
+            String simple = dto.getSimpleName();
+            Object raw = schemas.get(simple);
+            if (raw == null && simple.endsWith("Response")) {
+                raw = schemas.get(simple.substring(0, simple.length() - "Response".length()));
+            }
+            if (!(raw instanceof Map<?, ?> schema)) {
+                continue;
+            }
+            Set<String> contractFields = new TreeSet<>(properties(schemas, (Map<String, Object>) schema).keySet());
+            Set<String> dtoFields = Arrays.stream(dto.getRecordComponents())
+                    .map(RecordComponent::getName).collect(Collectors.toCollection(TreeSet::new));
+            assertThat(dtoFields)
+                    .as("%s 与契约 %s 字段不一致", simple, schemaName(schemas, simple))
+                    .isEqualTo(contractFields);
+            checked++;
+        }
+        // 防止匹配规则失效后测试空转
+        assertThat(checked).isGreaterThanOrEqualTo(25);
+    }
+
+    private String schemaName(Map<String, Object> schemas, String simple) {
+        return schemas.containsKey(simple) ? simple
+                : simple.substring(0, simple.length() - "Response".length());
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> properties(Map<String, Object> schemas, Map<String, Object> schema) {
+        Map<String, Object> merged = new LinkedHashMap<>();
+        Object allOf = schema.get("allOf");
+        if (allOf instanceof List<?> parts) {
+            for (Object part : parts) {
+                Map<String, Object> node = (Map<String, Object>) part;
+                Object ref = node.get("$ref");
+                if (ref instanceof String path) {
+                    String name = path.substring(path.lastIndexOf('/') + 1);
+                    merged.putAll(properties(schemas, (Map<String, Object>) schemas.get(name)));
+                } else {
+                    merged.putAll(properties(schemas, node));
+                }
+            }
+        }
+        Object own = schema.get("properties");
+        if (own instanceof Map<?, ?> props) {
+            merged.putAll((Map<String, Object>) props);
+        }
+        return merged;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> loadSchemas() throws Exception {
+        Path contract = Path.of("..", "contracts", "openapi.yaml");
+        try (InputStream in = Files.newInputStream(contract)) {
+            Map<String, Object> doc = new Yaml().load(in);
+            Map<String, Object> components = (Map<String, Object>) doc.get("components");
+            return (Map<String, Object>) components.get("schemas");
+        }
+    }
+}

@@ -32,9 +32,8 @@ const fileInput = ref<HTMLInputElement | null>(null)
 let timer: ReturnType<typeof setTimeout> | undefined
 
 const pages = computed(() => Math.max(1, Math.ceil(total.value / size)))
-const running = computed(() =>
-  items.value.some((item) => item.analyzeStatus === 'PENDING' || item.analyzeStatus === 'PROCESSING'),
-)
+const running = computed(() => items.value.some((item) => item.analyzeStatus === 'PROCESSING'))
+let disposed = false
 
 const STATUS_TEXT: Record<string, string> = {
   PENDING: '待分析',
@@ -59,7 +58,7 @@ function clearTimer(): void {
 
 function schedule(): void {
   clearTimer()
-  if (running.value) {
+  if (!disposed && running.value) {
     timer = setTimeout(() => void load(), 2000)
   }
 }
@@ -204,7 +203,10 @@ function meta(item: ResumeListItem): string {
 }
 
 onMounted(load)
-onBeforeUnmount(clearTimer)
+onBeforeUnmount(() => {
+  disposed = true
+  clearTimer()
+})
 </script>
 
 <template>
@@ -285,6 +287,9 @@ onBeforeUnmount(clearTimer)
           <template v-else>
             <button v-if="item.analyzeStatus === 'FAILED'" type="button" class="link" @click="retry(item)">
               重试
+            </button>
+            <button v-else-if="item.analyzeStatus === 'PENDING'" type="button" class="link" @click="retry(item)">
+              开始分析
             </button>
             <button type="button" class="link" @click="openReport(item)">查看报告</button>
             <button type="button" class="link danger" @click="deletingId = item.id">删除</button>

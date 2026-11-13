@@ -71,6 +71,8 @@ app:
       model: ${LLM_BOOTSTRAP_MODEL:}
     # 上下文组装：最多携带最近 N 条历史消息（§6.2）
     max-history-messages: ${LLM_MAX_HISTORY_MESSAGES:50}
+    # NFR7：单次调用 token 硬上限
+    max-tokens: ${LLM_MAX_TOKENS:4096}
 
 logging:
   # traceId 贯穿全链路（NFR2）

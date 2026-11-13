@@ -29,7 +29,15 @@ let timer: ReturnType<typeof setTimeout> | undefined
 
 const status = computed(() => analysis.value?.status ?? resume.value?.analyzeStatus ?? 'PENDING')
 const report = computed(() => analysis.value?.report ?? null)
-const running = computed(() => status.value === 'PENDING' || status.value === 'PROCESSING')
+const running = computed(() => status.value === 'PROCESSING')
+let disposed = false
+
+const actionText = computed(() => {
+  if (status.value === 'FAILED') {
+    return '重试分析'
+  }
+  return status.value === 'COMPLETED' ? '重新分析' : '开始分析'
+})
 
 const statusText = computed(() => {
   switch (status.value) {
@@ -79,7 +87,9 @@ async function load(): Promise<void> {
     error.value = ex instanceof Error ? ex.message : '加载失败'
   } finally {
     loading.value = false
-    schedule()
+    if (!disposed) {
+      schedule()
+    }
   }
 }
 
@@ -120,7 +130,10 @@ async function saveSalary(payload: {
 }
 
 onMounted(load)
-onBeforeUnmount(clearTimer)
+onBeforeUnmount(() => {
+  disposed = true
+  clearTimer()
+})
 </script>
 
 <template>
@@ -143,7 +156,7 @@ onBeforeUnmount(clearTimer)
       <div class="head-actions">
         <button type="button" class="btn ghost" @click="router.push('/resumes')">返回列表</button>
         <button type="button" class="btn primary" :disabled="busy || running" @click="reanalyze">
-          {{ status === 'FAILED' ? '重试分析' : '重新分析' }}
+          {{ actionText }}
         </button>
       </div>
     </header>
@@ -191,7 +204,7 @@ onBeforeUnmount(clearTimer)
     <EmptyState
       v-else
       title="暂无分析结果"
-      hint="点击「重新分析」生成报告。"
+      hint="点击「开始分析」生成报告。"
       action-label="开始分析"
       @action="reanalyze"
     />

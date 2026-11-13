@@ -48,6 +48,7 @@ export async function streamChatMessage(
   sessionId: number,
   content: string,
   onEvent: (event: ChatStreamEvent) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   let response: Response
   try {
@@ -55,6 +56,7 @@ export async function streamChatMessage(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
+      signal,
     })
   } catch {
     throw new ApiError(-1, '无法连接后端服务，请确认后端已启动（默认 8080）')
