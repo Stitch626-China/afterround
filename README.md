@@ -6,7 +6,7 @@ AI 求职辅助平台，围绕求职全流程构建闭环：
 
 一句话定位：让每一次求职动作（改简历、选岗位、练面试、复盘）都有 AI 深度参与和数据沉淀。
 
-当前阶段为**个人自用版**：免登录、单用户、本地 Docker Compose 部署；数据表预留 `user_id`，不堵死后续产品化路径。
+当前阶段为**个人自用版**：免登录、单用户、本地部署（Docker Compose 起数据库与后端，前端用 Vite 或静态托管）；数据表预留 `user_id`，不堵死后续产品化路径。
 
 ## 目录结构
 
@@ -22,7 +22,7 @@ interview-main/
 │   │   └── sessions/       # 每次会话一份记录（只增不改）
 │   └── superpowers/
 │       └── specs/          # 需求规格文档（唯一需求源）
-├── reference/              # 参考项目（AGPL-3.0，仅本地阅读，已 gitignore，禁止入库/复制代码）
+├── reference/              # 本地参考项目（AGPL-3.0，仅本地阅读；已 gitignore，公开仓库不包含）
 └── README.md
 ```
 
@@ -51,43 +51,176 @@ npx openapi-typescript ../contracts/openapi.yaml -o src/api/schema.d.ts
 - 校验规则配置在根目录 `redocly.yaml`，其中 `no-server-example.com` 与 `operation-4xx-response` 因本地部署、无鉴权查询接口而关闭，理由写在配置注释里。
 - 契约当前覆盖 **M1 全量**（模型配置 / 对话会话 / 简历），F2~F5 随里程碑追加。
 
-## 快速开始
+## 环境依赖
 
-### 1. 配置环境变量
+| 依赖 | 版本要求 | 用途 |
+|---|---|---|
+| JDK | **21**（必须） | 后端编译与运行 |
+| Maven | 3.9+ | 后端构建 |
+| Node.js | 20 LTS 及以上 | 前端开发与构建 |
+| npm | 10+（随 Node 安装） | 前端依赖管理 |
+| Docker Engine | 25+（推荐） | 运行 PostgreSQL；集成测试要求 Docker API ≥ 1.44 |
+| Docker Compose | v2（`docker compose`） | 启动数据库 / 后端 |
+| PostgreSQL | 16（容器自动提供） | 也可使用本机实例，需自行建库 |
+| 浏览器 | Edge / Chrome | E2E 默认使用本机 Edge |
+
+- Windows / macOS / Linux 均可运行；下文 Windows 命令为 PowerShell 写法。
+- 默认端口：后端 `8080`、前端 `5173`、PostgreSQL `5432`；端口冲突时见「常见问题」。
+- 只有 JDK 21 是硬性要求；Maven、Node 版本过低会在构建阶段直接报错。
+
+## 配置说明
+
+### 1. 生成 .env
 
 ```bash
 cp .env.example .env
-# 编辑 .env：至少改 DB_PASSWORD；填 APP_SECRET_KEY（加密 Provider 密钥用）
 ```
 
-### 2. 启动数据库
+`.env` 已被 `.gitignore` 排除，**不要提交到仓库**。至少设置以下两项：
+
+| 变量 | 必需 | 说明 |
+|---|---|---|
+| `APP_SECRET_KEY` | **是** | Provider API Key 的 AES-GCM 主密钥；缺失时后端直接启动失败 |
+| `DB_PASSWORD` | **是**（Compose 模式） | 与 `docker-compose.yml` 中 `POSTGRES_PASSWORD` 保持一致 |
+
+生成 `APP_SECRET_KEY`：
+
+```bash
+# macOS / Linux
+openssl rand -base64 32
+
+# Windows PowerShell
+$bytes = New-Object byte[] 32
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+[Convert]::ToBase64String($bytes)
+```
+
+> **密钥丢失 = 已保存的 API Key 无法解密**，需要重新录入。请把 `.env` 备份到安全位置。
+
+### 2. 全部配置项
+
+| 变量 | 必需 | 默认值 | 说明 |
+|---|---|---|---|
+| `DB_URL` | 否 | `jdbc:postgresql://localhost:5432/jobpilot` | JDBC 地址；Compose 容器内为 `postgres:5432` |
+| `DB_USER` | 否 | `jobpilot` | 数据库用户名 |
+| `DB_PASSWORD` | 是 | 无 | 数据库密码 |
+| `APP_SECRET_KEY` | 是 | 无 | AES-GCM 主密钥 |
+| `STORAGE_ROOT` | 否 | `./data/files` | 上传文件落盘目录（本地 `FileStorage` 实现） |
+| `ASYNC_CORE_POOL_SIZE` | 否 | `2` | 简历分析线程池核心线程数 |
+| `ASYNC_MAX_POOL_SIZE` | 否 | `4` | 最大线程数 |
+| `ASYNC_QUEUE_CAPACITY` | 否 | `20` | 队列容量；满时任务回滚为「待分析」并提示稍后重试 |
+| `LLM_MAX_TOKENS` | 否 | `4096` | 单次 LLM 调用 token 硬上限（NFR7） |
+| `LLM_MAX_HISTORY_MESSAGES` | 否 | `50` | 对话上下文最多携带的历史消息条数 |
+| `LLM_BOOTSTRAP_*` | 否 | 空 | 首次启动且库内无 Provider 时导入一次种子配置；日常请在页面维护 |
+
+> 本地开发时 Spring Boot **不会自动读取 `.env`**，需要先把变量导入当前终端，见下一节。
+
+### 3. 模型服务（首次使用必须配置）
+
+任意 OpenAI 兼容端点均可（公司内网网关 / OpenAI / DeepSeek 等）。两种配置方式：
+
+1. **页面配置（推荐）**：前端左下角「设置 → 模型服务」→ 新增服务商（`baseUrl` 需包含 `/v1`）→ 添加模型 → 设为全局默认 → 连通测试。
+2. **启动种子**：在 `.env` 填 `LLM_BOOTSTRAP_*`，仅当数据库内没有任何 Provider 时生效一次。
+
+未配置全局默认模型时，简历上传后会停留在「待分析」，可在列表或报告页点「开始分析」手动触发。
+
+## 快速开始（本地开发）
+
+```bash
+git clone https://github.com/Stitch626-China/jobpilot.git
+cd jobpilot
+cp .env.example .env
+# 编辑 .env：设置 DB_PASSWORD 与 APP_SECRET_KEY
+```
+
+### 1. 启动数据库
 
 ```bash
 docker compose up -d postgres
 ```
 
-日常开发只用这一条，应用在 IDE 里跑（可断点调试）。表结构由 Flyway 在应用启动时自动创建。
+首次启动会自动创建数据库并保持运行；表结构由后端启动时的 Flyway 自动创建。
 
-### 3. 启动后端
+### 2. 启动后端
 
 ```bash
-cd backend
+# macOS / Linux：导入 .env 后启动
+set -a && source .env && set +a
+cd backend && mvn spring-boot:run
+```
+
+```powershell
+# Windows PowerShell：把 .env 导入当前进程后启动
+Get-Content .env | Where-Object { $_ -match '^\s*[A-Za-z_][A-Za-z0-9_]*=' } | ForEach-Object {
+  $kv = $_ -split '=', 2
+  [Environment]::SetEnvironmentVariable($kv[0].Trim(), $kv[1].Trim(), 'Process')
+}
+Set-Location backend
 mvn spring-boot:run
 ```
 
-- 默认端口 `8080`；健康检查 `GET /actuator/health`
-- OpenAPI 文档（仅用于与契约比对，不是真实源）`GET /v3/api-docs`、`/swagger-ui.html`
-- **需要 JDK 21**。若本机 `JAVA_HOME` 指向其他版本，可单次指定：
-  `JAVA_HOME=D:\Java\21 mvn spring-boot:run`（不要为此改系统环境变量）
+- 默认端口 `8080`；健康检查 `http://localhost:8080/actuator/health`
+- JDK 21 不是默认版本时，单次指定即可：PowerShell `$env:JAVA_HOME="D:\Java\21"`，macOS/Linux `JAVA_HOME=/path/to/jdk21 mvn spring-boot:run`
+- Flyway 自动执行 `V1` / `V2` 迁移，无需手工执行 SQL
 
-### 4. 启动前端
+### 3. 启动前端
 
 ```bash
 cd frontend
-npm install
-npm run gen:api   # 由 contracts/openapi.yaml 生成 TS 类型（首次及契约变更后必跑）
-npm run dev       # http://localhost:5173，/api 已代理到 8080
+npm ci            # 按 package-lock.json 安装；日常也可用 npm install
+npm run dev       # 启动前自动执行 gen:api，由契约生成 TS 类型
 ```
+
+打开 `http://localhost:5173`；`/api` 已代理到 `http://localhost:8080`，无需额外配置跨域。
+
+### 4. 验收
+
+1. 「设置 → 模型服务」配置 Provider / Model，设为全局默认并做连通测试
+2. 简历中心上传 PDF / DOCX / DOC / TXT（≤5MB）或粘贴文本
+3. 等待「分析中 → 已完成」，点击卡片查看五维报告与薪资修改
+4. 设置抽屉 →「打开模型对话」，验证 SSE 流式回答与生成中禁切
+
+## Docker Compose 部署（后端 + 数据库）
+
+```bash
+docker compose up --build
+```
+
+- 启动 PostgreSQL 与后端（`http://localhost:8080`）；**当前 Compose 不包含前端**，前端需单独运行开发服务器，或把 `npm run build` 的 `dist/` 交给静态服务器。
+- Compose 自动读取 `env_file: .env`，容器内 `DB_URL` 已指向 `postgres:5432`。
+- 数据在 `pgdata` 卷中：`docker compose down` 保留数据，`docker compose down -v` 会清空数据库。
+
+前端静态部署时，需要把 `/api` 反向代理到后端，并关闭 SSE 缓冲：
+
+```nginx
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    location / { try_files $uri $uri/ /index.html; }
+    location /api/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Connection '';
+        proxy_buffering off;
+        proxy_read_timeout 300s;
+    }
+}
+```
+
+> 若 Nginx 也跑在容器里，把 `proxy_pass` 的 `127.0.0.1:8080` 换成后端的 Compose 服务名（如 `app:8080`）。
+
+## 常见问题
+
+| 现象 | 原因与处理 |
+|---|---|
+| 启动报 `APP_SECRET_KEY 未配置` | 在 `.env` 生成并填写 `APP_SECRET_KEY` 后重启 |
+| Flyway 报连接失败 / `Connection refused` | 数据库未启动或 `DB_URL` 不对；先确认 `docker compose ps` 中 postgres 为 healthy |
+| `5432` 被本机 PostgreSQL 占用 | 把 `docker-compose.yml` 的 `ports` 改为 `"5433:5432"`，启动后端时设置 `DB_URL=jdbc:postgresql://localhost:5433/jobpilot` |
+| 前端接口 502 / `ECONNREFUSED` | 后端未启动或不在 `8080`；先访问 `/actuator/health` |
+| 上传后一直「待分析」 | 未配置全局默认模型：到设置抽屉配置，或点击「开始分析」 |
+| `mvn test` 很慢 / 集成测试被跳过 | 集成测试需要 Docker；Docker 未运行时会自动跳过。Docker Engine 需 ≥25（API ≥1.44），详见下方测试说明 |
+| E2E 无法启动 | Playwright 默认使用本机 Edge（`channel: 'msedge'`）；Linux/macOS 需安装 Edge，或改为 Playwright Chromium 并执行 `npx playwright install chromium` |
+| Node 报 `Unsupported engine` | 升级到 Node 20 LTS 及以上 |
 
 ## M1-b 接口（模型配置与对话）
 
@@ -117,7 +250,7 @@ npm run dev       # http://localhost:5173，/api 已代理到 8080
   - 模型服务：Provider / Model 增删改、全局默认、连通测试、上游模型列举，保存即生效；
   - 外观：`Light` / `Dark` 主题，默认跟随系统，手动选择后记住（`html[data-theme]` + design tokens，首屏前应用避免闪白）。
 - **简历中心**：拖拽 / 选择 / 粘贴文本上传 → 留在列表观察「分析中 → 已完成」→ 点击进入报告；历史上传分页保留，删除为行内二次确认。
-- **未配置全局默认模型时**，上传后不会自动分析：到设置抽屉配置后，在列表点「重试」即可。
+- **未配置全局默认模型时**，上传后不会自动分析：到设置抽屉配置后，在列表点「开始分析」即可。
 - `/chat` 为 M1 模型能力验证载体，从设置抽屉进入，不占一级导航。
 
 ## 构建与测试
@@ -138,6 +271,7 @@ cd frontend && npm run test:e2e
 
 # 契约校验（提交前必须 0 error / 0 warning）
 npx @redocly/cli lint contracts/openapi.yaml
+# 已安装前端依赖时也可用：cd frontend && npm run lint:contract
 ```
 
 > 后端 `ContractSchemaTest` 还会比对契约 schema 与 DTO 字段：任意一侧漏改都会直接失败，避免接口文档与实现漂移。
