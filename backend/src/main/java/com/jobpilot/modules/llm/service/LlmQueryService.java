@@ -97,7 +97,8 @@ public class LlmQueryService {
                 .orderByAsc(LlmModel::getId)
                 .last("LIMIT 1"));
         if (model == null) {
-            throw BizException.of(ErrorCode.BAD_REQUEST, "该 Provider 下没有可用模型");
+            throw BizException.of(ErrorCode.BAD_REQUEST,
+                    "该服务商还没有启用模型，请先从上游模型列表添加并启用一个模型");
         }
         return model.getModelName();
     }

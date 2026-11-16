@@ -113,7 +113,7 @@ test('模型对话页完成一次 SSE 流式回答', async ({ page }) => {
   await expect(page.getByText('空闲')).toBeVisible()
 })
 
-test('设置抽屉可新增服务商', async ({ page }) => {
+test('设置抽屉新增服务商后自动拉取模型并设为全局默认', async ({ page }) => {
   const created = {
     providerKey: 'corp',
     label: '公司内网网关',
@@ -123,18 +123,53 @@ test('设置抽屉可新增服务商', async ({ page }) => {
     sortOrder: 10,
     models: [],
   }
+  const model = {
+    modelName: 'Qwen3.8-27B',
+    label: 'Qwen3.8-27B',
+    enabled: true,
+    isDefault: true,
+    sortOrder: 10,
+  }
   let hasProvider = false
+  let hasModels = false
+  let hasGlobal = false
 
   await page.route('**/api/llm/providers', async (route) => {
     if (route.request().method() === 'POST') {
       hasProvider = true
       return route.fulfill({ json: { code: 0, message: 'ok', data: created } })
     }
-    return route.fulfill({ json: { code: 0, message: 'ok', data: hasProvider ? [created] : [] } })
+    return route.fulfill({
+      json: {
+        code: 0,
+        message: 'ok',
+        data: hasProvider ? [{ ...created, models: hasModels ? [model] : [] }] : [],
+      },
+    })
   })
-  await page.route('**/api/llm/global', (route) => route.fulfill({
-    json: { code: 0, message: 'ok', data: { defaultProviderKey: null, defaultModel: null } },
-  }))
+  await page.route('**/api/llm/providers/corp/models', async (route) => {
+    if (route.request().method() === 'POST') {
+      hasModels = true
+      return route.fulfill({ json: { code: 0, message: 'ok', data: model } })
+    }
+    return route.fulfill({
+      json: { code: 0, message: 'ok', data: { source: 'UPSTREAM', models: ['Qwen3.8-27B', 'Qwen3.8-Flash'] } },
+    })
+  })
+  await page.route('**/api/llm/global', (route) => {
+    if (route.request().method() === 'PUT') {
+      hasGlobal = true
+    }
+    return route.fulfill({
+      json: {
+        code: 0,
+        message: 'ok',
+        data: hasGlobal
+          ? { defaultProviderKey: 'corp', defaultModel: 'Qwen3.8-27B' }
+          : { defaultProviderKey: null, defaultModel: null },
+      },
+    })
+  })
 
   await page.goto('/resumes')
   await page.getByRole('button', { name: '设置' }).click()
@@ -146,6 +181,14 @@ test('设置抽屉可新增服务商', async ({ page }) => {
   await page.getByPlaceholder('sk-...').fill('sk-secret')
   await page.getByRole('button', { name: '保存' }).click()
 
-  await expect(page.getByText('服务商已创建，可继续添加模型')).toBeVisible()
-  await expect(page.getByText('公司内网网关')).toBeVisible()
+  // 保存后自动拉取上游模型，并默认勾选第一个
+  await expect(page.getByText('上游发现 2 个模型，请勾选要启用的：')).toBeVisible()
+  await expect(page.getByRole('checkbox', { name: 'Qwen3.8-27B' })).toBeChecked()
+
+  await page.getByRole('button', { name: '添加所选模型（1）' }).click()
+
+  // 首个模型自动成为全局默认，简历分析可直接使用
+  await expect(page.getByText('已添加 1 个模型，并将 Qwen3.8-27B 设为全局默认')).toBeVisible()
+  await expect(page.locator('.tag.primary').filter({ hasText: '全局默认' })).toBeVisible()
+  await expect(page.locator('.provider').filter({ hasText: '公司内网网关' })).toBeVisible()
 })

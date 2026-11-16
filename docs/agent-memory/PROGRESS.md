@@ -13,6 +13,7 @@
 
 - 进行中：无；**M1 收口修复与遗留清理完成（2026-11-13）**——后端 88 tests 全绿、总行覆盖 91.49%、关键类门禁通过；前端 9 单测 + 6 E2E（断言全过，沙箱致退出码 1）+ 构建通过；契约 lint 0 error / 0 warning；下一步启动 M2
 - 已完成：
+  - **模型配置引导体验改进（2026-11-16）**：新增服务商后自动从 Base URL 拉取上游模型（唯一模型自动添加并设全局默认，多模型勾选批量添加）；连通测试前先引导选择模型；设置页全局默认栏增加「简历分析前必须设置」说明与一键设置；简历列表/报告页模型相关错误旁新增「打开模型设置」一键入口（共享抽屉状态 composable）；后端两处无模型错误文案改为可操作指引。前端构建通过 + 6 E2E 全过（沙箱致退出码 1），后端 88 tests 与覆盖率门禁通过
   - **README 开源化补充（2026-11-16）**：补齐环境依赖、`.env` 配置表、密钥生成、本地开发与 Compose 启动、Nginx SSE 反代、常见问题；前端新增 `predev` 自动生成契约类型，保证新克隆可直接 `npm run dev`。公开前仍需补 `LICENSE` 并同步契约 license 字段
   - **M1 收口复审修复（2026-11-13）**：PENDING 手动「开始分析」；切换模型改条件原子更新；SSE 取消/队列拒绝/重启后状态回收；`LLM_MAX_TOKENS`（默认 4096）；文件删除失败保留 DB 记录；坏 SSE 帧显式报错；异步任务透传 traceId；Vitest 配置修复 + 主链路 E2E（上传/SSE/设置）；契约 schema 与 DTO 字段对齐测试；JaCoCo 门禁（总行覆盖 ≥85%、关键类 ≥95%）。**后端 86 tests 全绿、总行覆盖 91.27%，前端 9 单测 + 6 E2E 通过，契约 lint 0 error / 0 warning**
   - **M1-a 工程骨架**：`backend/`（Spring Boot 3.5.0 + Java 21 + MyBatis-Plus + Flyway + Tika + WebFlux，统一 `Result<T>` / `PageResult<T>` / `ErrorCode` / 全局异常 / traceId 过滤器 + `V1__init.sql` 八张表 + Dockerfile）；`frontend/`（Vue3 + TS + Vite + vue-router 三屏骨架 + design tokens + 契约生成 TS 类型）；根 `docker-compose.yml` + `.env.example`

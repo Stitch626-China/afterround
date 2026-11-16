@@ -77,7 +77,8 @@ public class ResumeAnalysisService {
     public ResumeAnalysisStatusResponse trigger(Long resumeId) {
         requireResume(resumeId);
         if (defaultModel() == null) {
-            throw BizException.of(ErrorCode.BAD_REQUEST, "未配置全局默认 Provider/Model，请先在模型设置页配置");
+            throw BizException.of(ErrorCode.BAD_REQUEST,
+                    "尚未设置默认模型：请打开左下角「设置 → 模型服务」，将某个模型设为全局默认后再分析");
         }
         int updated = resumeMapper.update(null, Wrappers.<Resume>lambdaUpdate()
                 .eq(Resume::getId, resumeId)

@@ -3,14 +3,17 @@
  * 设置抽屉（§6.10）：左下角齿轮唤起，右侧滑出，不打断当前页面。
  * 两个 Tab：模型服务 / 外观。
  */
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, watch } from 'vue'
 import ModelSettings from './ModelSettings.vue'
 import AppearanceSettings from './AppearanceSettings.vue'
+import { settingsTab, type SettingsTab } from '@/composables/useSettings'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 
-const tab = ref<'model' | 'appearance'>('model')
+function selectTab(tab: SettingsTab): void {
+  settingsTab.value = tab
+}
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape' && props.open) {
@@ -40,12 +43,12 @@ onBeforeUnmount(() => {
           </header>
 
           <nav class="tabs">
-            <button type="button" :class="{ active: tab === 'model' }" @click="tab = 'model'">模型服务</button>
-            <button type="button" :class="{ active: tab === 'appearance' }" @click="tab = 'appearance'">外观</button>
+            <button type="button" :class="{ active: settingsTab === 'model' }" @click="selectTab('model')">模型服务</button>
+            <button type="button" :class="{ active: settingsTab === 'appearance' }" @click="selectTab('appearance')">外观</button>
           </nav>
 
           <div class="drawer-body">
-            <ModelSettings v-if="tab === 'model'" @navigate="emit('close')" />
+            <ModelSettings v-if="settingsTab === 'model'" @navigate="emit('close')" />
             <AppearanceSettings v-else />
           </div>
         </aside>

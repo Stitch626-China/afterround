@@ -24,3 +24,30 @@
 
 ## 阻塞
 - 无。
+
+## 追加：模型配置引导体验改进（同日）
+
+### 目标
+解决「新增服务商后连通测试提示没有模型」「简历分析提示没有可用模型但不知道去哪设置」两类卡点，补齐使用提示。
+
+### 改动（文件 → 说明）
+- `frontend/src/composables/useSettings.ts`（新增）→ 共享 `settingsOpen` / `settingsTab` / `openModelSettings()`，业务页可直接打开设置抽屉。
+- `frontend/src/App.vue`、`components/settings/SettingsDrawer.vue` → 改用共享状态，去掉各自的本地 tab 状态。
+- `frontend/src/components/settings/ModelSettings.vue` → 创建服务商后自动拉取上游模型：唯一模型自动添加并设全局默认；多模型显示勾选面板（默认勾选第一个，支持全选/清空/批量添加）；连通测试前若无模型先拉取引导；模型全停用时提示先启用；全局默认栏增加说明与「用 X 设为默认」；手动添加模型且无全局默认时自动设默认。
+- `frontend/src/views/ResumeListView.vue`、`ResumeReportView.vue` → 模型相关错误/提示旁增加「打开模型设置」按钮；FAILED 状态提供入口；空状态补充设置路径说明。
+- `backend/.../ResumeAnalysisService.java`、`LlmQueryService.java` → 无默认模型/无启用模型的错误文案改为明确操作指引。
+- `frontend/e2e/main-flows.spec.ts` → 设置流程重写为「新增服务商 → 自动拉取 → 勾选添加 → 自动全局默认」完整断言。
+
+### 决策（为什么）
+- 自动拉取放在前端创建成功后触发，而不是后端创建时隐式拉取：创建接口保持幂等、可离线完成；拉取失败不影响服务商保存，只给手动填模型兜底提示。
+- 唯一模型才自动设全局默认，多模型让用户勾选：避免把不可用/非预期模型设为全局默认影响简历分析。
+- 设置入口用 composable 共享而非路由跳转：保持当前页面上下文，配置完可直接在原页面重试。
+
+### 验证
+- `npm run build`（含 `gen:api` + `vue-tsc`）通过。
+- 全量 E2E 6 passed（沙箱 Edge 写系统目录导致退出码 1，断言全过）。
+- 后端 `mvn clean test` BUILD SUCCESS：88 tests，JaCoCo 总行覆盖 ≥85%、关键类 ≥95% 门禁通过。
+- 已重启完整环境供验收：前端 5173、后端 8080（PostgreSQL 5433，Flyway V1/V2 已是最新）。
+
+### 未完成 / 下一步
+- 无新增待办；公开开源前仍需确定 `LICENSE` 并同步契约 `info.license` 字段。

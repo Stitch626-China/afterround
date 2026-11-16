@@ -13,6 +13,7 @@ import {
   type ResumeListItem,
 } from '@/api/resumes'
 import EmptyState from '@/components/EmptyState.vue'
+import { openModelSettings } from '@/composables/useSettings'
 
 const router = useRouter()
 
@@ -33,6 +34,10 @@ let timer: ReturnType<typeof setTimeout> | undefined
 
 const pages = computed(() => Math.max(1, Math.ceil(total.value / size)))
 const running = computed(() => items.value.some((item) => item.analyzeStatus === 'PROCESSING'))
+/** 模型未配置时给出直接入口，而不是只显示一段错误文字。 */
+const needsModelSetup = computed(() =>
+  /模型|Provider/.test(error.value) || notice.value.includes('配置默认模型'),
+)
 let disposed = false
 
 const STATUS_TEXT: Record<string, string> = {
@@ -246,8 +251,14 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <p v-if="error" class="banner danger">{{ error }}</p>
-    <p v-else-if="notice" class="banner success">{{ notice }}</p>
+    <div v-if="error" class="banner danger">
+      <span>{{ error }}</span>
+      <button v-if="needsModelSetup" type="button" class="link" @click="openModelSettings">打开模型设置</button>
+    </div>
+    <div v-else-if="notice" class="banner success">
+      <span>{{ notice }}</span>
+      <button v-if="needsModelSetup" type="button" class="link" @click="openModelSettings">打开模型设置</button>
+    </div>
 
     <section v-if="loading" class="skeleton">
       <div class="skeleton-row" />
@@ -428,6 +439,16 @@ onBeforeUnmount(() => {
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-btn);
   font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.banner .link {
+  color: inherit;
+  text-decoration: underline;
+  white-space: nowrap;
 }
 
 .banner.danger {

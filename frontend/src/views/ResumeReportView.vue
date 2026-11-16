@@ -14,6 +14,7 @@ import {
 } from '@/api/resumes'
 import ReportContent from '@/components/report/ReportContent.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { openModelSettings } from '@/composables/useSettings'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,6 +41,17 @@ const actionText = computed(() => {
   }
   return status.value === 'COMPLETED' ? '重新分析' : '开始分析'
 })
+
+function isModelIssue(text: string | null | undefined): boolean {
+  return /模型|Provider/.test(text ?? '')
+}
+
+/** 触发失败或任务失败由模型缺失引起时，直接给设置入口。 */
+const modelSetupHint = computed(() =>
+  isModelIssue(error.value)
+  || isModelIssue(analysis.value?.error)
+  || isModelIssue(resume.value?.analyzeError),
+)
 
 const statusText = computed(() => {
   switch (status.value) {
@@ -178,7 +190,10 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <p v-if="error" class="error-banner">{{ error }}</p>
+    <div v-if="error" class="error-banner">
+      <span>{{ error }}</span>
+      <button v-if="modelSetupHint" type="button" class="link" @click="openModelSettings">打开模型设置</button>
+    </div>
 
     <section v-if="loading" class="skeleton">
       <div class="skeleton-card" />
@@ -207,7 +222,10 @@ onBeforeUnmount(() => {
         <p>{{ analysis?.error || resume?.analyzeError || '未知原因' }}</p>
         <p class="retry-hint">已自动重试 {{ analysis?.retryCount ?? resume?.retryCount ?? 0 }} 次，可手动重试。</p>
       </div>
-      <button type="button" class="btn primary" :disabled="busy" @click="reanalyze">重试分析</button>
+      <div class="failed-actions">
+        <button v-if="modelSetupHint" type="button" class="btn ghost" @click="openModelSettings">打开模型设置</button>
+        <button type="button" class="btn primary" :disabled="busy" @click="reanalyze">重试分析</button>
+      </div>
     </section>
 
     <ReportContent
@@ -221,7 +239,7 @@ onBeforeUnmount(() => {
     <EmptyState
       v-else
       title="暂无分析结果"
-      hint="点击「开始分析」生成报告。"
+      hint="点击「开始分析」生成报告；若提示缺少模型，请先到左下角「设置 → 模型服务」设置全局默认。"
       action-label="开始分析"
       @action="reanalyze"
     />
@@ -346,6 +364,16 @@ onBeforeUnmount(() => {
   background: #fef2f2;
   color: var(--danger);
   font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.error-banner .link {
+  color: inherit;
+  text-decoration: underline;
+  white-space: nowrap;
 }
 
 .state-card {
@@ -382,6 +410,12 @@ onBeforeUnmount(() => {
 .retry-hint {
   margin-top: var(--space-1) !important;
   color: var(--text-3) !important;
+}
+
+.failed-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .pulse {

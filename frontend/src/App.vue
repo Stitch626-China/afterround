@@ -2,13 +2,13 @@
 /**
  * 应用外壳（§6.10）：一级导航只放业务主线；模型配置/主题收进左下角齿轮的右侧抽屉。
  */
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
+import { openSettings, settingsOpen } from '@/composables/useSettings'
 
 const route = useRoute()
 const pageTitle = computed(() => (route.meta.title as string) ?? '职点')
-const settingsOpen = ref(false)
 </script>
 
 <template>
@@ -30,7 +30,7 @@ const settingsOpen = ref(false)
       </nav>
 
       <div class="sidebar-bottom">
-        <button type="button" class="settings-btn" @click="settingsOpen = true">
+        <button type="button" class="settings-btn" @click="openSettings('model')">
           <svg
             viewBox="0 0 24 24"
             width="15"
