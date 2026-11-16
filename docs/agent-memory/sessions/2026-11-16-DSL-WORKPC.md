@@ -87,3 +87,20 @@
 ### 未完成 / 下一步
 - 换机：clone 仓库 → 新建 `.env`（新 `APP_SECRET_KEY`）→ Compose 起库 → 启动前后端 → 页面重配服务商。
 - M2 启动前先补 JD / 匹配 / 模拟面试等契约。
+
+## 追加：CI/CD 方案核对与同步（同日）
+
+### 目标
+判断 GitHub Actions CI/CD 是否适配本项目，只同步方案、暂不实现。
+
+### 改动（文件 → 说明）
+- `README.md` → 文档索引新增 CI/CD 方案入口（其余未动）。
+- `docs/ci-cd-plan.md`（新增）→ 记录适配核对结论、CI 三 job 设计、CD（GHCR + 主机拉取）设计、前置改动清单、明确不做项、学习路径与待定项。
+
+### 核对结论（为什么这样设计）
+- 通过：JaCoCo 门禁绑定 `test` 阶段，`mvn test` 一次完成测试 + 门禁；测试资源自带专用密钥，无需 CI Secret；`package-lock.json` 可 `npm ci`；Testcontainers 需要 Docker，GitHub Ubuntu Runner 满足（`docker-java.properties` 要求 API ≥1.44）。
+- 需调整：Playwright 硬编码 `channel: 'msedge'`，Linux Runner 无 Edge，实施时改为环境变量并安装 chromium；GHCR 镜像名必须全小写，owner `Stitch626-China` 含大写，不能直接用 `github.repository_owner`；Compose `app` 只有 `build:` 没有 `image:`，CD 拉镜像前需补。
+- 暂缓：前端无 Dockerfile，前端部署仍走 `npm run build` + Nginx；CD 先手动，稳定后再接自托管 Runner 或 Tailscale + SSH。
+
+### 未完成 / 下一步
+- 实施时按 `docs/ci-cd-plan.md` 第 5 节做：新增 `ci.yml`、Playwright channel 环境变量化、`image.yml`、Compose 补 `image:`。
