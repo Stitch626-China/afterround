@@ -1,6 +1,6 @@
-# CI/CD 方案（规划中，暂未实现）
+# CI/CD 方案（CI 已实现，CD 规划中）
 
-> 状态：2026-11-16 完成与本仓库的适配核对，仅同步方案，未新增 `.github/workflows`。
+> 状态：2026-11-16 完成适配核对；同日已落地 CI（`.github/workflows/ci.yml` + Playwright channel 环境变量化），CD 尚未实现。
 > 目标：用 GitHub Actions 为个人自用版补齐「每次提交自动验证 + 打 tag 出镜像」的最小闭环，先学习再逐步自动化。
 
 ## 1. 适用范围

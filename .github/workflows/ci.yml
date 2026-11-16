@@ -1,0 +1,117 @@
+# CI：每次 push 到 main 或发起 PR 时自动验证。
+#
+# 说明：这里只决定「何时、在哪、跑哪条命令」；具体跑哪些用例由测试代码和
+# pom.xml / vite.config.ts / playwright.config.ts 决定，契约只约束接口形状。
+# 每个 step 上方标注：作用 / 失败含义 / 本地复现命令。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 同一分支有新提交时取消上一次未完成的运行，避免重复消耗额度
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: 契约校验
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 作用：安装前端依赖（@redocly/cli 在 devDependencies）
+      # 失败：package-lock.json 与 package.json 不一致，或依赖源不可用
+      # 本地：cd frontend && npm ci
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+        working-directory: frontend
+
+      # 作用：按根目录 redocly.yaml 规则校验 contracts/openapi.yaml（规则由 redocly.yaml 决定）
+      # 失败：契约有语法/规范错误，应视为阻断，先改契约再写实现
+      # 本地：cd frontend && npm run lint:contract（必须 0 error / 0 warning）
+      - run: npm run lint:contract
+        working-directory: frontend
+
+  backend:
+    name: 后端测试与覆盖率门禁
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 作用：JDK 21 + Maven 依赖缓存
+      # 本地：使用 JDK 21（本机在 D:\Java\21）
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # 作用：跑 src/test/java 下全部测试（单元 + 契约 + Testcontainers 集成），
+      #       结束后 JaCoCo 自动校验覆盖率（总行 ≥85%、5 个关键类 ≥95%，阈值在 pom.xml）
+      # 失败：测试失败，或覆盖率不达标，或集成测试启动容器失败
+      # 本地：mvn -f backend/pom.xml test
+      - run: mvn -B -f backend/pom.xml test
+
+      # 作用：防止「假绿」——集成测试基类在无 Docker 时用 @EnabledIf 整类跳过
+      # 失败：Runner 的 Docker 不可用，或集成测试类未真正执行
+      # 本地：mvn -f backend/pom.xml test 后检查 target/surefire-reports
+      - name: 确认集成测试真实执行
+        run: |
+          for f in \
+            backend/target/surefire-reports/TEST-com.jobpilot.JobPilotApplicationTests.xml \
+            backend/target/surefire-reports/TEST-com.jobpilot.modules.M1bApiIntegrationTest.xml \
+            backend/target/surefire-reports/TEST-com.jobpilot.modules.M1cResumeApiIntegrationTest.xml; do
+            [ -f "$f" ] || { echo "缺少测试报告：$f"; exit 1; }
+            skipped=$(grep -o 'skipped="[0-9]*"' "$f" | head -1 | cut -d'"' -f2)
+            [ "$skipped" = "0" ] || { echo "集成测试被跳过：$f（skipped=$skipped）"; exit 1; }
+          done
+          echo "集成测试均已执行"
+
+  frontend:
+    name: 前端构建、单测与 E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 作用：安装前端依赖（与契约 job 分开，互不阻塞）
+      # 本地：cd frontend && npm ci
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+        working-directory: frontend
+
+      # 作用：Vitest 单测（只收集 src/**/*.{test,spec}.ts）
+      # 本地：cd frontend && npm test
+      - run: npm test
+        working-directory: frontend
+
+      # 作用：契约生成 TS 类型 → vue-tsc 类型检查 → Vite 生产构建
+      # 失败：契约与前端用法不一致，或类型/构建错误
+      # 本地：cd frontend && npm run build
+      - run: npm run build
+        working-directory: frontend
+
+      # 作用：安装 Linux Chromium（Runner 没有本机 Edge）
+      # 本地：无需执行，本机默认走 msedge
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+
+      # 作用：跑 e2e/ 下全部用例（接口全 mock，不需要后端）
+      # 失败：页面交互回归；报告在 frontend/playwright-report
+      # 本地：cd frontend && npm run test:e2e（默认 Edge）
+      - run: npm run test:e2e
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_CHANNEL: chromium

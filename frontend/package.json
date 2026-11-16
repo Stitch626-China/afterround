@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "gen:api": "openapi-typescript ../contracts/openapi.yaml -o src/api/schema.d.ts",
-    "lint:contract": "redocly lint ../contracts/openapi.yaml"
+    "lint:contract": "redocly lint ../contracts/openapi.yaml --config ../redocly.yaml"
   },
   "dependencies": {
     "vue": "^3.5.13",
@@ -29,6 +29,7 @@
     "typescript": "~5.7.3",
     "vite": "^6.1.0",
     "vitest": "^3.0.5",
-    "vue-tsc": "^2.2.0"
+    "vue-tsc": "^2.2.0",
+    "yaml": "^2.9.1"
   }
 }
