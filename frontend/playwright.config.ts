@@ -9,7 +9,8 @@ export default defineConfig({
   timeout: 30_000,
   use: {
     baseURL: 'http://localhost:5174',
-    channel: 'msedge',
+    // 本机默认 Edge；CI（Linux Runner 无 Edge）传 PLAYWRIGHT_CHANNEL=chromium
+    channel: process.env.PLAYWRIGHT_CHANNEL === 'chromium' ? 'chromium' : 'msedge',
     headless: true,
   },
   webServer: {
