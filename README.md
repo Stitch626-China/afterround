@@ -334,6 +334,20 @@ npx @redocly/cli lint contracts/openapi.yaml
 > 指向实际管道，例如：
 > `DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine mvn test`
 
+## CI（GitHub Actions）
+
+`.github/workflows/ci.yml`：push 到 `main` 或发起 PR 时自动跑三个 job，同一分支有新提交会取消旧运行。
+
+| Job | 内容 | 失败通常意味着 |
+|---|---|---|
+| 契约校验 | `npm ci` + `npm run lint:contract`（规则在根 `redocly.yaml`） | 契约有语法/规范错误，先改契约 |
+| 后端 | `mvn test`（单元 + 契约 + Testcontainers 集成，含 JaCoCo 门禁，Runner 自带 Docker） | 测试或覆盖率不达标；守卫步骤会确认集成测试真实执行 |
+| 前端 | `npm ci` → `npm test` → `npm run build` → 安装 Chromium → `npm run test:e2e` | 单测、类型/构建或 E2E 回归 |
+
+- 测试范围由测试代码与 `pom.xml` / `vite.config.ts` / `playwright.config.ts` 决定，workflow 只负责执行哪条命令。
+- 本机用 Edge 跑 E2E；CI 通过 `PLAYWRIGHT_CHANNEL=chromium` 切到 Linux Chromium。
+- 本地复现：执行「构建与测试」里的对应命令即可；workflow 中每个 step 上方都标注了本地命令。
+
 ## 文档索引
 
 | 文档 | 说明 |

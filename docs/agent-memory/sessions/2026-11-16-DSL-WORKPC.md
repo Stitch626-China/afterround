@@ -104,3 +104,27 @@
 
 ### 未完成 / 下一步
 - 实施时按 `docs/ci-cd-plan.md` 第 5 节做：新增 `ci.yml`、Playwright channel 环境变量化、`image.yml`、Compose 补 `image:`。
+
+## 追加：CI 落地（同日）
+
+### 目标
+按用户认可的节奏接入 CI（不含 CD），每个 step 带作用、失败含义与本地复现命令。
+
+### 改动（文件 → 说明）
+- `.github/workflows/ci.yml`（新增）→ 三个 job：契约校验 / 后端测试与覆盖率门禁 / 前端构建单测 E2E；含「集成测试真实执行」守卫（防 Testcontainers 在无 Docker 时被 `@EnabledIf` 静默跳过）；同分支并发取消。
+- `frontend/playwright.config.ts` → `channel` 由 `PLAYWRIGHT_CHANNEL` 控制，本机默认 Edge，CI 用 Chromium。
+- `frontend/package.json` / `package-lock.json` → 显式加 `yaml` devDependency（`redoc` 运行时需要）；`lint:contract` 指定 `--config ../redocly.yaml`。
+- `README.md` → 新增「CI（GitHub Actions）」章节；`docs/ci-cd-plan.md` → 状态更新为 CI 已实现，拆分已实施/待实施清单。
+
+### 首次运行发现的真实问题（为什么本地没暴露）
+1. `npm run lint:contract` 在 Linux 报 `Cannot find module 'yaml'`：Windows 本机该依赖被其它包提升掩盖，锁文件在 Linux 严格安装时缺失。
+2. 在 `frontend/` 下运行 redocly 不会自动加载根目录 `redocly.yaml`，导致已关闭的 3 条规则重新报警告；本地之前用根目录 `npx` 命令所以没复现。
+
+### 验证
+- 本地：`npm run build`、`npm test`（9）、`npx playwright test`（6）通过；`npm run lint:contract` 0 error 0 warning。
+- GitHub Actions PR #1：修复后三个 job 全绿（前端 E2E 使用 Chromium；后端含 Testcontainers 集成测试）。
+- 已知提示（不影响通过）：Actions 提示 Node 20 运行时弃用、`ubuntu-latest` 将于 2026-10 起迁移 Ubuntu 26；后续可升级 action 大版本。
+
+### 未完成 / 下一步
+- 合并 PR #1 到 main。
+- CD 按 `docs/ci-cd-plan.md` 第 4/5 节，待换机并稳定手动部署后再做。
