@@ -49,7 +49,8 @@ npx openapi-typescript ../contracts/openapi.yaml -o src/api/schema.d.ts
 ```
 
 - 校验规则配置在根目录 `redocly.yaml`，其中 `no-server-example.com` 与 `operation-4xx-response` 因本地部署、无鉴权查询接口而关闭，理由写在配置注释里。
-- 契约当前覆盖 **M1 全量**（模型配置 / 对话会话 / 简历），F2~F5 随里程碑追加。
+- 契约当前覆盖 **M1 全量**（模型配置 / 对话会话 / 简历）+ **M2 第一批**（场景级模型绑定 / 公司最小 CRUD / 岗位库 JD 解析与匹配 / 简历对比），F3 / F6 与 F4 / F5 随里程碑追加。
+- **契约可以先于实现**：尚未实现的路径在路径层标记 `x-implemented: false`，后端契约一致性测试据此区分「已定义」与「必须已实现」；实现完成后删除该标记即可自动收紧校验。
 
 ## 环境依赖
 

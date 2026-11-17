@@ -22,8 +22,15 @@ info:
     - 默认按创建时间倒序。
 
     ## 覆盖范围
-    当前为 **M1 全量契约**：模型配置（X1）、对话会话（M1 能力验证载体）、简历中心（F1 轨一）。
-    F2 / F3 / F4 / F5 的接口在对应里程碑追加。
+    - **M1 全量**：模型配置（X1）、对话会话（M1 能力验证载体）、简历中心（F1 轨一）。
+    - **M2 第一批**：场景级模型绑定（FRX.11）、公司最小 CRUD（F6 / F5 数据前置）、岗位库（F2：JD 导入解析 / 匹配评分 / 行情洞察）、简历版本对比（F7）。
+    - **M2 第二批**：模拟面试（F3）、Offer 决策（F6）；F4 / F5 的接口在 M3 追加。
+    - 场景枚举 `LlmScene` 一次性定义全部 7 个场景（含 M2 未落地的预留项），避免后续扩展改动枚举。
+
+    ## 错误码补充（M2）
+    - `40903` 公司名称已存在（`companies.name` UNIQUE）
+    - `40904` 公司仍被岗位引用，禁止删除（先解除岗位关联）
+    - `40905` 简历分析未完成，无法参与对比（F7 依赖两份 COMPLETED 的分析结果）
 
   contact:
     name: 职点（JobPilot）
@@ -37,11 +44,17 @@ servers:
 
 tags:
   - name: 模型配置
-    description: Provider / Model 增删改查、连通测试、模型列举、全局默认。配置存数据库，保存即生效。
+    description: Provider / Model 增删改查、连通测试、模型列举、全局默认、场景级绑定。配置存数据库，保存即生效。
   - name: 对话会话
     description: 会话内 Provider + Model 两级切换与流式对话；任务执行中禁止切换。
   - name: 简历
     description: 简历上传、解析、异步分析与报告查询。
+  - name: 简历对比
+    description: 手动选择两份已完成分析的简历，对比分数、优势短板与岗位方向，并由 LLM 总结改动得失（F7）。
+  - name: 公司
+    description: 公司最小 CRUD 与名称联想检索；为岗位库、Offer 决策与求职洞察提供统一公司数据（M2 不做模糊自动合并）。
+  - name: 岗位库
+    description: JD 导入与结构化解析、生命周期状态管理、简历-JD 匹配评分、行情洞察（F2）。
 
 security: []
 
@@ -327,6 +340,73 @@ paths:
                 $ref: '#/components/schemas/ResultGlobalSetting'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # ==========================================================
+  # 场景级模型绑定 FRX.11（M2）
+  # ==========================================================
+
+  /api/llm/scenes:
+    x-implemented: false
+    get:
+      tags: [模型配置]
+      operationId: listSceneBindings
+      summary: 查询全部场景的模型绑定与生效结果
+      description: |
+        返回 `LlmScene` 全部场景。未显式配置的场景 `inherited = true`，
+        `effectiveProviderKey` / `effectiveModel` 取全局默认；全局默认也未配置时两者为 null。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultSceneBindingList'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/scenes/{scene}:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/Scene'
+    put:
+      tags: [模型配置]
+      operationId: bindSceneModel
+      summary: 为场景指定 Provider + Model
+      description: |
+        - 目标 Provider 必须存在且启用，目标 Model 必须属于该 Provider 且启用，否则 **400**。
+        - 保存即生效，后续该场景的调用按此绑定执行；`llm_call_logs` 仍记录实际使用的 Provider / Model。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BindSceneModelRequest'
+      responses:
+        '200':
+          description: 保存成功，返回该场景的最新绑定
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultSceneBinding'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags: [模型配置]
+      operationId: unbindSceneModel
+      summary: 清除场景绑定，回落全局默认
+      description: 幂等：场景本就未配置时同样返回 200。
+      responses:
+        '200':
+          description: 清除成功，返回回落后的生效配置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultSceneBinding'
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -700,6 +780,504 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  # ==========================================================
+  # 简历版本对比 F7（M2 第一批）
+  # ==========================================================
+
+  /api/resume-comparisons:
+    x-implemented: false
+    post:
+      tags: [简历对比]
+      operationId: compareResumes
+      summary: 对比两份简历（同步返回）
+      description: |
+        手动选择两份**分析已完成（COMPLETED）**的简历发起对比，不落库、不产生历史记录（FR7.5）。
+
+        - 分数、五维、优势短板、岗位方向的变化由本地计算，结果稳定可复现。
+        - `summary.content` 由一次 LLM 调用生成；失败时降级为 `degraded = true`、`content = null`，
+          本地对比结果照常返回（§6.5 / §9 分层降级）。
+        - 两次分析使用的模型不同时 `summary.modelMismatch = true`，前端须标注「模型不同，仅供参考」（FR7.4）。
+        - 当前未记录 Prompt 版本，模型比对是唯一的可比性判断依据。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateResumeComparisonRequest'
+      responses:
+        '200':
+          description: 对比成功（含降级结果）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultResumeComparison'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 任一份简历分析未完成，无法对比（业务码 40905）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # ==========================================================
+  # 公司最小 CRUD（M2，F5 / F6 数据前置）
+  # ==========================================================
+
+  /api/companies:
+    x-implemented: false
+    get:
+      tags: [公司]
+      operationId: listCompanies
+      summary: 公司分页列表 / 名称联想检索
+      description: |
+        `keyword` 对 `name` 做包含匹配，用于录入时的公司联想（FR5.3）。
+        **仅返回候选供用户确认，禁止据此自动合并**。
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: keyword
+          in: query
+          required: false
+          description: 公司名包含匹配的关键词
+          schema:
+            type: string
+            maxLength: 128
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultCompanyPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [公司]
+      operationId: createCompany
+      summary: 新增公司
+      description: |
+        `name` 全等查重（UNIQUE），已存在返回 **409**、业务码 `40903`。
+        M2 不做模糊自动合并，重复名称需用户自行改名规避。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCompanyRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultCompany'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: 公司名称已存在（业务码 40903）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/companies/{companyId}:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/CompanyId'
+    put:
+      tags: [公司]
+      operationId: updateCompany
+      summary: 更新公司信息
+      description: 改名时同样做全等查重，冲突返回 **409**、业务码 `40903`。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCompanyRequest'
+      responses:
+        '200':
+          description: 保存成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultCompany'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 公司名称已存在（业务码 40903）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags: [公司]
+      operationId: deleteCompany
+      summary: 删除公司
+      description: |
+        硬删除。仍被岗位引用时返回 **409**、业务码 `40904`，需先解除岗位关联
+        （M3 提供「合并公司」作为补救路径）。
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 仍被岗位引用（业务码 40904）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # ==========================================================
+  # 岗位库 F2（M2 第一批）
+  # ==========================================================
+
+  /api/job-positions:
+    x-implemented: false
+    get:
+      tags: [岗位库]
+      operationId: listJobPositions
+      summary: 岗位分页列表
+      description: 按创建时间倒序；`parseStatus != COMPLETED` 的记录字段可能为空，前端按解析中展示。
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: status
+          in: query
+          required: false
+          description: 按生命周期状态筛选
+          schema:
+            $ref: '#/components/schemas/JobPositionStatus'
+        - name: city
+          in: query
+          required: false
+          description: 城市精确匹配
+          schema:
+            type: string
+            maxLength: 64
+        - name: keyword
+          in: query
+          required: false
+          description: 岗位名或公司名包含匹配
+          schema:
+            type: string
+            maxLength: 128
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultJobPositionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [岗位库]
+      operationId: importJobPosition
+      summary: 导入 JD（文件或粘贴文本），并触发异步结构化解析
+      description: |
+        - `file` 与 `text` 二选一，**不可同时为空**；文件支持 PDF / DOCX / DOC / TXT，≤ 5MB。
+        - 创建后立即返回，`parseStatus = PENDING`；前端轮询 `GET /api/job-positions/{jobPositionId}` 直到 `COMPLETED` / `FAILED`。
+        - 解析出公司名后：与已有公司**全等同名**才自动关联，否则新建公司记录；不做模糊自动合并。
+          需要改用其它公司时调用 `PUT /api/job-positions/{jobPositionId}` 指定 `companyId`。
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: JD 文件（与 text 二选一）
+                text:
+                  type: string
+                  description: 粘贴的 JD 纯文本（与 file 二选一）
+      responses:
+        '200':
+          description: 导入成功，解析进行中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultJobPosition'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          description: 文件超过 5MB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '415':
+          description: 不支持的文件类型
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/job-positions/batch-delete:
+    x-implemented: false
+    post:
+      tags: [岗位库]
+      operationId: batchDeleteJobPositions
+      summary: 批量删除岗位
+      description: 硬删除，同时级联删除岗位匹配结果；行情洞察按剩余 JD 实时重算（FR2.6）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchDeleteJobPositionsRequest'
+      responses:
+        '200':
+          description: 删除成功（部分 id 不存在时忽略）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/job-positions/{jobPositionId}:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/JobPositionId'
+    get:
+      tags: [岗位库]
+      operationId: getJobPosition
+      summary: 岗位详情（含解析原文与结构化字段，轮询端点）
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultJobPositionDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    put:
+      tags: [岗位库]
+      operationId: updateJobPosition
+      summary: 更新岗位信息 / 生命周期状态 / 修正解析结果
+      description: |
+        全部字段可选，仅传入的字段被更新。
+        - `status` 走 SAVED → APPLIED → INTERVIEWING → CLOSED 生命周期，可任意方向调整。
+        - 结构化字段为用户修正入口，覆盖 LLM 解析值；`parseStatus` 不受影响。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateJobPositionRequest'
+      responses:
+        '200':
+          description: 保存成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultJobPosition'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags: [岗位库]
+      operationId: deleteJobPosition
+      summary: 删除岗位
+      description: 硬删除，级联删除该岗位的匹配结果；行情洞察按剩余 JD 实时重算（FR2.6）。
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/job-positions/{jobPositionId}/parse:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/JobPositionId'
+    post:
+      tags: [岗位库]
+      operationId: retryJobPositionParse
+      summary: 触发或重试结构化解析
+      description: |
+        异步任务，立即返回。手动重试会重置 `retryCount`；解析成功后覆盖结构化字段。
+        解析中（`PROCESSING`）重复调用返回 **409**。
+      responses:
+        '200':
+          description: 已触发
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultJobPosition'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 解析进行中（业务码 40901）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/job-matches:
+    x-implemented: false
+    get:
+      tags: [岗位库]
+      operationId: listJobMatches
+      summary: 匹配结果分页列表
+      description: 按创建时间倒序；`resumeId` 与 `jobPositionId` 可同时使用（取交集）。
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: resumeId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: jobPositionId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultJobMatchPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [岗位库]
+      operationId: createJobMatch
+      summary: 发起简历-JD 匹配评分（异步）
+      description: |
+        `(resumeId, jobPositionId)` 唯一：同一组合重复发起表示**重跑**，覆盖原结果并重置 `retryCount`。
+        创建后立即返回，前端轮询 `GET /api/job-matches/{matchId}`。
+        权重：技能匹配 50% / 经验匹配 30% / 加分项覆盖 20%，在 prompt 中显式声明。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateJobMatchRequest'
+      responses:
+        '200':
+          description: 已创建（或已重跑）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultJobMatch'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: 简历或岗位不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '409':
+          description: 已有匹配任务执行中（业务码 40901）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/job-matches/{matchId}:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/MatchId'
+    get:
+      tags: [岗位库]
+      operationId: getJobMatch
+      summary: 查询匹配状态与结果（轮询端点）
+      description: |
+        `status` 为 `PENDING` / `PROCESSING` 时 `detail` 为 null；
+        `COMPLETED` 时返回完整结果；`FAILED` 时返回 `error` 与 `retryCount`。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultJobMatch'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/job-market/insights:
+    x-implemented: false
+    get:
+      tags: [岗位库]
+      operationId: getJobMarketInsights
+      summary: 行情洞察（实时统计）
+      description: |
+        基于**解析完成（COMPLETED）**的 JD 集合实时计算，不落快照表；JD 增删后结果立即变化（FR2.4 / FR2.6）。
+        - 技能词频：必备与加分合并计数，归一化为小写去重后统计。
+        - 薪资分布：以 `(salaryMin + salaryMax) / 2` 分桶，缺失薪资的 JD 不参与该维度。
+        - 经验要求分布与岗位方向分布：按解析原文统计，**暂不做归一化**（同一含义的不同写法会分别计数）。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultJobMarketInsights'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
 components:
 
   parameters:
@@ -734,6 +1312,34 @@ components:
       schema:
         type: integer
         format: int64
+    CompanyId:
+      name: companyId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    JobPositionId:
+      name: jobPositionId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    MatchId:
+      name: matchId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    Scene:
+      name: scene
+      in: path
+      required: true
+      description: LLM 调用场景
+      schema:
+        $ref: '#/components/schemas/LlmScene'
     Page:
       name: page
       in: query
@@ -1508,3 +2114,686 @@ components:
           description: 面试准备重点（高频考点）
           items:
             type: string
+
+    # ---------- 场景级模型绑定（M2 第一批） ----------
+
+    LlmScene:
+      type: string
+      description: |
+        LLM 调用场景（FRX.11）。枚举一次性定义全部 7 个场景；
+        M2 第一批实际生效的是 `JOB_MATCH`，其余为 M2 第二批 / M3 预留。
+      enum:
+        - RESUME_ANALYZE
+        - CHAT
+        - JOB_MATCH
+        - INTERVIEW_QUESTION
+        - INTERVIEW_EVALUATE
+        - OFFER_ANALYZE
+        - REVIEW_ANALYZE
+
+    SceneBinding:
+      type: object
+      required: [scene, label, inherited]
+      properties:
+        scene:
+          $ref: '#/components/schemas/LlmScene'
+        label:
+          type: string
+          description: 场景的中文展示名
+          example: 简历分析
+        providerKey:
+          type: [string, "null"]
+          description: 显式绑定的 Provider；null 表示未配置
+          example: corp-gateway
+        model:
+          type: [string, "null"]
+          description: 显式绑定的模型；null 表示未配置
+          example: Qwen3.8-27B
+        inherited:
+          type: boolean
+          description: true 表示未显式配置，实际生效值来自全局默认
+        effectiveProviderKey:
+          type: [string, "null"]
+          description: 实际生效的 Provider（未配置时为全局默认；全局默认也未配置则为 null）
+          example: corp-gateway
+        effectiveModel:
+          type: [string, "null"]
+          description: 实际生效的模型
+          example: Qwen3.8-27B
+        updatedAt:
+          type: [string, "null"]
+          format: date-time
+          description: 显式配置的最后更新时间；未配置时为 null
+
+    BindSceneModelRequest:
+      type: object
+      required: [providerKey, model]
+      properties:
+        providerKey:
+          type: string
+          example: corp-gateway
+        model:
+          type: string
+          example: Qwen3.8-27B
+
+    ResultSceneBinding:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/SceneBinding'
+
+    ResultSceneBindingList:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/SceneBinding'
+
+    # ---------- 公司（M2 第一批） ----------
+
+    Company:
+      type: object
+      required: [id, name, jobPositionCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          description: 公司名称，全局唯一
+          example: 字节跳动
+        intro:
+          type: [string, "null"]
+          description: 公司介绍文本（用于 Offer 前景分析与复盘上下文）
+        tags:
+          type: array
+          description: 公司标签
+          items:
+            type: string
+        jobPositionCount:
+          type: integer
+          description: 关联的岗位数量；大于 0 时禁止删除
+          example: 3
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateCompanyRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+          example: 字节跳动
+        intro:
+          type: [string, "null"]
+          maxLength: 10000
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 32
+
+    UpdateCompanyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        intro:
+          type: [string, "null"]
+          maxLength: 10000
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 32
+
+    ResultCompany:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Company'
+
+    ResultCompanyPage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Company'
+
+    # ---------- 岗位库 F2（M2 第一批） ----------
+
+    JobPositionStatus:
+      type: string
+      description: 岗位生命周期状态，可任意方向调整
+      enum: [SAVED, APPLIED, INTERVIEWING, CLOSED]
+
+    JobPositionListItem:
+      type: object
+      required: [id, status, parseStatus, retryCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: [string, "null"]
+          description: 岗位名；解析完成前可能为 null
+          example: Java 后端开发工程师
+        companyId:
+          type: [integer, "null"]
+          format: int64
+        companyName:
+          type: [string, "null"]
+          example: 字节跳动
+        city:
+          type: [string, "null"]
+          example: 上海
+        salaryMin:
+          type: [integer, "null"]
+          description: 薪资下限（元/月）
+          example: 20000
+        salaryMax:
+          type: [integer, "null"]
+          description: 薪资上限（元/月）
+          example: 35000
+        experience:
+          type: [string, "null"]
+          description: 经验要求原文（不做归一化）
+          example: 3-5 年
+        education:
+          type: [string, "null"]
+          description: 学历要求原文
+          example: 本科及以上
+        status:
+          $ref: '#/components/schemas/JobPositionStatus'
+        parseStatus:
+          $ref: '#/components/schemas/AnalyzeStatus'
+        retryCount:
+          type: integer
+          description: 解析已自动重试次数，上限 3
+          example: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    JobPositionDetail:
+      allOf:
+        - $ref: '#/components/schemas/JobPositionListItem'
+        - type: object
+          properties:
+            sourceType:
+              type: string
+              enum: [TEXT, FILE]
+              description: 导入来源
+            fileName:
+              type: [string, "null"]
+              description: 粘贴文本导入时为 null
+            rawText:
+              type: string
+              description: JD 原文（文件导入时为解析清洗后的文本）
+            mustHaveSkills:
+              type: array
+              description: 必备技能
+              items:
+                type: string
+            niceToHaveSkills:
+              type: array
+              description: 加分技能
+              items:
+                type: string
+            responsibility:
+              type: [string, "null"]
+              description: 职责摘要
+            parseError:
+              type: [string, "null"]
+              description: 解析失败原因（截断至 500 字）
+            llmProvider:
+              type: [string, "null"]
+              example: corp-gateway
+            llmModel:
+              type: [string, "null"]
+              example: Qwen3.8-27B
+
+    UpdateJobPositionRequest:
+      type: object
+      properties:
+        title:
+          type: [string, "null"]
+          maxLength: 128
+        companyId:
+          type: [integer, "null"]
+          format: int64
+          description: null 表示解除公司关联
+        city:
+          type: [string, "null"]
+          maxLength: 64
+        salaryMin:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 1000000
+        salaryMax:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 1000000
+        experience:
+          type: [string, "null"]
+          maxLength: 64
+        education:
+          type: [string, "null"]
+          maxLength: 64
+        mustHaveSkills:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+        niceToHaveSkills:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+        responsibility:
+          type: [string, "null"]
+          maxLength: 5000
+        status:
+          $ref: '#/components/schemas/JobPositionStatus'
+
+    BatchDeleteJobPositionsRequest:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: integer
+            format: int64
+
+    ResultJobPosition:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/JobPositionListItem'
+
+    ResultJobPositionDetail:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/JobPositionDetail'
+
+    ResultJobPositionPage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/JobPositionListItem'
+
+    # ---------- 简历-JD 匹配（M2 第一批） ----------
+
+    CreateJobMatchRequest:
+      type: object
+      required: [resumeId, jobPositionId]
+      properties:
+        resumeId:
+          type: integer
+          format: int64
+        jobPositionId:
+          type: integer
+          format: int64
+
+    MatchDimension:
+      type: object
+      required: [key, label, score, weight]
+      properties:
+        key:
+          type: string
+          enum: [skillMatch, experienceMatch, bonusCoverage]
+          description: 技能匹配 / 经验匹配 / 加分项覆盖
+        label:
+          type: string
+          example: 技能匹配
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 82
+        weight:
+          type: integer
+          description: 权重百分比，三项合计 100
+          enum: [50, 30, 20]
+
+    JobMatchDetail:
+      type: object
+      required: [dimensions]
+      properties:
+        dimensions:
+          type: array
+          description: 分项评分，三项权重合计 100
+          items:
+            $ref: '#/components/schemas/MatchDimension'
+        gaps:
+          type: array
+          description: 差距清单（简历未覆盖的必备项 / 弱项）
+          items:
+            type: string
+        preparationAdvice:
+          type: array
+          description: 针对性准备建议
+          items:
+            type: string
+
+    JobMatch:
+      type: object
+      required: [id, resumeId, jobPositionId, status, retryCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        resumeId:
+          type: integer
+          format: int64
+        jobPositionId:
+          type: integer
+          format: int64
+        jobPositionTitle:
+          type: [string, "null"]
+          description: 冗余展示字段，避免前端二次查询
+          example: Java 后端开发工程师
+        companyName:
+          type: [string, "null"]
+          example: 字节跳动
+        status:
+          $ref: '#/components/schemas/AnalyzeStatus'
+        error:
+          type: [string, "null"]
+          description: 失败原因（截断至 500 字）
+        retryCount:
+          type: integer
+          description: 已自动重试次数，上限 3
+          example: 0
+        overallScore:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 100
+          description: 总体匹配分（本地按权重计算），未完成时 null
+          example: 76
+        detail:
+          oneOf:
+            - $ref: '#/components/schemas/JobMatchDetail'
+            - type: "null"
+          description: 仅 status = COMPLETED 时有值
+        llmProvider:
+          type: [string, "null"]
+          example: corp-gateway
+        llmModel:
+          type: [string, "null"]
+          example: Qwen3.8-27B
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ResultJobMatch:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/JobMatch'
+
+    ResultJobMatchPage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/JobMatch'
+
+    # ---------- 行情洞察 F2（M2 第一批） ----------
+
+    CountItem:
+      type: object
+      required: [label, count]
+      properties:
+        label:
+          type: string
+          description: 分组名（薪资区间 / 经验要求原文 / 岗位方向原文）
+          example: 20-30K
+        count:
+          type: integer
+          example: 12
+
+    SkillCountItem:
+      type: object
+      required: [skill, count]
+      properties:
+        skill:
+          type: string
+          description: 技能名（必填与加分合并，小写归一）
+          example: redis
+        count:
+          type: integer
+          example: 18
+
+    JobMarketInsights:
+      type: object
+      required:
+        [sampleSize, generatedAt, skillTop, salaryDistribution, experienceDistribution, directionDistribution]
+      properties:
+        sampleSize:
+          type: integer
+          description: 参与统计的 JD 数（仅解析完成的记录）
+          example: 42
+        generatedAt:
+          type: string
+          format: date-time
+        skillTop:
+          type: array
+          description: 技能词频 Top 20
+          items:
+            $ref: '#/components/schemas/SkillCountItem'
+        salaryDistribution:
+          type: array
+          description: 薪资分布（按 min/max 中位数分桶，单位元/月）
+          items:
+            $ref: '#/components/schemas/CountItem'
+        experienceDistribution:
+          type: array
+          description: 经验要求分布（原文统计，不做归一化）
+          items:
+            $ref: '#/components/schemas/CountItem'
+        directionDistribution:
+          type: array
+          description: 岗位方向分布（岗位名原文 Top 20，不做归一化）
+          items:
+            $ref: '#/components/schemas/CountItem'
+
+    ResultJobMarketInsights:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/JobMarketInsights'
+
+    # ---------- 简历版本对比 F7（M2 第一批） ----------
+
+    CreateResumeComparisonRequest:
+      type: object
+      required: [baseResumeId, targetResumeId]
+      properties:
+        baseResumeId:
+          type: integer
+          format: int64
+          description: 基准简历（较早版本）
+        targetResumeId:
+          type: integer
+          format: int64
+          description: 对比简历（较新版本），不得与 baseResumeId 相同
+
+    ComparisonSide:
+      type: object
+      required: [resumeId, overallScore, analyzedAt]
+      properties:
+        resumeId:
+          type: integer
+          format: int64
+        fileName:
+          type: [string, "null"]
+          description: 粘贴文本导入时为 null
+        overallScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        analyzedAt:
+          type: string
+          format: date-time
+          description: 该份简历分析完成时间
+        llmProvider:
+          type: [string, "null"]
+        llmModel:
+          type: [string, "null"]
+
+    DimensionDelta:
+      type: object
+      required: [key, label, baseScore, targetScore, delta]
+      properties:
+        key:
+          type: string
+          enum: [technicalDepth, projectQuality, engineeringAbility, expressionStructure, jobMatchPotential]
+        label:
+          type: string
+          example: 技术深度
+        baseScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        targetScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+        delta:
+          type: integer
+          description: targetScore - baseScore
+          example: 6
+
+    ComparisonSummary:
+      type: object
+      required: [content, modelMismatch, degraded]
+      properties:
+        content:
+          type: [string, "null"]
+          description: LLM 总结的改动优点与退步；降级时为 null
+        modelMismatch:
+          type: boolean
+          description: 两份分析使用的模型不同，结果仅供参考（FR7.4）
+        degraded:
+          type: boolean
+          description: true 表示 LLM 总结失败，本地对比结果仍有效
+        degradeReason:
+          type: [string, "null"]
+          description: 降级原因
+
+    ResumeComparison:
+      type: object
+      required: [base, target, overallScoreDelta, dimensionDeltas, summary]
+      properties:
+        base:
+          $ref: '#/components/schemas/ComparisonSide'
+        target:
+          $ref: '#/components/schemas/ComparisonSide'
+        overallScoreDelta:
+          type: integer
+          description: target 总分 - base 总分
+          example: 5
+        dimensionDeltas:
+          type: array
+          description: 五维对比，固定顺序
+          items:
+            $ref: '#/components/schemas/DimensionDelta'
+        strengthsAdded:
+          type: array
+          description: target 新增的优势（按 quote 文本比对）
+          items:
+            $ref: '#/components/schemas/QuoteItem'
+        strengthsRemoved:
+          type: array
+          description: target 相比 base 不再具备的优势
+          items:
+            $ref: '#/components/schemas/QuoteItem'
+        weaknessesAdded:
+          type: array
+          description: target 新增的短板
+          items:
+            $ref: '#/components/schemas/QuoteItem'
+        weaknessesRemoved:
+          type: array
+          description: target 相比 base 已消除的短板
+          items:
+            $ref: '#/components/schemas/QuoteItem'
+        directionsAdded:
+          type: array
+          description: target 新增的岗位方向
+          items:
+            type: string
+        directionsRemoved:
+          type: array
+          description: target 不再推荐的岗位方向
+          items:
+            type: string
+        summary:
+          $ref: '#/components/schemas/ComparisonSummary'
+
+    ResultResumeComparison:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ResumeComparison'

@@ -34,3 +34,41 @@
 
 ### 阻塞
 - 无。
+
+## 追加：M2 第一步——第一批契约扩展（同日）
+
+### 目标
+按契约先行硬约束启动 M2，本批覆盖场景级模型绑定 + F2 岗位库 + F7 简历对比（用户确认分两批）。
+
+### 改动（文件 → 说明）
+- `contracts/openapi.yaml` → 版本 `1.5.0 → 1.6.0`；新增 12 路径 / 19 端点 / 34 schema：
+  - 场景绑定：`GET /api/llm/scenes`、`PUT|DELETE /api/llm/scenes/{scene}`；`LlmScene` 一次定义 7 个场景（M2 只 `JOB_MATCH` 生效，其余预留）。
+  - 公司：`GET|POST /api/companies`（含 keyword 联想）、`PUT|DELETE /api/companies/{companyId}`；删除被引用时 40904。
+  - 岗位库：JD 导入（multipart 文件/文本）→ 异步解析；列表（status/city/keyword 筛选）、详情轮询、修正、单条/批量删除、重试解析；匹配 `POST|GET /api/job-matches`（`(resumeId, jobPositionId)` 唯一，重复即重跑）+ 轮询；`GET /api/job-market/insights` 实时统计。
+  - 简历对比：`POST /api/resume-comparisons` 同步返回，本地 diff + LLM 总结，失败降级、模型不一致标注。
+  - 新增错误码 40903/40904/40905；未实现路径标 `x-implemented: false`（12 处）。
+- `backend/src/test/java/com/jobpilot/contract/ContractCoverageTest.java` → 由「硬断言 26 端点 + 双向一致」改为「契约总量 45 / 待实现 19 / 已实现双向一致」，按 `x-implemented` 自动区分。
+- `frontend/src/api/schema.d.ts` → 契约重新生成（构建内自动执行）。
+- `README.md` → 契约覆盖范围更新为 M1 + M2 第一批，补充 `x-implemented` 机制说明。
+- `docs/agent-memory/PROGRESS.md` → 状态、下一步、关键决策同步。
+
+### 决策（为什么）
+- 分两批：单次评审 30+ 端点负担过大，第二批 F3/F6 可以基于第一批实现经验再定。
+- `x-implemented: false`：契约先行必然让双向一致性测试变红；在契约里声明实现状态比在测试里维护白名单更可维护，实现完成删标记即自动收紧。
+- F7 不落库 + 同步：需求无历史回看要求，省一张表与级联清理；LLM 失败降级保证本地 diff 始终可用。
+- companies 最小 CRUD 先行：满足 F6「不重复维护公司」与 F5「建表预留」两条硬约束；模糊合并与联想确认 UI 留到 M3。
+- 行情洞察实时聚合不落快照：个人 JD 量级小，删 JD 后天然满足「按剩余重算」。
+- 经验/岗位方向按原文统计、不做归一化：避免为 M2 引入词表维护，契约里已显式声明该口径。
+
+### 验证
+- `npx @redocly/cli lint contracts/openapi.yaml` → 0 error / 0 warning。
+- `npm run build`（含 `gen:api` + `vue-tsc` + vite）→ 通过。
+- `mvn test -Dtest=ContractCoverageTest,ContractSchemaTest` → 通过（修复测试中 `pendingOnly` 判断写反的问题）。
+- 过程中遇到本机编辑工具「报告成功但未落盘」：12 处 `x-implemented` 首轮只写入 4 处，靠 Grep 复核发现并补齐。
+
+### 未完成 / 下一步
+- 第一批后端实现清单见 `PROGRESS.md`「下一步」；每完成一个模块删对应 `x-implemented` 标记。
+- 第二批契约（F3 模拟面试 + F6 Offer）待第一批实现后启动。
+
+### 阻塞
+- 无。

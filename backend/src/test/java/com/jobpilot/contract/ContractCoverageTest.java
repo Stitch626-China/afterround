@@ -25,7 +25,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.yaml.snakeyaml.Yaml;
 
 /**
- * 契约覆盖率检查：M1 全部 26 个端点必须与 {@code contracts/openapi.yaml} 完全一致。
+ * 契约覆盖率检查：已实现的端点必须与 {@code contracts/openapi.yaml} 完全一致。
+ *
+ * <p>契约先行：M2 新增路径在契约中标记 {@code x-implemented: false}，表示「已定义、待实现」。
+ * 测试据此区分两类端点——契约总量、必须已实现的部分——实现完成时删除标记即可自动收紧，
+ * 不在测试里维护例外清单（见契约 info.description「实现状态标记」）。
  */
 class ContractCoverageTest {
 
@@ -33,24 +37,37 @@ class ContractCoverageTest {
 
     @Test
     void allContractEndpointsAreMapped() throws Exception {
-        Set<String> expected = contractEndpoints();
+        Set<String> all = contractEndpoints(false);
+        Set<String> pending = contractEndpoints(true);
         Set<String> actual = controllerEndpoints();
 
-        assertThat(expected).hasSize(26);
-        // 双向一致：既不允许契约端点未实现，也不允许实现多出契约外端点
-        assertThat(actual).isEqualTo(expected);
+        Set<String> expectedImplemented = new HashSet<>(all);
+        expectedImplemented.removeAll(pending);
+
+        assertThat(all).hasSize(45);
+        assertThat(pending).hasSize(19);
+        // 实现不得出现契约外端点
+        assertThat(all).containsAll(actual);
+        // 已实现端点必须与契约中「未标记待实现」的部分双向一致
+        assertThat(actual).isEqualTo(expectedImplemented);
     }
 
     @SuppressWarnings("unchecked")
-    private Set<String> contractEndpoints() throws Exception {
+    private Set<String> contractEndpoints(boolean pendingOnly) throws Exception {
         Path contract = Path.of("..", "contracts", "openapi.yaml");
         try (InputStream in = Files.newInputStream(contract)) {
             Map<String, Object> doc = new Yaml().load(in);
             Map<String, Object> paths = (Map<String, Object>) doc.get("paths");
             Set<String> endpoints = new HashSet<>();
-            paths.forEach((path, value) -> ((Map<String, Object>) value).keySet().stream()
-                    .filter(HTTP_METHODS::contains)
-                    .forEach(method -> endpoints.add(method.toUpperCase() + " " + path)));
+            paths.forEach((path, value) -> {
+                Map<String, Object> pathItem = (Map<String, Object>) value;
+                boolean pending = Boolean.FALSE.equals(pathItem.get("x-implemented"));
+                if (!pendingOnly || pending) {
+                    pathItem.keySet().stream()
+                            .filter(HTTP_METHODS::contains)
+                            .forEach(method -> endpoints.add(method.toUpperCase() + " " + path));
+                }
+            });
             return endpoints;
         }
     }
