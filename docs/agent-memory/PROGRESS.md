@@ -16,6 +16,7 @@
 - **M2 第一批契约复验（2026-11-17）**：与 M1 对比确认 0 路径/schema 删除或修改；修复 4 处问题——`info.version` 未真正升到 1.6.0、M2 错误码与后端已占用的 40903/40904/40905/40901 冲突（改为 40906/40905/40907/40908 并同步 `ErrorCode`）、`x-implemented` 机制未写入契约 `info.description`、F7 缺 Prompt 版本判定（补 `promptVersion` + `promptVersionMismatch`）。JD 解析与简历对比总结暂走全局默认、不扩 `LlmScene`（已写入契约）。lint / 前端构建 / 契约测试均通过
 - 进行中（M1 遗留）：无；**M1 已由用户完成功能验收（2026-11-16）**——服务商添加（自动拉取模型 + 全局默认）、对话内模型切换、简历上传与分析均验证通过
 - 已完成：
+  - **需求文档 v1.8（2026-11-17）**：把「AI 按模板思考、稳定输出」机制整理进需求文档——新增 v1.8 迭代记录；重写 §6.4 Prompt 工程规范与 §6.5 结构化输出规范（模板 system/user 分工、数据边界、JSON 模式与温度、本地修复、带错误反馈重试、AI DTO 与业务实体分离、本地计分、降级与 llm_call_logs、重试边界）；同时如实记录当前实现简化（未引入 StringTemplate、JSON 字段手写、未转义引号不本地修复）
   - **CI 已落地（2026-11-16）**：`.github/workflows/ci.yml` 三个 job——契约校验（redocly）、后端测试 + JaCoCo 门禁 + 集成测试防跳过守卫、前端构建 + Vitest + Playwright E2E；Playwright `channel` 支持 `PLAYWRIGHT_CHANNEL` 环境变量（本机 Edge / CI Chromium）。首次真实运行发现并修复两个 Linux-only 问题：`redoc` 运行时缺 `yaml` 依赖、`lint:contract` 未加载根 `redocly.yaml`（原因、修复与运行 ID 详见 `docs/ci-cd-plan.md` §9）。PR #1 全绿；CD 未实现
   - **CI/CD 方案核对与文档同步（2026-11-16）**：新增 `docs/ci-cd-plan.md`——CI 三 job（契约 lint / 后端测试+覆盖率门禁 / 前端构建+单测+E2E），CD 为 tag 构建后端镜像推 GHCR + 主机拉取；核对出 3 个前置改动（Playwright `channel` 需环境变量化、GHCR 镜像名必须全小写、Compose `app` 需补 `image:`）；**仅同步方案，未实现 workflow**
   - **README 多设备使用章节（2026-11-16）**：新增「主机模式 + Tailscale + 端口收敛」说明——数据只存一台主机、其余设备浏览器访问；固定 `APP_SECRET_KEY` 与绝对 `STORAGE_ROOT`；数据库/后端仅本机绑定、只对内网开放前端端口；异地用 Tailscale 虚拟内网访问；明确不建议双端各跑再同步
