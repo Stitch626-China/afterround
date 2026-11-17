@@ -369,6 +369,7 @@ npx @redocly/cli lint contracts/openapi.yaml
 
 - **开工**：`git pull --rebase --autostash` → 读 `AGENTS.md`、`PROGRESS.md`、最近 1~2 份会话记录，确认任务是否已被另一台设备完成。
 - **收工**：更新 `PROGRESS.md` 状态三块 → 写 `sessions/YYYY-MM-DD-<主机名>.md`（跨日/换设备新建，同日同机追加）→ commit → push（失败必须重试，必要时加 `-c http.proxy=http://127.0.0.1:7890`）。
+- **实时记录**：每个可验证闭环（测试/构建通过、决策、bug 修复、契约变更）先追加到当天会话记录的「实时记录」，但不必每条都 push；按任务节点统一提交。
 - 会话记录只追加不改已有段落，`PROGRESS.md` 只改状态三块、冲突取并集，避免两台设备同时编辑同一文件产生冲突。
 - 同一时间只在一台设备改代码；换设备前先 pull，确认 `git status` 干净。
 

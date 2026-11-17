@@ -16,6 +16,7 @@
 - **M2 第一批契约复验（2026-11-17）**：与 M1 对比确认 0 路径/schema 删除或修改；修复 4 处问题——`info.version` 未真正升到 1.6.0、M2 错误码与后端已占用的 40903/40904/40905/40901 冲突（改为 40906/40905/40907/40908 并同步 `ErrorCode`）、`x-implemented` 机制未写入契约 `info.description`、F7 缺 Prompt 版本判定（补 `promptVersion` + `promptVersionMismatch`）。JD 解析与简历对比总结暂走全局默认、不扩 `LlmScene`（已写入契约）。lint / 前端构建 / 契约测试均通过
 - 进行中（M1 遗留）：无；**M1 已由用户完成功能验收（2026-11-16）**——服务商添加（自动拉取模型 + 全局默认）、对话内模型切换、简历上传与分析均验证通过
 - 已完成：
+  - **实时记录规则（2026-11-17）**：`AGENTS.md` 新增「实时记录」章节——完成可验证子任务、关键决策、bug 修复、需求/契约/结构变更、上下文切换时，先追加当天会话记录的 `HH:mm` 条目（改动/原因/验证/断点）；实时记录不逐条 push，按任务节点统一提交。README 与 `AI-COLLABORATION.md` 同步
   - **项目全记录与 AI 协作方法论（2026-11-17）**：新增 `docs/AI-COLLABORATION.md`（547 行）——时间线与证据索引、架构与三条核心流程、20 条 ADR、代码地图、AI 协作分阶段实录与指令模式、12 个真实问题案例、十条方法论与工作流、Agent 岗位能力映射 / 演示脚本 / STAR 故事 / 高频问答，以及后续维护约定
   - **需求文档 v1.8（2026-11-17）**：把「AI 按模板思考、稳定输出」机制整理进需求文档——新增 v1.8 迭代记录；重写 §6.4 Prompt 工程规范与 §6.5 结构化输出规范（模板 system/user 分工、数据边界、JSON 模式与温度、本地修复、带错误反馈重试、AI DTO 与业务实体分离、本地计分、降级与 llm_call_logs、重试边界）；同时如实记录当前实现简化（未引入 StringTemplate、JSON 字段手写、未转义引号不本地修复）
   - **CI 已落地（2026-11-16）**：`.github/workflows/ci.yml` 三个 job——契约校验（redocly）、后端测试 + JaCoCo 门禁 + 集成测试防跳过守卫、前端构建 + Vitest + Playwright E2E；Playwright `channel` 支持 `PLAYWRIGHT_CHANNEL` 环境变量（本机 Edge / CI Chromium）。首次真实运行发现并修复两个 Linux-only 问题：`redoc` 运行时缺 `yaml` 依赖、`lint:contract` 未加载根 `redocly.yaml`（原因、修复与运行 ID 详见 `docs/ci-cd-plan.md` §9）。PR #1 全绿；CD 未实现
