@@ -358,7 +358,8 @@ npx @redocly/cli lint contracts/openapi.yaml
 | [AGENTS.md](AGENTS.md) | AI 协作契约：开工 pull + 读记忆，收工写记忆 + push |
 | [PROGRESS.md](docs/agent-memory/PROGRESS.md) | 当前进度、阻塞、下一步、关键决策 |
 | [sessions/](docs/agent-memory/sessions/) | 会话记录：跨日/换设备新建，同日同机追加，不改已有段落 |
-| [CI/CD 方案（规划）](docs/ci-cd-plan.md) | GitHub Actions 流水线、镜像发布与部署设计；已核对仓库现状，暂未实现 |
+| [CI/CD 方案](docs/ci-cd-plan.md) | CI 已实现（契约 / 后端 / 前端三 job）；CD（GHCR 镜像 + 主机部署）规划中 |
+| [项目全记录与 AI 协作方法论](docs/AI-COLLABORATION.md) | 时间线、设计决策、实现地图、协作实录、问题案例、方法论与面试包装 |
 
 > 需求文档维护规则：每次修改必须在文内「迭代历程」章节追加记录，且**用产品语言写**——说清这一版多了什么、变了什么、砍了什么，让不看代码的人也能看懂迭代思路；技术细节只作附注。
 
