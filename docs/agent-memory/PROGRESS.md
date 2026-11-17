@@ -13,7 +13,7 @@
 
 - 进行中：无；**M1 已由用户完成功能验收（2026-11-16）**——服务商添加（自动拉取模型 + 全局默认）、对话内模型切换、简历上传与分析均验证通过；进入 M2 前无阻塞
 - 已完成：
-  - **CI 已落地（2026-11-16）**：`.github/workflows/ci.yml` 三个 job——契约校验（redocly）、后端测试 + JaCoCo 门禁 + 集成测试防跳过守卫、前端构建 + Vitest + Playwright E2E；Playwright `channel` 支持 `PLAYWRIGHT_CHANNEL` 环境变量（本机 Edge / CI Chromium）。首次真实运行发现并修复两个 Linux-only 问题：`redoc` 运行时缺 `yaml` 依赖、`lint:contract` 未加载根 `redocly.yaml`。PR #1 全绿；CD 未实现
+  - **CI 已落地（2026-11-16）**：`.github/workflows/ci.yml` 三个 job——契约校验（redocly）、后端测试 + JaCoCo 门禁 + 集成测试防跳过守卫、前端构建 + Vitest + Playwright E2E；Playwright `channel` 支持 `PLAYWRIGHT_CHANNEL` 环境变量（本机 Edge / CI Chromium）。首次真实运行发现并修复两个 Linux-only 问题：`redoc` 运行时缺 `yaml` 依赖、`lint:contract` 未加载根 `redocly.yaml`（原因、修复与运行 ID 详见 `docs/ci-cd-plan.md` §9）。PR #1 全绿；CD 未实现
   - **CI/CD 方案核对与文档同步（2026-11-16）**：新增 `docs/ci-cd-plan.md`——CI 三 job（契约 lint / 后端测试+覆盖率门禁 / 前端构建+单测+E2E），CD 为 tag 构建后端镜像推 GHCR + 主机拉取；核对出 3 个前置改动（Playwright `channel` 需环境变量化、GHCR 镜像名必须全小写、Compose `app` 需补 `image:`）；**仅同步方案，未实现 workflow**
   - **README 多设备使用章节（2026-11-16）**：新增「主机模式 + Tailscale + 端口收敛」说明——数据只存一台主机、其余设备浏览器访问；固定 `APP_SECRET_KEY` 与绝对 `STORAGE_ROOT`；数据库/后端仅本机绑定、只对内网开放前端端口；异地用 Tailscale 虚拟内网访问；明确不建议双端各跑再同步
   - **模型配置引导体验改进（2026-11-16）**：新增服务商后自动从 Base URL 拉取上游模型（唯一模型自动添加并设全局默认，多模型勾选批量添加）；连通测试前先引导选择模型；设置页全局默认栏增加「简历分析前必须设置」说明与一键设置；简历列表/报告页模型相关错误旁新增「打开模型设置」一键入口（共享抽屉状态 composable）；后端两处无模型错误文案改为可操作指引。前端构建通过 + 6 E2E 全过（沙箱致退出码 1），后端 88 tests 与覆盖率门禁通过

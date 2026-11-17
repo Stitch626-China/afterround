@@ -347,6 +347,7 @@ npx @redocly/cli lint contracts/openapi.yaml
 - 测试范围由测试代码与 `pom.xml` / `vite.config.ts` / `playwright.config.ts` 决定，workflow 只负责执行哪条命令。
 - 本机用 Edge 跑 E2E；CI 通过 `PLAYWRIGHT_CHANNEL=chromium` 切到 Linux Chromium。
 - 本地复现：执行「构建与测试」里的对应命令即可；workflow 中每个 step 上方都标注了本地命令。
+- 首次运行暴露的两个 Linux-only 问题（`yaml` 隐形依赖、`redocly.yaml` 未加载）及完整排查过程见 [CI/CD 方案 §9](docs/ci-cd-plan.md)。
 
 ## 文档索引
 

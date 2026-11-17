@@ -82,3 +82,109 @@
 - 仓库公开时机与 LICENSE（暂定开发完成后再定）。
 - 自动部署选 A（自托管 Runner）还是 B（Tailscale + SSH）。
 - 是否引入 Codecov、Dependabot、镜像漏洞扫描等增强项（后置）。
+
+## 9. 首次运行问题记录（2026-11-16）
+
+首次真实运行 CI 暴露了两个本地 Windows 无法复现的问题。两者都已修复并回归，记录在此便于追溯。
+
+### 9.1 追溯索引
+
+| 阶段 | 提交 / 运行 | 结果 |
+|---|---|---|
+| 首次 PR 运行 | PR #1 / run `43830839548` | 契约 job 失败，后端、前端 job 成功 |
+| 修复提交 | `c0ce5f5`（fix: 修复 CI 契约 job 的依赖与配置路径） | — |
+| 修复后重跑 | run `43831265961` | 三个 job 全绿 |
+| 文档提交 | `e32a2d6` | run `43831626862` 全绿 |
+| 合并 | `590c813`（Merge PR #1） | main 运行 `43831982032` 全绿 |
+
+### 9.2 问题一：`Cannot find module 'yaml'`
+
+**现象**
+
+契约 job 在 `npm run lint:contract` 步骤退出码 1：
+
+```text
+Error: Cannot find module 'yaml'
+Require stack:
+- /home/runner/work/jobpilot/jobpilot/frontend/node_modules/redoc/bundles/redoc.lib.js
+- /home/runner/work/jobpilot/jobpilot/frontend/node_modules/@redocly/cli/lib/commands/build-docs/index.js
+- /home/runner/work/jobpilot/jobpilot/frontend/node_modules/@redocly/cli/lib/index.js
+...
+Node.js v20.20.2
+```
+
+**根因**
+
+- `@redocly/cli`（锁文件实际安装 `1.34.24`）的入口会加载 `build-docs` 模块，其依赖的 `redoc`（`2.5.3`）在运行时 `require('yaml')`；
+- 但 `yaml` 没有出现在修复前的 `frontend/package-lock.json` 里；
+- 本机 Windows 的 `node_modules` 存在历史安装残留的 `yaml`（未被锁文件记录），`require` 能解析到，所以本地一直正常；
+- CI 的 Linux Runner 用 `npm ci`，严格按锁文件从零安装，没有这个"隐形依赖"，因此报错。
+
+这说明：**依赖提升（hoisting）会让本地通过、干净环境失败；锁文件才是依赖事实。**
+
+**修复**
+
+```bash
+cd frontend
+npm install --save-dev yaml
+```
+
+结果：`package.json` 增加 `"yaml": "^2.9.1"`（实际安装 `2.9.1`），锁文件同步；`c0ce5f5` 提交。
+
+**验证**
+
+- 本地 `cd frontend && npm run lint:contract` 正常；
+- CI 重跑 `43831265961` 契约 job 成功；
+- 后端与前端 job 在首次运行中本就已通过，说明问题仅限契约工具链。
+
+**预防**
+
+- CI 用到的 CLI 依赖一律显式声明，不依赖传递依赖是否被提升；
+- 新增 CI 工具后，最好像 CI 一样在干净目录执行一次 `npm ci`（可临时删 `node_modules`），不要只信本机已装好的环境。
+
+### 9.3 问题二：`lint:contract` 没有加载根目录 `redocly.yaml`
+
+**现象**
+
+修好 `yaml` 后在本地按 CI 的方式（工作目录 `frontend/`）执行 `npm run lint:contract`，契约出现 3 条本应被关闭的警告：
+
+- `no-server-example.com`：`servers` 使用 `http://localhost:8080`；
+- `operation-4xx-response`：`GET /api/llm/providers` 缺少 4xx；
+- `operation-4xx-response`：`GET /api/llm/global` 缺少 4xx。
+
+而根目录 `redocly.yaml` 已明确关闭这两条规则（本项目单用户、无鉴权，且 server 就是本地地址）。
+
+**根因**
+
+- redocly 默认从**当前工作目录**查找配置文件；npm script 的 cwd 是 `frontend/`，根目录的 `redocly.yaml` 在上一级，不在查找范围内，于是回退到内置 recommended 规则；
+- 之前本地验证是在仓库根目录执行 `npx @redocly/cli lint contracts/openapi.yaml`，能自动找到根配置，所以问题被掩盖；
+- CI 中 `working-directory: frontend` 与本地 script 的 cwd 一致，同样会丢配置。
+
+**影响**
+
+redocly 默认对 warning 返回退出码 0，CI 可能"绿着"带 3 条 warning，违背项目「0 error / 0 warning」的硬约束，且规则开关实际失效。
+
+**修复**
+
+```diff
+- "lint:contract": "redocly lint ../contracts/openapi.yaml"
++ "lint:contract": "redocly lint ../contracts/openapi.yaml --config ../redocly.yaml"
+```
+
+**验证**
+
+- 本地 `npm run lint:contract`：`validated ... Your API description is valid`，0 error 0 warning；
+- CI 重跑 `43831265961` 契约 job 成功。
+
+**预防**
+
+- 共享配置不要依赖 cwd 自动发现，npm script 中显式传 `--config`；
+- 本地复现必须与 CI 使用相同的命令和工作目录，最好两者都调用同一个 npm script，避免"本地手工命令通过、CI 脚本失败"。
+
+### 9.4 经验总结
+
+1. CI 的第一价值不是重复本地测试，而是暴露**干净环境与本地残留环境的差异**。
+2. `npm ci` 严格按锁文件安装；本地能跑不代表依赖声明完整。
+3. 配置文件查找与工作目录强相关，脚本中应显式指定路径。
+4. 排查顺序：看 job 日志定位失败 step → 在本地用**同一命令、同一 cwd** 复现 → 修复后保留提交与运行 ID 作为追溯链。
+
