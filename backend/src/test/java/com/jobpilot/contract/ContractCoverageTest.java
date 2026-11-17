@@ -44,11 +44,12 @@ class ContractCoverageTest {
         Set<String> expectedImplemented = new HashSet<>(all);
         expectedImplemented.removeAll(pending);
 
+        // 契约端点总数：契约扩缩时提醒同步本断言
         assertThat(all).hasSize(45);
-        assertThat(pending).hasSize(19);
         // 实现不得出现契约外端点
         assertThat(all).containsAll(actual);
-        // 已实现端点必须与契约中「未标记待实现」的部分双向一致
+        // 已实现端点必须与契约中「未标记待实现」的部分双向一致；
+        // 该双向断言同时防止把已实现端点误标为 x-implemented: false，故无需再断言 pending 数量
         assertThat(actual).isEqualTo(expectedImplemented);
     }
 
