@@ -13,6 +13,7 @@
 
 - 进行中：**M2 第一批实现**（按已冻结契约开发）；契约 `1.6.0`，45 端点（已实现 26 / 待实现 19，用 `x-implemented: false` 标记）
 - **M2 契约第一批完成（2026-11-17）**：新增 12 路径 / 19 端点 / 34 schema——场景级模型绑定（7 场景枚举一次定全）、公司最小 CRUD、岗位库（JD 导入+异步解析 / 匹配评分 / 行情洞察）、简历版本对比（同步、不落库）；lint 0 error 0 warning；前端类型生成与构建通过；契约测试改为按 `x-implemented` 区分已实现与待实现（26 / 19），不再维护例外清单
+- **M2 第一批契约复验（2026-11-17）**：与 M1 对比确认 0 路径/schema 删除或修改；修复 4 处问题——`info.version` 未真正升到 1.6.0、M2 错误码与后端已占用的 40903/40904/40905/40901 冲突（改为 40906/40905/40907/40908 并同步 `ErrorCode`）、`x-implemented` 机制未写入契约 `info.description`、F7 缺 Prompt 版本判定（补 `promptVersion` + `promptVersionMismatch`）。JD 解析与简历对比总结暂走全局默认、不扩 `LlmScene`（已写入契约）。lint / 前端构建 / 契约测试均通过
 - 进行中（M1 遗留）：无；**M1 已由用户完成功能验收（2026-11-16）**——服务商添加（自动拉取模型 + 全局默认）、对话内模型切换、简历上传与分析均验证通过
 - 已完成：
   - **CI 已落地（2026-11-16）**：`.github/workflows/ci.yml` 三个 job——契约校验（redocly）、后端测试 + JaCoCo 门禁 + 集成测试防跳过守卫、前端构建 + Vitest + Playwright E2E；Playwright `channel` 支持 `PLAYWRIGHT_CHANNEL` 环境变量（本机 Edge / CI Chromium）。首次真实运行发现并修复两个 Linux-only 问题：`redoc` 运行时缺 `yaml` 依赖、`lint:contract` 未加载根 `redocly.yaml`（原因、修复与运行 ID 详见 `docs/ci-cd-plan.md` §9）。PR #1 全绿；CD 未实现

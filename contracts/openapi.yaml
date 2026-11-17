@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 职点（JobPilot）API
-  version: 1.5.0
+  version: 1.6.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -26,11 +26,17 @@ info:
     - **M2 第一批**：场景级模型绑定（FRX.11）、公司最小 CRUD（F6 / F5 数据前置）、岗位库（F2：JD 导入解析 / 匹配评分 / 行情洞察）、简历版本对比（F7）。
     - **M2 第二批**：模拟面试（F3）、Offer 决策（F6）；F4 / F5 的接口在 M3 追加。
     - 场景枚举 `LlmScene` 一次性定义全部 7 个场景（含 M2 未落地的预留项），避免后续扩展改动枚举。
+      JD 结构化解析与简历对比总结未列入枚举，使用全局默认，不参与场景级绑定。
+
+    ## 实现状态标记
+    M2 契约先行：已定义但尚未实现的路径在**路径层**标记 `x-implemented: false`。
+    后端 `ContractCoverageTest` 据此区分「已定义、待实现」与「必须已实现」，实现完成后删除标记即可自动收紧校验。
 
     ## 错误码补充（M2）
-    - `40903` 公司名称已存在（`companies.name` UNIQUE）
-    - `40904` 公司仍被岗位引用，禁止删除（先解除岗位关联）
-    - `40905` 简历分析未完成，无法参与对比（F7 依赖两份 COMPLETED 的分析结果）
+    - `40906` 公司名称已存在（`companies.name` UNIQUE）
+    - `40905` 公司仍被岗位引用，禁止删除（先解除岗位关联；复用通用「资源被引用」码）
+    - `40907` 简历分析未完成，无法参与对比（F7 依赖两份 COMPLETED 的分析结果）
+    - `40908` JD 解析 / 匹配任务执行中，请等待完成
 
   contact:
     name: 职点（JobPilot）
@@ -796,8 +802,10 @@ paths:
         - 分数、五维、优势短板、岗位方向的变化由本地计算，结果稳定可复现。
         - `summary.content` 由一次 LLM 调用生成；失败时降级为 `degraded = true`、`content = null`，
           本地对比结果照常返回（§6.5 / §9 分层降级）。
-        - 两次分析使用的模型不同时 `summary.modelMismatch = true`，前端须标注「模型不同，仅供参考」（FR7.4）。
-        - 当前未记录 Prompt 版本，模型比对是唯一的可比性判断依据。
+        - 两次分析使用的模型或 Prompt 版本不同时，`summary.modelMismatch` / `summary.promptVersionMismatch` 置为 true，
+          前端须标注「模型或 Prompt 版本不同，仅供参考」（FR7.4）。
+        - `promptVersion` 为 null 表示该次分析未记录版本；与有值的一方比较时按不同处理（保守标注）。
+        - `summary` 的 LLM 调用走全局默认（简历对比不属于 `LlmScene` 枚举），不参与场景级绑定。
       requestBody:
         required: true
         content:
@@ -816,7 +824,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: 任一份简历分析未完成，无法对比（业务码 40905）
+          description: 任一份简历分析未完成，无法对比（业务码 40907）
           content:
             application/json:
               schema:
@@ -864,7 +872,7 @@ paths:
       operationId: createCompany
       summary: 新增公司
       description: |
-        `name` 全等查重（UNIQUE），已存在返回 **409**、业务码 `40903`。
+        `name` 全等查重（UNIQUE），已存在返回 **409**、业务码 `40906`。
         M2 不做模糊自动合并，重复名称需用户自行改名规避。
       requestBody:
         required: true
@@ -882,7 +890,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
-          description: 公司名称已存在（业务码 40903）
+          description: 公司名称已存在（业务码 40906）
           content:
             application/json:
               schema:
@@ -898,7 +906,7 @@ paths:
       tags: [公司]
       operationId: updateCompany
       summary: 更新公司信息
-      description: 改名时同样做全等查重，冲突返回 **409**、业务码 `40903`。
+      description: 改名时同样做全等查重，冲突返回 **409**、业务码 `40906`。
       requestBody:
         required: true
         content:
@@ -917,7 +925,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: 公司名称已存在（业务码 40903）
+          description: 公司名称已存在（业务码 40906）
           content:
             application/json:
               schema:
@@ -930,7 +938,7 @@ paths:
       operationId: deleteCompany
       summary: 删除公司
       description: |
-        硬删除。仍被岗位引用时返回 **409**、业务码 `40904`，需先解除岗位关联
+        硬删除。仍被岗位引用时返回 **409**、业务码 `40905`，需先解除岗位关联
         （M3 提供「合并公司」作为补救路径）。
       responses:
         '200':
@@ -942,7 +950,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: 仍被岗位引用（业务码 40904）
+          description: 仍被岗位引用（业务码 40905）
           content:
             application/json:
               schema:
@@ -1003,6 +1011,7 @@ paths:
       description: |
         - `file` 与 `text` 二选一，**不可同时为空**；文件支持 PDF / DOCX / DOC / TXT，≤ 5MB。
         - 创建后立即返回，`parseStatus = PENDING`；前端轮询 `GET /api/job-positions/{jobPositionId}` 直到 `COMPLETED` / `FAILED`。
+        - 解析调用走全局默认（JD 解析不属于 `LlmScene` 枚举），不参与场景级绑定。
         - 解析出公司名后：与已有公司**全等同名**才自动关联，否则新建公司记录；不做模糊自动合并。
           需要改用其它公司时调用 `PUT /api/job-positions/{jobPositionId}` 指定 `companyId`。
       requestBody:
@@ -1154,7 +1163,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: 解析进行中（业务码 40901）
+          description: 解析进行中（业务码 40908）
           content:
             application/json:
               schema:
@@ -1226,7 +1235,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ResultVoid'
         '409':
-          description: 已有匹配任务执行中（业务码 40901）
+          description: 已有匹配任务执行中（业务码 40908）
           content:
             application/json:
               schema:
@@ -2122,6 +2131,7 @@ components:
       description: |
         LLM 调用场景（FRX.11）。枚举一次性定义全部 7 个场景；
         M2 第一批实际生效的是 `JOB_MATCH`，其余为 M2 第二批 / M3 预留。
+        JD 结构化解析与简历对比总结不在枚举内，使用全局默认，不参与场景级绑定。
       enum:
         - RESUME_ANALYZE
         - CHAT
@@ -2699,6 +2709,9 @@ components:
           type: [string, "null"]
         llmModel:
           type: [string, "null"]
+        promptVersion:
+          type: [string, "null"]
+          description: 该次分析使用的 Prompt 版本；M1 历史分析为 null（FR7.4）
 
     DimensionDelta:
       type: object
@@ -2725,7 +2738,7 @@ components:
 
     ComparisonSummary:
       type: object
-      required: [content, modelMismatch, degraded]
+      required: [content, modelMismatch, promptVersionMismatch, degraded]
       properties:
         content:
           type: [string, "null"]
@@ -2733,6 +2746,9 @@ components:
         modelMismatch:
           type: boolean
           description: 两份分析使用的模型不同，结果仅供参考（FR7.4）
+        promptVersionMismatch:
+          type: boolean
+          description: 两份分析的 Prompt 版本不同（含一方未记录），结果仅供参考（FR7.4）
         degraded:
           type: boolean
           description: true 表示 LLM 总结失败，本地对比结果仍有效

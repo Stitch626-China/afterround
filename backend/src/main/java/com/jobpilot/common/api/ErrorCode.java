@@ -29,6 +29,15 @@ public enum ErrorCode {
     /** 被进行中的会话或全局默认引用，不可删除。 */
     RESOURCE_REFERENCED(40905, "资源正被引用，不可删除", HttpStatus.CONFLICT),
 
+    /** 公司名称全等查重冲突（M2，companies.name UNIQUE）。 */
+    COMPANY_EXISTS(40906, "公司名称已存在", HttpStatus.CONFLICT),
+
+    /** 简历对比要求两份分析都已完成（M2 F7）。 */
+    ANALYSIS_NOT_COMPLETED(40907, "简历分析未完成，无法对比", HttpStatus.CONFLICT),
+
+    /** JD 解析 / 匹配等异步任务已在执行中（M2 F2）。 */
+    TASK_IN_PROGRESS(40908, "任务执行中，请等待完成", HttpStatus.CONFLICT),
+
     /** 简历分析任务已在执行中（FR1.5）。 */
     ANALYSIS_IN_PROGRESS(40910, "分析任务进行中", HttpStatus.CONFLICT),
 

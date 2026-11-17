@@ -72,3 +72,32 @@
 
 ### 阻塞
 - 无。
+
+## 追加：M2 第一批契约复验（同日）
+
+### 目标
+独立复验 M2 第一批契约是否有误或遗漏，不沿用「已完成」结论。
+
+### 核对结果（结构与兼容性）
+- 27 路径 / 45 端点 / 80 schema；12 路径 / 19 端点标 `x-implemented: false`，全部落在新增路径。
+- 与 M1 契约（`1e3bb16`）对比：0 路径删除、0 schema 删除或修改，只有新增；operationId 45 个唯一、标签齐全、2xx 全部 `Result*` 包装。
+- lint 0 error 0 warning；前端 `npm run build` 通过；`ContractCoverageTest` + `ContractSchemaTest` 通过；远程 main CI（`c74bdef`）为 success。
+
+### 发现并修复的问题
+1. `info.version` 仍为 `1.5.0`，与提交说明、PROGRESS 的 `1.6.0` 不一致 → 已改 `1.6.0`。
+2. M2 错误码与后端已占用码冲突：40903/40904/40905 分别是 Provider/Model 已存在、资源被引用；40901 是会话切换守卫。已重排为 `40906` 公司存在、`40905` 公司被引用（复用通用码）、`40907` 分析未完成、`40908` 任务执行中，并同步新增 `ErrorCode` 枚举项。
+3. `ContractCoverageTest` 注释引用了契约 `info.description` 的「实现状态标记」，但契约实际没有 → 已补说明。
+4. 需求 FR7.4 要求「同一 Prompt 版本 + 同一模型」，契约原先只比较模型 → `ComparisonSide` 增加 `promptVersion`，`ComparisonSummary` 增加 `promptVersionMismatch`；V3 实现时需给 `resume_analyses` 增加对应列（M1 历史数据为 null）。
+
+### 决策
+- JD 结构化解析与简历对比总结暂不扩 `LlmScene`，统一走全局默认，并已写入契约说明；若后续需要单独绑定模型，再扩枚举并更新需求 FRX.11。
+- 未修改需求文档：本批复验未改变产品需求，只修正契约元数据与技术错误码。
+
+### 验证
+- `npm run lint:contract` → 0 error / 0 warning。
+- `npm run build` → 通过。
+- `mvn test -Dtest=ContractCoverageTest,ContractSchemaTest -Djacoco.skip=true` → 2 tests 通过。
+
+### 未完成 / 下一步
+- 提交并推送本次复验修复，观察 main CI。
+- M2 第一批实现时按契约删除对应 `x-implemented` 标记；V3 加 `prompt_version` 列。
