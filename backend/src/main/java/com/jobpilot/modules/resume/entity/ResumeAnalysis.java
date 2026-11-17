@@ -38,6 +38,7 @@ public class ResumeAnalysis {
 
     private String llmProvider;
     private String llmModel;
+    private String promptVersion;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

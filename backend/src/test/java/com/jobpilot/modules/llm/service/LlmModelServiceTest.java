@@ -18,9 +18,11 @@ import com.jobpilot.modules.llm.dto.UpdateModelRequest;
 import com.jobpilot.modules.llm.entity.LlmGlobalSetting;
 import com.jobpilot.modules.llm.entity.LlmModel;
 import com.jobpilot.modules.llm.entity.LlmProvider;
+import com.jobpilot.modules.llm.entity.LlmSceneSetting;
 import com.jobpilot.modules.llm.mapper.LlmGlobalSettingMapper;
 import com.jobpilot.modules.llm.mapper.LlmModelMapper;
 import com.jobpilot.modules.llm.mapper.LlmProviderMapper;
+import com.jobpilot.modules.llm.mapper.LlmSceneSettingMapper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,14 +41,16 @@ class LlmModelServiceTest {
     private LlmGlobalSettingMapper globalMapper;
     @Mock
     private ChatSessionMapper sessionMapper;
+    @Mock
+    private LlmSceneSettingMapper sceneMapper;
 
     @BeforeAll
     static void initLambdaCache() {
-        LambdaCacheSupport.init(LlmProvider.class, LlmModel.class, ChatSession.class);
+        LambdaCacheSupport.init(LlmProvider.class, LlmModel.class, ChatSession.class, LlmSceneSetting.class);
     }
 
     private LlmModelService service() {
-        return new LlmModelService(providerMapper, modelMapper, globalMapper, sessionMapper);
+        return new LlmModelService(providerMapper, modelMapper, globalMapper, sessionMapper, sceneMapper);
     }
 
     private static LlmProvider provider() {

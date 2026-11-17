@@ -20,12 +20,28 @@ import com.jobpilot.modules.chat.dto.ChatStreamEvent;
 import com.jobpilot.modules.chat.dto.CreateChatSessionRequest;
 import com.jobpilot.modules.chat.dto.SendMessageRequest;
 import com.jobpilot.modules.chat.dto.SwitchModelRequest;
+import com.jobpilot.modules.company.dto.CompanyResponse;
+import com.jobpilot.modules.company.dto.CreateCompanyRequest;
+import com.jobpilot.modules.company.dto.UpdateCompanyRequest;
+import com.jobpilot.modules.job.dto.BatchDeleteJobPositionsRequest;
+import com.jobpilot.modules.job.dto.CountItemResponse;
+import com.jobpilot.modules.job.dto.CreateJobMatchRequest;
+import com.jobpilot.modules.job.dto.JobMarketInsightsResponse;
+import com.jobpilot.modules.job.dto.JobMatchDetailResponse;
+import com.jobpilot.modules.job.dto.JobMatchResponse;
+import com.jobpilot.modules.job.dto.JobPositionDetailResponse;
+import com.jobpilot.modules.job.dto.JobPositionListItemResponse;
+import com.jobpilot.modules.job.dto.MatchDimensionResponse;
+import com.jobpilot.modules.job.dto.SkillCountItemResponse;
+import com.jobpilot.modules.job.dto.UpdateJobPositionRequest;
+import com.jobpilot.modules.llm.dto.BindSceneModelRequest;
 import com.jobpilot.modules.llm.dto.ConnectivityTestResponse;
 import com.jobpilot.modules.llm.dto.CreateModelRequest;
 import com.jobpilot.modules.llm.dto.CreateProviderRequest;
 import com.jobpilot.modules.llm.dto.GlobalSettingResponse;
 import com.jobpilot.modules.llm.dto.LlmModelResponse;
 import com.jobpilot.modules.llm.dto.LlmProviderResponse;
+import com.jobpilot.modules.llm.dto.SceneBindingResponse;
 import com.jobpilot.modules.llm.dto.TestProviderRequest;
 import com.jobpilot.modules.llm.dto.UpdateGlobalSettingRequest;
 import com.jobpilot.modules.llm.dto.UpdateModelRequest;
@@ -33,10 +49,15 @@ import com.jobpilot.modules.llm.dto.UpdateProviderRequest;
 import com.jobpilot.modules.llm.dto.UpstreamModelListResponse;
 import com.jobpilot.modules.resume.dto.AnalysisDimensionResponse;
 import com.jobpilot.modules.resume.dto.CareerDirectionResponse;
+import com.jobpilot.modules.resume.dto.ComparisonSideResponse;
+import com.jobpilot.modules.resume.dto.ComparisonSummaryResponse;
+import com.jobpilot.modules.resume.dto.CreateResumeComparisonRequest;
+import com.jobpilot.modules.resume.dto.DimensionDeltaResponse;
 import com.jobpilot.modules.resume.dto.QuoteItemResponse;
 import com.jobpilot.modules.resume.dto.ResumeAnalysisReportResponse;
 import com.jobpilot.modules.resume.dto.ResumeAnalysisStatusResponse;
 import com.jobpilot.modules.resume.dto.ResumeBasicInfoResponse;
+import com.jobpilot.modules.resume.dto.ResumeComparisonResponse;
 import com.jobpilot.modules.resume.dto.ResumeDetailResponse;
 import com.jobpilot.modules.resume.dto.ResumeListItemResponse;
 import com.jobpilot.modules.resume.dto.ResumeUploadResponse;
@@ -62,7 +83,16 @@ class ContractSchemaTest {
             ResumeListItemResponse.class, ResumeUploadResponse.class, ResumeDetailResponse.class,
             ResumeAnalysisStatusResponse.class, ResumeAnalysisReportResponse.class,
             AnalysisDimensionResponse.class, ResumeBasicInfoResponse.class, UpdateSalaryRequest.class,
-            QuoteItemResponse.class, SuggestionItemResponse.class, CareerDirectionResponse.class);
+            QuoteItemResponse.class, SuggestionItemResponse.class, CareerDirectionResponse.class,
+            SceneBindingResponse.class, BindSceneModelRequest.class,
+            CompanyResponse.class, CreateCompanyRequest.class, UpdateCompanyRequest.class,
+            JobPositionListItemResponse.class, JobPositionDetailResponse.class,
+            UpdateJobPositionRequest.class, BatchDeleteJobPositionsRequest.class,
+            CreateJobMatchRequest.class, MatchDimensionResponse.class, JobMatchDetailResponse.class,
+            JobMatchResponse.class, CountItemResponse.class, SkillCountItemResponse.class,
+            JobMarketInsightsResponse.class, CreateResumeComparisonRequest.class,
+            ComparisonSideResponse.class, DimensionDeltaResponse.class,
+            ComparisonSummaryResponse.class, ResumeComparisonResponse.class);
 
     @Test
     @SuppressWarnings("unchecked")

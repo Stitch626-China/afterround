@@ -16,9 +16,11 @@ import com.jobpilot.modules.llm.dto.UpdateProviderRequest;
 import com.jobpilot.modules.llm.entity.LlmGlobalSetting;
 import com.jobpilot.modules.llm.entity.LlmModel;
 import com.jobpilot.modules.llm.entity.LlmProvider;
+import com.jobpilot.modules.llm.entity.LlmSceneSetting;
 import com.jobpilot.modules.llm.mapper.LlmGlobalSettingMapper;
 import com.jobpilot.modules.llm.mapper.LlmModelMapper;
 import com.jobpilot.modules.llm.mapper.LlmProviderMapper;
+import com.jobpilot.modules.llm.mapper.LlmSceneSettingMapper;
 import org.springframework.stereotype.Service;
 
 /**
@@ -31,16 +33,19 @@ public class LlmProviderService {
     private final LlmModelMapper modelMapper;
     private final LlmGlobalSettingMapper globalMapper;
     private final ChatSessionMapper sessionMapper;
+    private final LlmSceneSettingMapper sceneMapper;
     private final AesGcmCipher cipher;
     private final ProviderClientRegistry registry;
 
     public LlmProviderService(LlmProviderMapper providerMapper, LlmModelMapper modelMapper,
                               LlmGlobalSettingMapper globalMapper, ChatSessionMapper sessionMapper,
+                              LlmSceneSettingMapper sceneMapper,
                               AesGcmCipher cipher, ProviderClientRegistry registry) {
         this.providerMapper = providerMapper;
         this.modelMapper = modelMapper;
         this.globalMapper = globalMapper;
         this.sessionMapper = sessionMapper;
+        this.sceneMapper = sceneMapper;
         this.cipher = cipher;
         this.registry = registry;
     }

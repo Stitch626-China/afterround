@@ -291,6 +291,24 @@ server {
 - 单次 LLM 调用受 `LLM_MAX_TOKENS`（默认 4096）硬上限约束（NFR7）；进程重启后遗留的 `PROCESSING` 会被启动恢复自动回收
 - 原始文件默认存 `app.storage.root`（`STORAGE_ROOT`，默认 `./data/files`），解析文本落库
 
+## M2 第一批接口（场景绑定 / 公司 / 岗位库 / 简历对比）
+
+- `/api/llm/scenes`：7 个场景（简历分析 / 对话 / 岗位匹配 / 面试出题 / 面试评估 / Offer 分析 / 复盘分析）的模型绑定；
+  `PUT /scenes/{scene}` 保存、`DELETE` 解绑即回落全局默认。JD 解析与简历对比不在枚举内，使用全局默认。
+- `/api/companies`：公司分页 + `keyword` 名称联想（仅候选，不自动合并）；名称全等查重（409/40906），
+  仍被岗位引用时禁止删除（409/40905）。
+- `/api/job-positions`：JD 导入（`file` 与 `text` 二选一，PDF/DOCX/DOC/TXT ≤5MB）后异步结构化解析
+  （`parseStatus` PENDING → PROCESSING → COMPLETED/FAILED，自动重试 ≤3）；详情为轮询端点；
+  `PUT` 支持修正字段、生命周期状态（SAVED/APPLIED/INTERVIEWING/CLOSED）与 `companyId`（显式 `null` 解除关联）；
+  支持单条 / 批量删除（级联删除匹配结果）；`POST /{id}/parse` 手动重试（解析中 409/40908）。
+  解析出的公司名全等命中则复用，否则自动新建公司。
+- `/api/job-matches`：简历-JD 匹配评分（技能 50 / 经验 30 / 加分项 20，总分本地加权），异步执行、
+  `(resumeId, jobPositionId)` 唯一，重复发起即重跑（执行中 409/40908）；`GET /{matchId}` 轮询。
+- `/api/job-market/insights`：行情洞察实时聚合（技能 Top20、薪资分桶、经验与方向原文分布），JD 增删立即生效。
+- `/api/resume-comparisons`：两份已完成分析的简历同步对比；分数 / 五维 / 优势短板 / 方向差异本地计算，
+  一次 LLM 生成点评（失败 `degraded=true`，本地结果照常返回）；模型或 Prompt 版本不同会标注仅供参考。
+- 进程重启后遗留的 `PROCESSING`（简历分析、JD 解析、匹配）由启动恢复统一回收为可重试状态。
+
 ## M1-d 前端（信息架构）
 
 - **一级导航只放业务主线**：简历中心（M1）→ 模拟面试（M2）→ 面试复盘 / 求职洞察（M3，占位灰显）。

@@ -13,9 +13,11 @@ import com.jobpilot.modules.llm.dto.UpdateModelRequest;
 import com.jobpilot.modules.llm.entity.LlmGlobalSetting;
 import com.jobpilot.modules.llm.entity.LlmModel;
 import com.jobpilot.modules.llm.entity.LlmProvider;
+import com.jobpilot.modules.llm.entity.LlmSceneSetting;
 import com.jobpilot.modules.llm.mapper.LlmGlobalSettingMapper;
 import com.jobpilot.modules.llm.mapper.LlmModelMapper;
 import com.jobpilot.modules.llm.mapper.LlmProviderMapper;
+import com.jobpilot.modules.llm.mapper.LlmSceneSettingMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,13 +31,16 @@ public class LlmModelService {
     private final LlmModelMapper modelMapper;
     private final LlmGlobalSettingMapper globalMapper;
     private final ChatSessionMapper sessionMapper;
+    private final LlmSceneSettingMapper sceneMapper;
 
     public LlmModelService(LlmProviderMapper providerMapper, LlmModelMapper modelMapper,
-                           LlmGlobalSettingMapper globalMapper, ChatSessionMapper sessionMapper) {
+                           LlmGlobalSettingMapper globalMapper, ChatSessionMapper sessionMapper,
+                           LlmSceneSettingMapper sceneMapper) {
         this.providerMapper = providerMapper;
         this.modelMapper = modelMapper;
         this.globalMapper = globalMapper;
         this.sessionMapper = sessionMapper;
+        this.sceneMapper = sceneMapper;
     }
 
     @Transactional
@@ -101,6 +106,12 @@ public class LlmModelService {
                 .in(ChatSession::getStatus, "IDLE", "PROCESSING"));
         if (referenced > 0) {
             throw BizException.of(ErrorCode.RESOURCE_REFERENCED, "该模型正被会话引用，不可删除");
+        }
+        Long sceneRefs = sceneMapper.selectCount(Wrappers.<LlmSceneSetting>lambdaQuery()
+                .eq(LlmSceneSetting::getProviderKey, providerKey)
+                .eq(LlmSceneSetting::getModel, modelName));
+        if (sceneRefs != null && sceneRefs > 0) {
+            throw BizException.of(ErrorCode.RESOURCE_REFERENCED, "该模型正被场景绑定引用，不可删除");
         }
         modelMapper.deleteById(entity.getId());
     }

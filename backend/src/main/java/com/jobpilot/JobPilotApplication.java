@@ -14,7 +14,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @SpringBootApplication
 @EnableAsync
 @MapperScan({"com.jobpilot.modules.llm.mapper", "com.jobpilot.modules.chat.mapper",
-        "com.jobpilot.modules.resume.mapper"})
+        "com.jobpilot.modules.resume.mapper", "com.jobpilot.modules.company.mapper",
+        "com.jobpilot.modules.job.mapper"})
 public class JobPilotApplication {
 
     public static void main(String[] args) {

@@ -29,8 +29,9 @@ info:
       JD 结构化解析与简历对比总结未列入枚举，使用全局默认，不参与场景级绑定。
 
     ## 实现状态标记
-    M2 契约先行：已定义但尚未实现的路径在**路径层**标记 `x-implemented: false`。
-    后端 `ContractCoverageTest` 据此区分「已定义、待实现」与「必须已实现」，实现完成后删除标记即可自动收紧校验。
+    M2 第一批已全部实现：契约中不再存在 `x-implemented: false` 的路径，
+    后端 `ContractCoverageTest` 对「契约端点 = 实际控制器端点」做双向全等校验。
+    后续新增契约若需先冻结、后实现，可继续沿用该标记（false 表示已定义待实现）。
 
     ## 错误码补充（M2）
     - `40906` 公司名称已存在（`companies.name` UNIQUE）
@@ -354,7 +355,6 @@ paths:
   # ==========================================================
 
   /api/llm/scenes:
-    x-implemented: false
     get:
       tags: [模型配置]
       operationId: listSceneBindings
@@ -373,7 +373,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/llm/scenes/{scene}:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/Scene'
     put:
@@ -791,7 +790,6 @@ paths:
   # ==========================================================
 
   /api/resume-comparisons:
-    x-implemented: false
     post:
       tags: [简历对比]
       operationId: compareResumes
@@ -837,7 +835,6 @@ paths:
   # ==========================================================
 
   /api/companies:
-    x-implemented: false
     get:
       tags: [公司]
       operationId: listCompanies
@@ -899,7 +896,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/companies/{companyId}:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/CompanyId'
     put:
@@ -963,7 +959,6 @@ paths:
   # ==========================================================
 
   /api/job-positions:
-    x-implemented: false
     get:
       tags: [岗位库]
       operationId: listJobPositions
@@ -1053,7 +1048,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/job-positions/batch-delete:
-    x-implemented: false
     post:
       tags: [岗位库]
       operationId: batchDeleteJobPositions
@@ -1078,7 +1072,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/job-positions/{jobPositionId}:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/JobPositionId'
     get:
@@ -1143,7 +1136,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/job-positions/{jobPositionId}/parse:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/JobPositionId'
     post:
@@ -1172,7 +1164,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/job-matches:
-    x-implemented: false
     get:
       tags: [岗位库]
       operationId: listJobMatches
@@ -1244,7 +1235,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/job-matches/{matchId}:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/MatchId'
     get:
@@ -1267,7 +1257,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/job-market/insights:
-    x-implemented: false
     get:
       tags: [岗位库]
       operationId: getJobMarketInsights

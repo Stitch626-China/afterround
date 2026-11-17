@@ -159,3 +159,23 @@
 - 原因：英文文件名不易识别，中文名与文档标题一致。
 - 验证：`git status` 显示 rename；活文档引用已更新；历史会话记录按只追加规则保留旧路径，以本条为准。
 - 下一步 / 断点：无。
+
+### 17:46 M2 第一批后端 19 个端点全部实现
+- 改动：
+  - `V3__m2_batch1.sql`：`llm_scene_settings`（scene UNIQUE + 7 场景 CHECK）、`companies`（name UNIQUE）、`job_positions`（公司 FK RESTRICT、source/status/parse_status CHECK、薪资非负、skills JSONB、四件套）、`job_match_results`（组合 UNIQUE、级联删除、四件套）、`resume_analyses.prompt_version`。
+  - 场景绑定：`LlmSceneSetting` 实体/Mapper、`LlmScene` 枚举、`LlmSceneService`（未配置回落全局、校验 Provider/Model 启用）、`LlmSceneController`；Provider/Model 删除时新增「场景绑定引用」拦截。
+  - 公司：实体/Mapper/DTO/`CompanyService`（名称 trim + 全等查重、被岗位引用拒删、分页关键字联想）、`CompanyController`。
+  - 岗位库：`JobPosition`/`JobMatchResult` 实体与 Mapper、`JobPositionService`（文件/文本导入、Tika、SHA-256 存储、异步解析状态机、重试 ≤3、公司全等自动关联/新建、修正、单条/批量删除）、`JobPositionController`；JD 解析 Prompt 外置。
+  - 匹配与行情：`JobMatchService`（JOB_MATCH 场景绑定、异步、组合唯一重跑、执行中 409、本地 50/30/20 加权）、`JobMatchController`；`JobMarketService`（技能合并去重 Top20、薪资中位数分桶、经验/方向原文分布）+ Controller。
+  - 简历对比：`ResumeComparisonService`（本地 diff + LLM 点评、模型/Prompt 版本不一致标注、失败降级）、`ResumeComparisonController`、Prompt 外置；`ResumeAnalysis` 增加 `promptVersion` 并在分析落库时写入 `resume-analysis-v1`。
+  - 运维与契约：`StartupRecovery` 扩展到 JD 解析与匹配；`MapperScan` 增加 company/job 包；契约删除全部 `x-implemented: false` 并更新说明；契约测试控制器/DTO 列表补齐；README 新增「M2 第一批接口」章节。
+- 原因：按已冻结的 M2 第一批契约完成实现，保持契约先行、TDD 与状态四件套一致。
+- 验证：
+  - 后端全量 `mvn test`：**118 tests 全绿**，JaCoCo 门禁通过；V3 迁移随 Testcontainers（postgres:16-alpine）集成测试在真实 PG 执行成功。
+  - `ContractCoverageTest`（45 端点双向全等）、`ContractSchemaTest`（全部 DTO 字段对齐）通过；`redocly lint` 0 error 0 warning。
+  - 前端 `npm run build` 通过（契约类型重新生成）。
+- 决策 / 坑：
+  - `UpdateJobPositionRequest.companyId` 用 `JsonNode` 区分「未传（不修改）」与「显式 null（解除关联）」，与契约语义一致。
+  - 批量删除时磁盘文件清理失败只告警、不阻断 DB 删除，避免出现无法删除的僵局（单条删除仍严格）。
+  - 编辑工具再次出现「报告成功但未落盘」：`LlmProviderService`/测试的 import、`LlmModelService` 的构造参数曾丢失，编译失败后逐处核对修复；后续批量编辑后坚持编译验证。
+- 下一步 / 断点：M2 第一批前端页面与真实链路联调；之后进入 M2 第二批契约（F3 + F6）。

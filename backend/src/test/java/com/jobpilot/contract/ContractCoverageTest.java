@@ -13,7 +13,13 @@ import java.util.Map;
 import java.util.Set;
 
 import com.jobpilot.modules.chat.controller.ChatController;
+import com.jobpilot.modules.company.controller.CompanyController;
+import com.jobpilot.modules.job.controller.JobMarketController;
+import com.jobpilot.modules.job.controller.JobMatchController;
+import com.jobpilot.modules.job.controller.JobPositionController;
 import com.jobpilot.modules.llm.controller.LlmController;
+import com.jobpilot.modules.llm.controller.LlmSceneController;
+import com.jobpilot.modules.resume.controller.ResumeComparisonController;
 import com.jobpilot.modules.resume.controller.ResumeController;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -75,7 +81,10 @@ class ContractCoverageTest {
 
     private Set<String> controllerEndpoints() {
         Set<String> endpoints = new HashSet<>();
-        for (Class<?> controller : List.of(LlmController.class, ChatController.class, ResumeController.class)) {
+        for (Class<?> controller : List.of(LlmController.class, LlmSceneController.class,
+                CompanyController.class, JobPositionController.class, JobMatchController.class,
+                JobMarketController.class, ChatController.class, ResumeController.class,
+                ResumeComparisonController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (Method method : controller.getDeclaredMethods()) {
                 for (Annotation annotation : method.getAnnotations()) {
