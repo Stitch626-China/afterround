@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -189,6 +190,40 @@ class JobMatchServiceTest {
 
         when(matchMapper.selectById(9L)).thenReturn(null);
         assertCode(() -> service().status(9L), ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    void matchMarksFailedAfterRetriesExhausted() {
+        when(resumeMapper.selectById(1L)).thenReturn(resume());
+        when(jobMapper.selectById(2L)).thenReturn(job());
+        when(matchMapper.selectOne(any())).thenReturn(null);
+        when(matchMapper.insert(any(JobMatchResult.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, JobMatchResult.class).setId(3L);
+            return 1;
+        });
+        JobMatchResult entity = new JobMatchResult();
+        entity.setId(3L);
+        entity.setResumeId(1L);
+        entity.setJobPositionId(2L);
+        entity.setStatus("PROCESSING");
+        when(matchMapper.selectById(3L)).thenReturn(entity);
+        when(sceneService.resolve(LlmScene.JOB_MATCH))
+                .thenReturn(new LlmSceneService.SceneModel("p", "m"));
+        LlmClient client = org.mockito.Mockito.mock(LlmClient.class);
+        when(registry.get("p")).thenReturn(client);
+        when(client.chatJson(any(), anyList())).thenThrow(new RuntimeException("boom"));
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+
+        var response = service().create(new CreateJobMatchRequest(1L, 2L));
+
+        assertThat(response.status()).isEqualTo("PROCESSING");
+        // 首次失败后 4 次 finish，末次置 FAILED（单测验证调用次数，真实状态由集成测试覆盖）
+        verify(matchMapper, org.mockito.Mockito.times(4)).update(any(), any());
+        verify(callLogger, org.mockito.Mockito.times(4))
+                .log(any(), any(), any(), any(), any(), any(), anyLong(), any(Boolean.class), any());
     }
 
     private static void assertCode(Runnable action, ErrorCode expected) {

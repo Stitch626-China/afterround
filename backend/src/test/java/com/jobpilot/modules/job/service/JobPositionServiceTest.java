@@ -191,6 +191,28 @@ class JobPositionServiceTest {
     }
 
     @Test
+    void parseMarksFailedAfterRetriesExhausted() {
+        JobPosition job = job("PROCESSING");
+        when(jobMapper.selectById(1L)).thenReturn(job);
+        when(jobMapper.update(any(), any())).thenReturn(1);
+        when(sceneService.resolveGlobal()).thenReturn(new LlmSceneService.SceneModel("p", "m"));
+        LlmClient client = org.mockito.Mockito.mock(LlmClient.class);
+        when(registry.get("p")).thenReturn(client);
+        when(client.chatJson(any(), anyList())).thenThrow(new RuntimeException("boom"));
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+
+        service().retryParse(1L);
+
+        // 1 次置 PROCESSING + 首次失败后 4 次 finish（末次置 FAILED）
+        verify(jobMapper, org.mockito.Mockito.times(5)).update(any(), any());
+        verify(callLogger, org.mockito.Mockito.times(4))
+                .log(any(), any(), any(), any(), any(), any(), anyLong(), any(Boolean.class), any());
+    }
+
+    @Test
     void updateAppliesFieldsAndRejectsInvalidCompanyOrSalaryRange() throws Exception {
         JobPosition job = job("COMPLETED");
         when(jobMapper.selectById(1L)).thenReturn(job);
