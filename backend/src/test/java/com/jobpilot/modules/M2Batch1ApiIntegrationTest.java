@@ -269,10 +269,12 @@ class M2Batch1ApiIntegrationTest extends AbstractIntegrationTest {
                 .exchange().expectStatus().isBadRequest()
                 .expectBody().jsonPath("$.code").isEqualTo(40001);
 
-        // 分析未完成的简历不能参与对比
+        // 分析未完成的简历不能参与对比：两份都必须存在，其中一份置为 PENDING
+        long completedResumeId = uploadResume("李四\nJava 4 年");
+        awaitResume(completedResumeId, "COMPLETED");
         jdbc.update("UPDATE resumes SET analyze_status = 'PENDING' WHERE id = ?", resumeId);
         client.post().uri("/api/resume-comparisons").contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("baseResumeId", resumeId, "targetResumeId", resumeId + 9999))
+                .bodyValue(Map.of("baseResumeId", resumeId, "targetResumeId", completedResumeId))
                 .exchange().expectStatus().isEqualTo(HttpStatus.CONFLICT)
                 .expectBody().jsonPath("$.code").isEqualTo(40907);
 

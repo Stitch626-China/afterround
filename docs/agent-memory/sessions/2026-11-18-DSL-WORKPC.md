@@ -42,3 +42,9 @@
   3. 对比未完成用例中 target 传固定 `1` 与首条简历 id 冲突，返回 400；改为 `resumeId + 9999`。
   4. 匹配失败单测未给返回实体设置 `resumeId/jobPositionId`，worker 提前判定资源已删除；补齐字段后通过。
 - 下一步 / 断点：M2 前端开发。
+
+### 11:26 进度检查与对比前置条件用例复核
+- 改动：`M2Batch1ApiIntegrationTest.validationsAndGuards` 的 40907 用例改为「先新建第二份已完成简历，再把首份置 PENDING」，替代 `targetResumeId = resumeId + 9999`。
+- 原因：`ResumeComparisonService.compare` 先对 base 调 `side()`，base 未完成时即刻抛 40907，`resumeId + 9999` 虽能通过，但「目标简历根本不存在」的分支被掩盖；改用两份真实存在的简历，断言才真正覆盖「两份都存在、其中一份未完成」。
+- 验证：契约 lint 0 error / 0 warning；前端 `npm run build`（含 `gen:api`）+ Vitest 9 通过；后端全量 **123 tests 全绿**、JaCoCo 门禁通过；`M2Batch1ApiIntegrationTest` 3 用例在真实 PostgreSQL 16 + 假上游下通过。
+- 下一步 / 断点：M2 前端页面（岗位库 / 公司 / 匹配 / 行情 / 简历对比 / 场景绑定）与真实链路联调。
