@@ -17,7 +17,7 @@
 - **M2 第一批后端实现细节（2026-11-17）**：Flyway `V3__m2_batch1.sql`（场景绑定 / 公司 / 岗位 / 匹配四表 + `resume_analyses.prompt_version`）；JD 解析与匹配复用「外置模板 + JSON 模式 + 本地修复 + 带错误反馈重试 ≤3 + AI DTO + 本地兜底校验」；匹配总分本地按 50/30/20 加权；对比差异本地计算、LLM 仅生成点评，失败降级；启动恢复扩展到岗位解析与匹配；V3 迁移已随 Testcontainers（postgres:16-alpine）集成测试在真实 PG 上执行
 - **测试补强（2026-11-18）**：新增 `M2Batch1ApiIntegrationTest`（4 个用例，真实 PostgreSQL + 假 LLM 上游）覆盖 M2 HTTP 主链路、校验/409/401 重试 FAILED、岗位列表筛选与批量删除；新增 JD 解析与匹配「重试打满置 FAILED」及匹配 worker 异常分支单测。**后端 129 tests 全绿，行覆盖 91.90%、分支覆盖 76.11%**，门禁通过
 - **测试缺口盘点（2026-11-18）**：高价值缺口已补——岗位列表分页/筛选/公司名关键字、批量删除 HTTP、匹配 worker 的三类异常分支全部覆盖；`JobPositionService` 81%→89%、`JobMatchService` 92%→94%、`JobPositionController` 58%→92%。剩余高价值缺口见「下一步」第 5 项
-- **CI 状态（2026-11-18）**：main 最新提交 `7571a14` 的 CI 运行成功（run 44253787088，契约 / 后端 / 前端三 job 全绿）
+- **CI 状态（2026-11-18）**：main 最新提交 `012cd94` 的 CI 运行成功（run 44277203218，契约 / 后端 / 前端三 job 全绿）
 - 下一步待办：M2 第一批**真实链路联调**（临时 PostgreSQL 5433 + 真实/假 LLM 上游）
 - **M2 契约第一批完成（2026-11-17）**：新增 12 路径 / 19 端点 / 34 schema——场景级模型绑定（7 场景枚举一次定全）、公司最小 CRUD、岗位库（JD 导入+异步解析 / 匹配评分 / 行情洞察）、简历版本对比（同步、不落库）；lint 0 error 0 warning；前端类型生成与构建通过；契约测试改为按 `x-implemented` 区分已实现与待实现（26 / 19），不再维护例外清单
 - **M2 第一批契约复验（2026-11-17）**：与 M1 对比确认 0 路径/schema 删除或修改；修复 4 处问题——`info.version` 未真正升到 1.6.0、M2 错误码与后端已占用的 40903/40904/40905/40901 冲突（改为 40906/40905/40907/40908 并同步 `ErrorCode`）、`x-implemented` 机制未写入契约 `info.description`、F7 缺 Prompt 版本判定（补 `promptVersion` + `promptVersionMismatch`）。JD 解析与简历对比总结暂走全局默认、不扩 `LlmScene`（已写入契约）。lint / 前端构建 / 契约测试均通过
