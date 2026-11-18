@@ -87,3 +87,18 @@
   3. 对比页 `getByText('技术深度')` 同时命中五维标签与 LLM 点评文本（strict violation）→ 限定 `.dims` 容器。
 - 中等价值分支结论：本轮前端只消费既有契约，未触发公司并发重复键、JD 导入 IO/Tika 异常、JSON 兜底等后端分支，**暂不需要为此补测**；清单保留在 PROGRESS「下一步」第 5 项，待真实链路联调或第二批开发触及时再补。新增待记录项：E2E 仍为接口全 mock，真实链路（浏览器 → 真后端 → 临时 PG + 假上游）尚未跑，已写入 PROGRESS 下一步第 1 项。
 - 下一步 / 断点：真实链路联调；随后 M2 第二批（F3 模拟面试 + F6 Offer 决策）契约。
+
+### 17:40 岗位结果拆分「录用 / 淘汰」+ 岗位备注
+- 改动：
+  - 契约 `1.7.0`：`JobPositionStatus` 改为 `SAVED / APPLIED / INTERVIEWING / OFFERED / REJECTED`；`JobPositionListItem`、`UpdateJobPositionRequest` 新增 `remark`（≤200 字，传空字符串清空）。
+  - Flyway `V4__job_position_outcome_remark.sql`：新增 `remark` 列、旧 `CLOSED` → `REJECTED`、重建状态 CHECK。
+  - 后端：实体/DTO/服务透传 `remark`（trim、空串转 null、截断 200）；`UpdateJobPositionRequest.status` 正则同步。
+  - 前端：列表状态徽章与筛选项改为「待跟进 / 已投递 / 面试中 / 录用 / 淘汰」；列表行内新增「备注 / 改备注」快速编辑；详情页表单新增备注与两种新状态。
+  - 测试：`JobPositionServiceTest` 覆盖备注写入与清空、`OFFERED`；`M2Batch1ApiIntegrationTest` 覆盖 `OFFERED`/`REJECTED` 筛选、备注写入与清空（真实 PG）；E2E 岗位库用例覆盖备注展示与行内保存。
+  - 需求文档 v1.9（新增 FR2.7 与迭代记录）、README、PROGRESS 同步。
+- 原因：用户反馈「已关闭」无法区分录用与淘汰，且岗位需要记录面试轮次、淘汰环节等信息。
+- 验证：后端 **129 tests 全绿**，行覆盖 **91.92%**、分支 **76.23%**，JaCoCo 门禁通过；契约 lint 0 error 0 warning；前端 build 通过、Vitest 9/9、Playwright 9/9。
+- 过程中的问题：
+  1. **备注无法清空**：MyBatis-Plus `updateById` 默认忽略 null 字段，`setRemark(null)` 未进入 SQL，DB 仍保留旧值。修复：`remark` 字段加 `@TableField(updateStrategy = FieldStrategy.ALWAYS)`，让 null 也写入；集成测试改为直接查库断言。
+  2. **同一文件批量编辑丢改动**：多次对同一文件并发提交 Edit 时，后一次基于旧快照覆盖前一次，出现「编辑成功但内容回退」。后续同一文件的多处改动改为逐条提交，并在每步后用 Grep 验证落盘。
+- 下一步 / 断点：M2 第一批真实链路联调；页面已在 5173 运行供用户查看样式。

@@ -7,11 +7,12 @@
 
 - 产品：职点（JobPilot），AI 求职辅助平台（简历分析 → 岗位匹配 → 模拟面试 → 面试复盘）
 - 形态：个人自用版，免登录、单用户，本地 Docker Compose
-- 阶段：**M1 已完成并验收**；**M2 第一批后端 19 端点 + 前端页面已完成**（待真实链路联调验收）；需求文档 **v1.8** 已确认
+- 阶段：**M1 已完成并验收**；**M2 第一批后端 19 端点 + 前端页面已完成**（待真实链路联调验收）；需求文档 **v1.9** 已确认
 
 ## 当前状态
 
-- 进行中：**M2 第一批后端实现完成（2026-11-17）**——场景绑定 3 端点、公司 4 端点、岗位库 6 端点、匹配 3 端点、行情 1 端点、简历对比 1 端点全部实现；契约 `1.6.0` 45 端点已无 `x-implemented: false`
+- **岗位跟踪增强（2026-11-18）**：F2 生命周期由笼统的「已关闭」拆为「录用 OFFERED / 淘汰 REJECTED」，新增 `remark` 自由备注（≤200 字，空字符串清空）；契约 `1.7.0`、Flyway `V4__job_position_outcome_remark.sql`（含旧 `CLOSED` → `REJECTED` 迁移与状态 CHECK 重建）；岗位列表行内可写 / 改备注，详情页可编辑；后端 **129 tests 全绿（行 91.92% / 分支 76.23%）**、Vitest 9、Playwright 9 全过
+- 进行中：**M2 第一批后端实现完成（2026-11-17）**——场景绑定 3 端点、公司 4 端点、岗位库 6 端点、匹配 3 端点、行情 1 端点、简历对比 1 端点全部实现；契约（现 `1.7.0`）45 端点已无 `x-implemented: false`
 - **M2 第一批前端完成（2026-11-18）**：新增 `api/jobs.ts` 与 `resumes.compareResumes`；页面 `JobListView`（列表/行情双 Tab、导入、筛选、分页、批量删除、解析轮询）、`JobDetailView`（字段修正、重试解析、匹配发起与轮询、历史匹配）、`MarketPanel`、`ComparisonView`（含入口按钮）、设置抽屉 `SceneSettings`（7 场景绑定/解绑）；路由 `/jobs`、`/jobs/:id`、`/resumes/compare`；导航加「岗位库」。验证：`npm run build` 通过（含契约类型生成）、Vitest 9 全过、Playwright **9 E2E 全过**（新增 m2-flows 3 个：岗位库筛选+行情+批量删除、简历对比、场景绑定）
 - **M2 第一批后端实现细节（2026-11-17）**：Flyway `V3__m2_batch1.sql`（场景绑定 / 公司 / 岗位 / 匹配四表 + `resume_analyses.prompt_version`）；JD 解析与匹配复用「外置模板 + JSON 模式 + 本地修复 + 带错误反馈重试 ≤3 + AI DTO + 本地兜底校验」；匹配总分本地按 50/30/20 加权；对比差异本地计算、LLM 仅生成点评，失败降级；启动恢复扩展到岗位解析与匹配；V3 迁移已随 Testcontainers（postgres:16-alpine）集成测试在真实 PG 上执行
 - **测试补强（2026-11-18）**：新增 `M2Batch1ApiIntegrationTest`（4 个用例，真实 PostgreSQL + 假 LLM 上游）覆盖 M2 HTTP 主链路、校验/409/401 重试 FAILED、岗位列表筛选与批量删除；新增 JD 解析与匹配「重试打满置 FAILED」及匹配 worker 异常分支单测。**后端 129 tests 全绿，行覆盖 91.90%、分支覆盖 76.11%**，门禁通过

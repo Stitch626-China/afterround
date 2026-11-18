@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test'
 
 const ok = (data: unknown) => ({ json: { code: 0, message: 'ok', data } })
 
-const job = (id: number, title: string, status: string, parseStatus = 'COMPLETED') => ({
+const job = (id: number, title: string, status: string, parseStatus = 'COMPLETED', remark: string | null = null) => ({
   id,
   title,
   companyId: 1,
@@ -18,6 +18,7 @@ const job = (id: number, title: string, status: string, parseStatus = 'COMPLETED
   experience: '3-5年',
   education: '本科及以上',
   status,
+  remark,
   parseStatus,
   retryCount: 0,
   createdAt: '2026-11-18T10:00:00Z',
@@ -28,17 +29,25 @@ test('岗位库：列表筛选、行情洞察与批量删除', async ({ page }) 
   let deleted = false
   let lastQuery = ''
   let batchPayload: { ids: number[] } | null = null
+  let remark2: string | null = '二面已约'
 
   await page.route('**/api/job-positions/batch-delete', (route) => {
     batchPayload = route.request().postDataJSON() as { ids: number[] }
     deleted = true
     return route.fulfill(ok(undefined))
   })
+  await page.route('**/api/job-positions/2', (route) => {
+    const payload = route.request().postDataJSON() as { remark: string }
+    remark2 = payload.remark || null
+    return route.fulfill(ok(job(2, 'Go 后端工程师', 'REJECTED', 'COMPLETED', remark2)))
+  })
   await page.route(/\/api\/job-positions(\?|$)/, (route) => {
     lastQuery = route.request().url()
     return route.fulfill(
       ok({
-        items: deleted ? [] : [job(1, 'Java 后端开发工程师', 'SAVED'), job(2, 'Go 后端工程师', 'APPLIED')],
+        items: deleted
+          ? []
+          : [job(1, 'Java 后端开发工程师', 'SAVED'), job(2, 'Go 后端工程师', 'REJECTED', 'COMPLETED', remark2)],
         total: deleted ? 0 : 2,
         page: 1,
         size: 20,
@@ -69,8 +78,17 @@ test('岗位库：列表筛选、行情洞察与批量删除', async ({ page }) 
 
   await page.goto('/jobs')
   await expect(page.getByText('Java 后端开发工程师')).toBeVisible()
-  await expect(page.locator('.list').getByText('已投递').first()).toBeVisible()
+  await expect(page.locator('.list').getByText('淘汰').first()).toBeVisible()
+  await expect(page.locator('.list').getByText('备注：二面已约')).toBeVisible()
   await expect(page.locator('.list').getByText('20-30K').first()).toBeVisible()
+
+  // 列表内快速改备注
+  const goRow = page.locator('.list .row').filter({ hasText: 'Go 后端工程师' })
+  await goRow.getByRole('button', { name: '改备注' }).click()
+  await goRow.locator('.remark-editor input').fill('三面待定')
+  await goRow.locator('.remark-editor').getByRole('button', { name: '保存' }).click()
+  await expect.poll(() => remark2).toBe('三面待定')
+  await expect(page.locator('.list').getByText('备注：三面待定')).toBeVisible()
 
   // 关键字筛选会带 query 请求
   await page.getByPlaceholder('搜索岗位名或公司').fill('Java')

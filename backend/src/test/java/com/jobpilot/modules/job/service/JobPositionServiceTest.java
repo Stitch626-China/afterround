@@ -222,21 +222,26 @@ class JobPositionServiceTest {
 
         var response = service().update(1L, new UpdateJobPositionRequest("高级 Java", MAPPER.readTree("5"),
                 "北京", 20000, 30000, "3-5年", "本科", List.of("Java"), List.of("Redis"),
-                "负责服务", "APPLIED"));
+                "负责服务", "OFFERED", "二面已约"));
         assertThat(response.title()).isEqualTo("高级 Java");
-        assertThat(response.status()).isEqualTo("APPLIED");
+        assertThat(response.status()).isEqualTo("OFFERED");
+        assertThat(response.remark()).isEqualTo("二面已约");
         assertThat(job.getMustHaveSkills()).contains("Java");
+
+        service().update(1L, new UpdateJobPositionRequest(
+                null, null, null, null, null, null, null, null, null, null, null, "  "));
+        assertThat(job.getRemark()).isNull();
 
         var unknownCompany = MAPPER.readTree("9");
         assertCode(() -> service().update(1L, new UpdateJobPositionRequest(
-                null, unknownCompany, null, null, null, null, null, null, null, null, null)),
+                null, unknownCompany, null, null, null, null, null, null, null, null, null, null)),
                 ErrorCode.NOT_FOUND);
         assertCode(() -> service().update(1L, new UpdateJobPositionRequest(
-                null, null, null, 40000, 10000, null, null, null, null, null, null)),
+                null, null, null, 40000, 10000, null, null, null, null, null, null, null)),
                 ErrorCode.BAD_REQUEST);
 
         service().update(1L, new UpdateJobPositionRequest(
-                null, NullNode.getInstance(), null, null, null, null, null, null, null, null, null));
+                null, NullNode.getInstance(), null, null, null, null, null, null, null, null, null, null));
         assertThat(job.getCompanyId()).isNull();
     }
 

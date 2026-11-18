@@ -25,5 +25,6 @@ public record UpdateJobPositionRequest(
         List<@Size(max = 64) String> mustHaveSkills,
         List<@Size(max = 64) String> niceToHaveSkills,
         @Size(max = 5000) String responsibility,
-        @Pattern(regexp = "SAVED|APPLIED|INTERVIEWING|CLOSED", message = "status 取值非法") String status) {
+        @Pattern(regexp = "SAVED|APPLIED|INTERVIEWING|OFFERED|REJECTED", message = "status 取值非法") String status,
+        @Size(max = 200) String remark) {
 }

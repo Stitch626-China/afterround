@@ -48,6 +48,7 @@ const form = reactive({
   niceToHaveSkills: '',
   responsibility: '',
   status: 'SAVED' as JobPositionStatus,
+  remark: '',
 })
 
 const companies = ref<Company[]>([])
@@ -82,7 +83,8 @@ const STATUS_TEXT: Record<string, string> = {
   SAVED: '待跟进',
   APPLIED: '已投递',
   INTERVIEWING: '面试中',
-  CLOSED: '已关闭',
+  OFFERED: '录用',
+  REJECTED: '淘汰',
 }
 const MATCH_TEXT: Record<string, string> = {
   PENDING: '排队中',
@@ -141,6 +143,7 @@ function fillForm(detail: JobPositionDetail): void {
   form.niceToHaveSkills = (detail.niceToHaveSkills ?? []).join('、')
   form.responsibility = detail.responsibility ?? ''
   form.status = detail.status
+  form.remark = detail.remark ?? ''
 }
 
 async function load(initial = false): Promise<void> {
@@ -211,6 +214,7 @@ async function save(): Promise<void> {
       niceToHaveSkills: splitSkills(form.niceToHaveSkills),
       responsibility: form.responsibility.trim(),
       status: form.status,
+      remark: form.remark.trim(),
     })
     formDirty = false
     notice.value = '已保存'
@@ -375,8 +379,13 @@ onBeforeUnmount(() => {
                 <option value="SAVED">待跟进</option>
                 <option value="APPLIED">已投递</option>
                 <option value="INTERVIEWING">面试中</option>
-                <option value="CLOSED">已关闭</option>
+                <option value="OFFERED">录用</option>
+                <option value="REJECTED">淘汰</option>
               </select>
+            </label>
+            <label class="full">
+              <span>备注（如一面 / 二面、简历淘汰 / 面试淘汰）</span>
+              <input v-model="form.remark" type="text" maxlength="200" @input="formDirty = true" />
             </label>
             <label class="full">
               <span>必备技能（用顿号或逗号分隔）</span>

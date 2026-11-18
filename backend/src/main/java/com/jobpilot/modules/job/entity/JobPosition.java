@@ -2,6 +2,7 @@ package com.jobpilot.modules.job.entity;
 
 import java.time.OffsetDateTime;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -36,6 +37,9 @@ public class JobPosition {
 
     private String responsibility;
     private String status;
+    /** null 是合法值（清空备注），因此更新时始终写入该列。 */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private String remark;
     private String parseStatus;
     private String parseError;
     private Integer retryCount;

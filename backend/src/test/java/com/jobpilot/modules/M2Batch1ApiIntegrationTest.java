@@ -308,12 +308,27 @@ class M2Batch1ApiIntegrationTest extends AbstractIntegrationTest {
         awaitJob(second, "COMPLETED");
         awaitJob(third, "COMPLETED");
 
-        // 生命周期状态筛选
+        // 生命周期状态筛选：录用 / 淘汰为两种终态，备注可写可清空
         client.put().uri("/api/job-positions/{id}", second).contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("status", "APPLIED"))
+                .bodyValue(Map.of("status", "OFFERED", "remark", "二面已约"))
+                .exchange().expectStatus().isOk();
+        client.put().uri("/api/job-positions/{id}", third).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("status", "REJECTED"))
+                .exchange().expectStatus().isOk();
+        assertThat(getJson("/api/job-positions?status=SAVED").path("data").path("total").asInt()).isEqualTo(1);
+        assertThat(getJson("/api/job-positions?status=OFFERED").path("data").path("total").asInt()).isEqualTo(1);
+        assertThat(getJson("/api/job-positions?status=REJECTED").path("data").path("total").asInt()).isEqualTo(1);
+        JsonNode offered = getJson("/api/job-positions/" + second);
+        assertThat(offered.path("data").path("status").asText()).isEqualTo("OFFERED");
+        assertThat(offered.path("data").path("remark").asText()).isEqualTo("二面已约");
+        client.put().uri("/api/job-positions/{id}", second).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("remark", ""))
+                .exchange().expectStatus().isOk();
+        assertThat(jdbc.queryForObject("SELECT remark FROM job_positions WHERE id = ?", String.class, second)).isNull();
+        client.put().uri("/api/job-positions/{id}", third).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("status", "SAVED"))
                 .exchange().expectStatus().isOk();
         assertThat(getJson("/api/job-positions?status=SAVED").path("data").path("total").asInt()).isEqualTo(2);
-        assertThat(getJson("/api/job-positions?status=APPLIED").path("data").path("total").asInt()).isEqualTo(1);
 
         // 城市精确匹配 + 分页 + 公司名关键字 + 岗位名关键字
         JsonNode byCity = getJson(uri -> uri.path("/api/job-positions")

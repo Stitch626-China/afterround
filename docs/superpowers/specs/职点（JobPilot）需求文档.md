@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.8 |
-| 日期 | 2026-11-17 |
-| 状态 | 需求已确认（M1 已完成并验收；M2 第一批契约已冻结；F5 待 M3、F6 / F7 待 M2 落地） |
+| 文档版本 | v1.9 |
+| 日期 | 2026-11-18 |
+| 状态 | 需求已确认（M1 已完成并验收；M2 第一批已实现；F5 待 M3、F6 / F3 待 M2 第二批） |
 | 技术底座 | Spring Boot 3.5.x + Java 21 + PostgreSQL + MyBatis-Plus |
 
 ---
@@ -29,8 +29,33 @@
 | v1.6 | 2026-11-12 | 报告里的薪资可见可改；规划 Offer 决策（多 Offer 同维度对比、保留淘汰可反悔） |
 | v1.7 | 2026-11-12 | 界面分层：业务归业务，设置收进左下角抽屉 |
 | v1.8 | 2026-11-17 | 把「AI 按模板思考、稳定输出」的机制写成明确规范 |
+| v1.9 | 2026-11-18 | 岗位跟踪更贴近真实求职：结果分录用 / 淘汰，并能随手记面试轮次与淘汰环节 |
 
 > **状态同步（2026-11-16）**：M1 已由用户完成功能验收（服务商添加与全局默认、对话内模型切换、简历上传与分析均通过），状态字段由「M1 进行中」改为「M1 已完成并验收」。仅同步状态事实，无需求变化，版本号不变。
+
+---
+
+### v1.9 · 2026-11-18 —— 岗位结果分「录用 / 淘汰」，并能随手写备注
+
+**多了什么**
+
+- **岗位结果更明确**：生命周期里的「已关闭」拆成「录用」和「淘汰」两种结果，筛选和列表徽章都能直接看出结局。
+- **岗位可以写备注**：每个岗位新增一行自由备注，用来记「一面 / 二面」「三面待定」「简历淘汰」「面试淘汰」等；列表里可直接改，详情页也能编辑，留空即清除。
+
+**变了什么**
+
+- 岗位状态由四个（待跟进 / 已投递 / 面试中 / 已关闭）调整为五个（待跟进 / 已投递 / 面试中 / 录用 / 淘汰）。
+- 历史「已关闭」数据迁移为「淘汰」，用户可在页面上改为「录用」。
+
+**砍了什么**
+
+- 不再用单一的「已关闭」承载多种结局。
+- 暂不做结构化的面试轮次 / 淘汰环节枚举，先用自由备注承载，避免过早固化个人求职流程。
+
+**附：技术实现要点**
+
+- `JobPositionStatus` 枚举为 `SAVED / APPLIED / INTERVIEWING / OFFERED / REJECTED`；契约 `1.7.0`。
+- `job_positions.remark VARCHAR(200)`，`V4__job_position_outcome_remark.sql` 负责加列、迁移历史 `CLOSED`、重建状态 CHECK。
 
 ---
 
@@ -348,6 +373,7 @@
 - FR2.4 行情洞察：基于已导入 JD 集合统计——技能词频 Top N、薪资分布、经验要求分布、岗位方向分布。
 - FR2.5 匹配的 JD 可一键发起模拟面试（联动 F3）。
 - FR2.6 JD 删除：支持单条与批量删除（二次确认）；删除后行情洞察（FR2.4）按剩余 JD 实时重算。
+- FR2.7 岗位跟踪：生命周期为待跟进 / 已投递 / 面试中 / 录用 / 淘汰，可任意方向调整；每个岗位支持 200 字以内的自由备注（如一面 / 二面、简历淘汰 / 面试淘汰），列表页可快速编辑，详情页可修改，留空即清除。
 
 ### 4.4 F3 模拟面试（P1）
 
@@ -615,7 +641,7 @@ interview-main/
 |---|---|
 | resumes | file_hash UNIQUE、storage_key、resume_text、analyze_status / error / retry_count |
 | resume_analyses | resume_id FK、overall_score、五维分数各自成列、strengths / suggestions / career_directions JSONB、llm_provider、llm_model |
-| job_positions | **company_id FK、status（SAVED / APPLIED / INTERVIEWING / CLOSED）**、title、company、city、salary_min / max、experience、raw_text、structured JSONB |
+| job_positions | **company_id FK、status（SAVED / APPLIED / INTERVIEWING / OFFERED / REJECTED）、remark（用户备注）**、title、company、city、salary_min / max、experience、raw_text、structured JSONB |
 | job_match_results | resume_id、job_position_id、match_status / error / retry_count、overall_score、detail JSONB、llm_provider、llm_model |
 | interview_sessions | direction、resume_id、job_position_id、status、evaluate_status / error / retry_count、current_provider_key、current_model、question_snapshot JSONB |
 | interview_questions | session_id、question_index（UNIQUE 组合）、parent_index（追问树）、type（主问题/追问）、content、topic_summary、answer、answer_status（已答 / 跳过 / 未答）、score、feedback、reference_answer、key_points JSONB、llm_provider、llm_model |

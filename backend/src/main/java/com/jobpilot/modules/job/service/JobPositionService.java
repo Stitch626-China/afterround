@@ -227,6 +227,10 @@ public class JobPositionService {
         if (request.status() != null) {
             entity.setStatus(request.status());
         }
+        if (request.remark() != null) {
+            String remark = request.remark().trim();
+            entity.setRemark(remark.isEmpty() ? null : truncate(remark, 200));
+        }
         entity.setUpdatedAt(OffsetDateTime.now());
         jobMapper.updateById(entity);
         return toListItem(entity, companyName(entity.getCompanyId()));
@@ -479,13 +483,15 @@ public class JobPositionService {
     private JobPositionListItemResponse toListItem(JobPosition job, String companyName) {
         return new JobPositionListItemResponse(job.getId(), job.getTitle(), job.getCompanyId(), companyName,
                 job.getCity(), job.getSalaryMin(), job.getSalaryMax(), job.getExperience(), job.getEducation(),
-                job.getStatus(), job.getParseStatus(), job.getRetryCount(), job.getCreatedAt(), job.getUpdatedAt());
+                job.getStatus(), job.getRemark(), job.getParseStatus(), job.getRetryCount(),
+                job.getCreatedAt(), job.getUpdatedAt());
     }
 
     private JobPositionDetailResponse toDetail(JobPosition job, String companyName) {
         return new JobPositionDetailResponse(job.getId(), job.getTitle(), job.getCompanyId(), companyName,
                 job.getCity(), job.getSalaryMin(), job.getSalaryMax(), job.getExperience(), job.getEducation(),
-                job.getStatus(), job.getParseStatus(), job.getRetryCount(), job.getCreatedAt(), job.getUpdatedAt(),
+                job.getStatus(), job.getRemark(), job.getParseStatus(), job.getRetryCount(),
+                job.getCreatedAt(), job.getUpdatedAt(),
                 job.getSourceType(), job.getFileName(), job.getRawText(),
                 skills(job.getMustHaveSkills()), skills(job.getNiceToHaveSkills()),
                 job.getResponsibility(), job.getParseError(), job.getLlmProvider(), job.getLlmModel());

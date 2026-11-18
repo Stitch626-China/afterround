@@ -2286,8 +2286,8 @@ components:
 
     JobPositionStatus:
       type: string
-      description: 岗位生命周期状态，可任意方向调整
-      enum: [SAVED, APPLIED, INTERVIEWING, CLOSED]
+      description: 岗位生命周期状态，可任意方向调整；OFFERED 录用 / REJECTED 淘汰为两种终态结果
+      enum: [SAVED, APPLIED, INTERVIEWING, OFFERED, REJECTED]
 
     JobPositionListItem:
       type: object
@@ -2327,6 +2327,11 @@ components:
           example: 本科及以上
         status:
           $ref: '#/components/schemas/JobPositionStatus'
+        remark:
+          type: [string, "null"]
+          maxLength: 200
+          description: 用户备注（如一面 / 二面、简历淘汰 / 面试淘汰）
+          example: 二面已约
         parseStatus:
           $ref: '#/components/schemas/AnalyzeStatus'
         retryCount:
@@ -2420,6 +2425,10 @@ components:
           maxLength: 5000
         status:
           $ref: '#/components/schemas/JobPositionStatus'
+        remark:
+          type: [string, "null"]
+          maxLength: 200
+          description: 用户备注；传空字符串表示清空
 
     BatchDeleteJobPositionsRequest:
       type: object

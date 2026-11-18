@@ -11,6 +11,7 @@ import {
   importJobPosition,
   listJobPositions,
   retryJobParse,
+  updateJobPosition,
   type JobPositionListItem,
   type JobPositionStatus,
 } from '@/api/jobs'
@@ -35,6 +36,9 @@ const filters = reactive<{ status: JobPositionStatus | ''; city: string; keyword
 const selected = ref<number[]>([])
 const deletingId = ref<number | null>(null)
 const batchConfirm = ref(false)
+const remarkEditingId = ref<number | null>(null)
+const remarkDraft = ref('')
+const savingRemark = ref(false)
 
 const importOpen = ref(false)
 const importMode = ref<'file' | 'text'>('file')
@@ -56,13 +60,15 @@ const STATUS_TEXT: Record<string, string> = {
   SAVED: '待跟进',
   APPLIED: '已投递',
   INTERVIEWING: '面试中',
-  CLOSED: '已关闭',
+  OFFERED: '录用',
+  REJECTED: '淘汰',
 }
 const STATUS_TONE: Record<string, string> = {
   SAVED: 'muted',
   APPLIED: 'primary',
   INTERVIEWING: 'warning',
-  CLOSED: 'muted',
+  OFFERED: 'success',
+  REJECTED: 'danger',
 }
 const PARSE_TEXT: Record<string, string> = {
   PENDING: '待解析',
@@ -248,6 +254,32 @@ function openDetail(item: JobPositionListItem): void {
   void router.push(`/jobs/${item.id}`)
 }
 
+function startRemark(item: JobPositionListItem): void {
+  remarkEditingId.value = item.id
+  remarkDraft.value = item.remark ?? ''
+}
+
+function cancelRemark(): void {
+  remarkEditingId.value = null
+  remarkDraft.value = ''
+}
+
+/** 列表内快速备注：传空字符串即清空（契约约定）。 */
+async function saveRemark(item: JobPositionListItem): Promise<void> {
+  savingRemark.value = true
+  error.value = ''
+  try {
+    await updateJobPosition(item.id, { remark: remarkDraft.value.trim() })
+    cancelRemark()
+    notice.value = '备注已保存'
+    await load()
+  } catch (ex) {
+    error.value = ex instanceof Error ? ex.message : '备注保存失败'
+  } finally {
+    savingRemark.value = false
+  }
+}
+
 function salary(item: JobPositionListItem): string {
   const min = item.salaryMin
   const max = item.salaryMax
@@ -338,7 +370,8 @@ onBeforeUnmount(() => {
           <option value="SAVED">待跟进</option>
           <option value="APPLIED">已投递</option>
           <option value="INTERVIEWING">面试中</option>
-          <option value="CLOSED">已关闭</option>
+          <option value="OFFERED">录用</option>
+          <option value="REJECTED">淘汰</option>
         </select>
         <input v-model="filters.city" type="search" placeholder="城市（精确）" @keyup.enter="search" />
         <button type="button" class="btn ghost" @click="search">查询</button>
@@ -393,6 +426,20 @@ onBeforeUnmount(() => {
                 </span>
               </div>
               <p class="row-meta">{{ meta(item) }}</p>
+              <p v-if="item.remark" class="row-remark">备注：{{ item.remark }}</p>
+              <div v-if="remarkEditingId === item.id" class="remark-editor" @click.stop>
+                <input
+                  v-model="remarkDraft"
+                  type="text"
+                  maxlength="200"
+                  placeholder="如：一面 / 二面、简历淘汰 / 面试淘汰"
+                  @keyup.enter="saveRemark(item)"
+                />
+                <button type="button" class="link" :disabled="savingRemark" @click="saveRemark(item)">
+                  {{ savingRemark ? '保存中…' : '保存' }}
+                </button>
+                <button type="button" class="link" @click="cancelRemark">取消</button>
+              </div>
               <p v-if="item.parseStatus === 'FAILED'" class="row-error">
                 解析失败，可重试；已重试 {{ item.retryCount }} 次
               </p>
@@ -410,6 +457,9 @@ onBeforeUnmount(() => {
                   @click="retry(item)"
                 >
                   {{ item.parseStatus === 'FAILED' ? '重试解析' : '开始解析' }}
+                </button>
+                <button type="button" class="link" @click="startRemark(item)">
+                  {{ item.remark ? '改备注' : '备注' }}
                 </button>
                 <button type="button" class="link" @click="openDetail(item)">详情</button>
                 <button type="button" class="link danger" @click="deletingId = item.id">删除</button>
@@ -711,6 +761,32 @@ onBeforeUnmount(() => {
   margin: 3px 0 0;
   font-size: 12px;
   color: var(--danger);
+}
+
+.row-remark {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.remark-editor {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 6px;
+}
+
+.remark-editor input {
+  flex: 1;
+  min-width: 0;
+  max-width: 420px;
+  padding: 4px var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-btn);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 12px;
 }
 
 .badge {

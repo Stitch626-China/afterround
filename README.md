@@ -299,7 +299,8 @@ server {
   仍被岗位引用时禁止删除（409/40905）。
 - `/api/job-positions`：JD 导入（`file` 与 `text` 二选一，PDF/DOCX/DOC/TXT ≤5MB）后异步结构化解析
   （`parseStatus` PENDING → PROCESSING → COMPLETED/FAILED，自动重试 ≤3）；详情为轮询端点；
-  `PUT` 支持修正字段、生命周期状态（SAVED/APPLIED/INTERVIEWING/CLOSED）与 `companyId`（显式 `null` 解除关联）；
+  `PUT` 支持修正字段、生命周期状态（SAVED 待跟进 / APPLIED 已投递 / INTERVIEWING 面试中 / OFFERED 录用 / REJECTED 淘汰）、
+  用户备注（`remark`，≤200 字，传空字符串即清空）与 `companyId`（显式 `null` 解除关联）；
   支持单条 / 批量删除（级联删除匹配结果）；`POST /{id}/parse` 手动重试（解析中 409/40908）。
   解析出的公司名全等命中则复用，否则自动新建公司。
 - `/api/job-matches`：简历-JD 匹配评分（技能 50 / 经验 30 / 加分项 20，总分本地加权），异步执行、
@@ -324,9 +325,10 @@ server {
 
 - **岗位库 `/jobs`**：两个 Tab——
   - 岗位列表：按文件名或粘贴文本导入 JD（PDF/DOCX/DOC/TXT ≤5MB）；`keyword`（岗位名或公司）/ 状态 / 城市筛选 + 分页；
-    解析中自动轮询（2s），状态与解析结果双徽章；行内勾选后「批量删除」（二次确认），行内删除为单条二次确认。
+    解析中自动轮询（2s），状态与解析结果双徽章；结果分「录用 / 淘汰」，每个岗位可在行内直接写 / 改备注（如一面 / 二面、简历淘汰 / 面试淘汰），
+    行内勾选后「批量删除」（二次确认），行内删除为单条二次确认。
   - 行情洞察：样本数与生成时间、技能 Top20、薪资 5 桶、经验 / 方向 Top10，横向条形图；JD 增删后重新进入即刷新。
-- **岗位详情 `/jobs/:id`**：修正标题 / 城市 / 薪资 / 经验 / 学历 / 技能（逗号分隔）/ 职责 / 状态并保存；
+- **岗位详情 `/jobs/:id`**：修正标题 / 城市 / 薪资 / 经验 / 学历 / 技能（逗号分隔）/ 职责 / 状态 / 备注并保存；
   解析失败可「重试解析」；匹配面板选择已完成分析的简历发起匹配（异步轮询），展示总分、三维得分、差距与建议、历史匹配；底部可展开原始 JD。
 - **简历对比 `/resumes/compare`**：从简历中心「对比简历」进入，选择两份已完成分析的简历 → 展示总分变化、五维双条对比、
   优势 / 短板新增与消除、方向变化、LLM 点评；模型或 Prompt 版本不一致会提示「仅供参考」。
@@ -362,7 +364,7 @@ npx @redocly/cli lint contracts/openapi.yaml
 > - HTTP 集成测试 3 个类（`M1b` / `M1c` / `M2Batch1`）：真实 PostgreSQL + 本地假 LLM 上游，走真实 HTTP 请求；
 >   `M2Batch1ApiIntegrationTest` 覆盖「导入 JD → 异步解析 → 公司自动关联 → 场景绑定 → 匹配 → 行情 → 简历对比 → 删除级联」，
 >   以及岗位列表筛选/分页/批量删除、HTTP 校验、执行中 409、上游 401 重试 3 次后置 FAILED。
-> - JaCoCo 当前行覆盖 91.90%、分支覆盖 76.11%；门禁只约束行覆盖（总 ≥85%、5 个关键类 ≥95%）。
+> - JaCoCo 当前行覆盖 91.92%、分支覆盖 76.23%；门禁只约束行覆盖（总 ≥85%、5 个关键类 ≥95%）。
 
 > **集成测试说明**：`JobPilotApplicationTests` 用 Testcontainers 起真实 PostgreSQL 验证 Flyway 迁移，
 > 需要本机 Docker 守护进程可用，并且能拉取 `postgres:16-alpine` 镜像。
@@ -442,7 +444,7 @@ npx @redocly/cli lint contracts/openapi.yaml
 
 ## 当前进度
 
-M1 四阶段已完成；M2 第一批后端 19 端点与前端页面（岗位库 / 岗位详情 / 行情洞察 / 简历对比 / 场景模型）已落地，后端 129 个测试通过（总行覆盖 91.90%，JaCoCo 门禁通过），前端构建通过、Vitest 9 个单测 + Playwright 9 个 E2E 通过。剩余：真实链路联调，随后进入 M2 第二批（模拟面试 / Offer 决策）。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
+M1 四阶段已完成；M2 第一批后端 19 端点与前端页面（岗位库 / 岗位详情 / 行情洞察 / 简历对比 / 场景模型）已落地，后端 129 个测试通过（总行覆盖 91.92%，JaCoCo 门禁通过），前端构建通过、Vitest 9 个单测 + Playwright 9 个 E2E 通过。岗位跟踪支持「录用 / 淘汰」两种结果与自由备注。剩余：真实链路联调，随后进入 M2 第二批（模拟面试 / Offer 决策）。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
 
 ## 合规说明
 

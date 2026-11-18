@@ -14,6 +14,7 @@ public record JobPositionListItemResponse(
         String experience,
         String education,
         String status,
+        String remark,
         String parseStatus,
         Integer retryCount,
         OffsetDateTime createdAt,
