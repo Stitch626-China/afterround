@@ -48,3 +48,15 @@
 - 原因：`ResumeComparisonService.compare` 先对 base 调 `side()`，base 未完成时即刻抛 40907，`resumeId + 9999` 虽能通过，但「目标简历根本不存在」的分支被掩盖；改用两份真实存在的简历，断言才真正覆盖「两份都存在、其中一份未完成」。
 - 验证：契约 lint 0 error / 0 warning；前端 `npm run build`（含 `gen:api`）+ Vitest 9 通过；后端全量 **123 tests 全绿**、JaCoCo 门禁通过；`M2Batch1ApiIntegrationTest` 3 用例在真实 PostgreSQL 16 + 假上游下通过。
 - 下一步 / 断点：M2 前端页面（岗位库 / 公司 / 匹配 / 行情 / 简历对比 / 场景绑定）与真实链路联调。
+
+### 14:48 覆盖率缺口盘点与进度同步
+- 改动：`PROGRESS.md` 当前状态补「测试缺口盘点」「CI 状态」，下一步新增第 5 项「测试缺口（按价值排序）」；本条会话记录。
+- 原因：用户要求明确「剩余未覆盖」而不是只看门禁结论；同时把盘点结果固化为后续可执行清单。
+- 盘点方式：解析 `backend/target/site/jacoco/jacoco.xml` 的 method 级 LINE/BRANCH 计数，按 missed 降序人工分类。
+- 结论：
+  - 整体：行覆盖 90.32%（2053/2273）、分支 73.77%；M2 业务类 `JobPositionService` 81%、`JobMatchService` 92%、`CompanyService` 85%、`LlmSceneService` 98%、`ResumeComparisonService` 97%、`JobMarketService` 95%。
+  - 高价值缺口：岗位列表 `page`（15 行 / 10 分支）与 `companyIdsMatching`、`companyNames` 共 26 行 0 覆盖；批量删除 Controller 未走 HTTP；匹配 worker 的「简历/岗位已删除 / 客户端获取失败 / 记录删除终止」；`CompanyService.update` 的名称未变与并发重复键分支；JD 文件导入的 Tika/IO 异常；`GlobalExceptionHandler` 413/500。
+  - 中价值：JSON 兜底异常（`skillsJson`/`skills`/`parseList`/`write`）、全局设置部分分支、Provider/Model 删除 HTTP 层。
+  - 可接受不补：`LlmBootstrapRunner`（25 行，种子仅在配置环境变量时执行）、`main`、DTO、Prompt 资源缺失、`AesGcmCipher.deriveKey` 分支。
+- 远程状态：本地与 `origin/main` 一致（HEAD `7571a14`）；最新 CI run 44253787088 三 job 全绿。
+- 下一步 / 断点：按「下一步」第 5 项补高价值缺口，或先做 M2 前端。
