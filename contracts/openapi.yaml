@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 职点（JobPilot）API
-  version: 1.6.0
+  version: 1.8.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -29,15 +29,20 @@ info:
       JD 结构化解析与简历对比总结未列入枚举，使用全局默认，不参与场景级绑定。
 
     ## 实现状态标记
-    M2 第一批已全部实现：契约中不再存在 `x-implemented: false` 的路径，
-    后端 `ContractCoverageTest` 对「契约端点 = 实际控制器端点」做双向全等校验。
-    后续新增契约若需先冻结、后实现，可继续沿用该标记（false 表示已定义待实现）。
+    M2 第一批已全部实现，后端 `ContractCoverageTest` 对「契约端点 = 实际控制器端点」做双向全等校验。
+    M2 第二批（F3 / F6）已在契约中定义，路径级标记 `x-implemented: false` 表示「已定义、待实现」；
+    后端实现完成后删除标记即可自动纳入双向全等校验，无需维护例外清单。
 
     ## 错误码补充（M2）
     - `40906` 公司名称已存在（`companies.name` UNIQUE）
     - `40905` 公司仍被岗位引用，禁止删除（先解除岗位关联；复用通用「资源被引用」码）
     - `40907` 简历分析未完成，无法参与对比（F7 依赖两份 COMPLETED 的分析结果）
     - `40908` JD 解析 / 匹配任务执行中，请等待完成
+    - `40910` 简历分析任务执行中（FR1.5）
+    - `40911` 面试任务执行中（出题 / 追问生成 / 评估），请等待完成
+    - `40912` 面试会话已交卷或已评估，不可再操作
+    - `40913` 当前面试会话状态不允许该操作
+    - `40914` 保留组 Offer 已达上限（最多 4 个）
 
   contact:
     name: 职点（JobPilot）
@@ -62,6 +67,10 @@ tags:
     description: 公司最小 CRUD 与名称联想检索；为岗位库、Offer 决策与求职洞察提供统一公司数据（M2 不做模糊自动合并）。
   - name: 岗位库
     description: JD 导入与结构化解析、生命周期状态管理、简历-JD 匹配评分、行情洞察（F2）。
+  - name: 模拟面试
+    description: 结构化模拟面试：选方向或关联 JD、异步出题、逐题作答与追问、交卷后统一评估（F3）。
+  - name: Offer 决策
+    description: Offer 录入与 LLM 提取、保留 / 淘汰分组、同维度横向对比、前景与倾向分析（F6）。
 
 security: []
 
@@ -1276,6 +1285,611 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  # ==========================================================
+  # 模拟面试 F3（M2 第二批，待实现）
+  # ==========================================================
+
+  /api/interview/directions:
+    x-implemented: false
+    get:
+      tags: [模拟面试]
+      operationId: listInterviewDirections
+      summary: 查询可选面试方向
+      description: |
+        方向由 `skill.meta.yml` 定义，新增方向只改技能配置，不改契约枚举。
+        返回 direction 的 `key` 供创建会话时使用。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInterviewDirectionList'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/interview-sessions:
+    x-implemented: false
+    get:
+      tags: [模拟面试]
+      operationId: listInterviewSessions
+      summary: 模拟面试分页列表
+      description: 按创建时间倒序；用于筛选与「继续未完成面试」（FR3.8）。
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: direction
+          in: query
+          required: false
+          description: 按面试方向 key 筛选
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          description: 按会话状态筛选
+          schema:
+            $ref: '#/components/schemas/InterviewSessionStatus'
+        - name: createdFrom
+          in: query
+          required: false
+          description: 创建时间下限（含）
+          schema:
+            type: string
+            format: date-time
+        - name: createdTo
+          in: query
+          required: false
+          description: 创建时间上限（含）
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInterviewSessionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [模拟面试]
+      operationId: createInterviewSession
+      summary: 创建模拟面试并异步生成题目
+      description: |
+        - `direction` 与 `jobPositionId` **至少填一个**；仅关联 JD 时，按 JD 内容选择最接近的方向出题。
+        - 关联 `resumeId` 时简历题约 60%、方向题约 40%；未关联简历时全部为方向题（FR3.2）。
+        - 创建后立即返回，`status = PREPARING`；前端轮询 `GET /api/interview-sessions/{sessionId}`
+          直到 `IN_PROGRESS` / `FAILED`。
+        - 出题场景为 `INTERVIEW_QUESTION`；未显式指定 `providerKey` / `model` 时按场景绑定取值，
+          场景未绑定则回落全局默认。
+        - 出题时注入同方向历史会话的 `topicSummary` 避免重复考察（FR3.3）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInterviewSessionRequest'
+      responses:
+        '200':
+          description: 创建成功，题目生成中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInterviewSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: 关联的简历 / 岗位不存在，或面试方向 key 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/interview-sessions/{sessionId}:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/InterviewSessionId'
+    get:
+      tags: [模拟面试]
+      operationId: getInterviewSession
+      summary: 面试会话详情（含题目与作答状态，轮询端点）
+      description: |
+        `status` 为 `PREPARING` / `GENERATING` 时 `questions` 可能不完整；
+        `IN_PROGRESS` 时可作答；`SUBMITTED` / `COMPLETED` 为锁定状态，禁止作答与切换模型。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInterviewSessionDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags: [模拟面试]
+      operationId: deleteInterviewSession
+      summary: 删除面试会话
+      description: 硬删除，级联删除题目与评估结果（FR3.9）；进行中的异步任务检测到记录删除后终止。
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/interview-sessions/{sessionId}/model:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/InterviewSessionId'
+    patch:
+      tags: [模拟面试]
+      operationId: switchInterviewSessionModel
+      summary: 切换面试会话模型（Provider + Model 两级）
+      description: |
+        仅 `IN_PROGRESS` / `FAILED` 状态允许切换。
+        `PREPARING` / `GENERATING` / `SUBMITTED`（任务执行中）返回 **409 / 40901**；
+        `COMPLETED`（终态）返回 **409 / 40902**。
+        切换只影响后续出题 / 追问 / 评估，不迁移已有题目（FR3.7 / FRX.5 / FRX.6）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwitchModelRequest'
+      responses:
+        '200':
+          description: 切换成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInterviewSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 任务执行中（40901）或会话已锁定（40902）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/interview-sessions/{sessionId}/questions/retry:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/InterviewSessionId'
+    post:
+      tags: [模拟面试]
+      operationId: retryInterviewQuestions
+      summary: 重新生成题目（出题失败后重试）
+      description: |
+        仅 `FAILED` 状态可调用；重置 `retryCount` 并重新异步出题（自动重试仍 ≤ 3 次）。
+        其他状态返回 **409 / 40913**。
+      responses:
+        '200':
+          description: 已重新触发
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInterviewSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 当前状态不允许重试（40913）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/interview-sessions/{sessionId}/questions/{questionIndex}/answer:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/InterviewSessionId'
+      - $ref: '#/components/parameters/QuestionIndex'
+    post:
+      tags: [模拟面试]
+      operationId: answerInterviewQuestion
+      summary: 提交单题作答
+      description: |
+        - 仅 `IN_PROGRESS` 且该题 `answerStatus = UNANSWERED` 时可作答。
+          任务执行中（`PREPARING` / `GENERATING` / `SUBMITTED`）返回 **409 / 40911**；
+          已评估终态返回 **409 / 40912**；题目已作答 / 已跳过返回 **409 / 40913**。
+        - 主问题作答后按 `followUpCount` 异步生成追问，会话短暂进入 `GENERATING`；前端轮询会话详情。
+        - 同一主问题链的追问串行进行，链上题目全部作答 / 跳过后才进入下一主问题（FR3.4）。
+        - 交卷后答案不可修改（FR3.6）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerInterviewQuestionRequest'
+      responses:
+        '200':
+          description: 作答已保存
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInterviewQuestion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: 会话或题目不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '409':
+          description: 当前状态不允许作答（40913）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/interview-sessions/{sessionId}/questions/{questionIndex}/skip:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/InterviewSessionId'
+      - $ref: '#/components/parameters/QuestionIndex'
+    post:
+      tags: [模拟面试]
+      operationId: skipInterviewQuestion
+      summary: 跳过题目
+      description: |
+        - 跳过主问题时不再生成其追问链；跳过追问时按配置继续下一追问或下一主问题。
+        - 跳过题计 0 分并标注「未作答」，不生成逐题点评（FR3.5）。
+        - 任务执行中（`PREPARING` / `GENERATING` / `SUBMITTED`）返回 **409 / 40911**；
+          已评估终态返回 **409 / 40912**；题目已作答 / 已跳过返回 **409 / 40913**。
+      responses:
+        '200':
+          description: 已跳过
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInterviewQuestion'
+        '404':
+          description: 会话或题目不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '409':
+          description: 当前状态不允许跳过（40913）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/interview-sessions/{sessionId}/submit:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/InterviewSessionId'
+    post:
+      tags: [模拟面试]
+      operationId: submitInterviewSession
+      summary: 交卷并异步生成评估报告
+      description: |
+        - 仅 `IN_PROGRESS` 且至少存在一道题目时可交卷；未作答题目按 FR3.5 记 0 分。
+        - 交卷后会话锁定为 `SUBMITTED`，答案不可修改；评估完成后 `status = COMPLETED`（FR3.6 / FRX.6）。
+        - 评估场景为 `INTERVIEW_EVALUATE`；失败原因通过评估接口的 `error` 查看。
+        - 出题 / 追问 / 评估执行中返回 **409 / 40911**；已交卷或已评估返回 **409 / 40912**；
+          无题目等非法状态返回 **409 / 40913**。
+      responses:
+        '200':
+          description: 已交卷，评估进行中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInterviewSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 任务执行中（40911）或当前状态不允许交卷（40913）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/interview-sessions/{sessionId}/evaluation:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/InterviewSessionId'
+    get:
+      tags: [模拟面试]
+      operationId: getInterviewEvaluation
+      summary: 查询评估状态与报告（轮询端点）
+      description: |
+        `status` 为 `PENDING` / `PROCESSING` 时报告字段为空；`COMPLETED` 返回完整报告；
+        `FAILED` 返回 `error` 与 `retryCount`。逐题得分与点评在会话详情的 `questions` 中返回。
+        会话未交卷时返回 **409 / 40913**。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInterviewEvaluation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 会话未交卷，尚无评估（40913）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # ==========================================================
+  # Offer 决策 F6（M2 第二批，待实现）
+  # ==========================================================
+
+  /api/offers:
+    x-implemented: false
+    get:
+      tags: [Offer 决策]
+      operationId: listOffers
+      summary: Offer 分页列表
+      description: 按创建时间倒序；可按保留组 / 淘汰组筛选（FR6.2）。
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: group
+          in: query
+          required: false
+          description: 按分组筛选
+          schema:
+            $ref: '#/components/schemas/OfferGroup'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultOfferPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [Offer 决策]
+      operationId: createOffer
+      summary: 新增 Offer
+      description: |
+        - `companyId` 与 `jobPositionId` **至少填一个**；仅填岗位时自动带出所属公司（FR6.6）。
+        - 默认进入保留组；保留组最多 4 个，超出返回 **409 / 40914**。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOfferRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultOfferDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: 关联的公司或岗位不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '409':
+          description: 保留组已达上限（40914）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/offers/extract:
+    x-implemented: false
+    post:
+      tags: [Offer 决策]
+      operationId: extractOffer
+      summary: 从文本或图片提取 Offer 字段（不落库）
+      description: |
+        - `text` 与 `image` 二选一，不可同时为空；图片支持 PNG / JPEG / WEBP，≤ 5MB。
+        - 解析结果供用户修正后调用创建 / 更新接口，本次**不落库**（FR6.1）。
+        - 图片提取要求当前模型支持图片输入；不支持时返回 400 并引导改用文本粘贴。
+        - 提取使用全局默认模型（不在 `LlmScene` 枚举内）；正式的 Offer 前景分析走 `OFFER_ANALYZE` 场景。
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                  description: 粘贴的 Offer 文本（与 image 二选一）
+                image:
+                  type: string
+                  format: binary
+                  description: Offer 截图（与 text 二选一）
+      responses:
+        '200':
+          description: 提取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultOfferExtraction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          description: 图片超过 5MB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '415':
+          description: 不支持的图片类型
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/offers/comparison:
+    x-implemented: false
+    get:
+      tags: [Offer 决策]
+      operationId: getOfferComparison
+      summary: 保留组 Offer 同维度对比
+      description: |
+        返回保留组全部 Offer（最多 4 个）按**固定维度与固定顺序**排列的对比矩阵（FR6.3）：
+        - 同一行永远对应同一字段，禁止跨字段错位；
+        - 缺失值统一为字符串「未填写」；
+        - 保留组为空时 `columns` 与 `rows` 均为空数组。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultOfferComparison'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/offers/{offerId}:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/OfferId'
+    get:
+      tags: [Offer 决策]
+      operationId: getOffer
+      summary: Offer 详情
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultOfferDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    put:
+      tags: [Offer 决策]
+      operationId: updateOffer
+      summary: 更新 Offer（含保留 / 淘汰分组调整）
+      description: |
+        全部字段可选：不传表示不修改，传 `null` 表示清空。
+        移动到保留组时若除当前 Offer 外已有 4 个保留 Offer，返回 **409 / 40914**；可在保留组 / 淘汰组之间随时移动、反悔（FR6.2）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOfferRequest'
+      responses:
+        '200':
+          description: 保存成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultOfferDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Offer 或关联的公司 / 岗位不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '409':
+          description: 保留组已达上限（40914）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    delete:
+      tags: [Offer 决策]
+      operationId: deleteOffer
+      summary: 删除 Offer
+      description: 硬删除。
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/offers/{offerId}/analyze:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/OfferId'
+    post:
+      tags: [Offer 决策]
+      operationId: analyzeOffer
+      summary: 生成前景与决策倾向分析（同步）
+      description: |
+        基于关联公司 / 岗位资料与用户填写字段生成分析（FR6.4 / FR6.5）：
+        - 默认 `webSearch = false`，结果标注「基于所给资料」；
+        - 开启联网搜索需当前 Provider 支持，返回 `sources` 标注来源；
+        - 使用场景 `OFFER_ANALYZE`；分析结果覆盖并持久化到该 Offer，详情接口返回最近一次结果。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeOfferRequest'
+      responses:
+        '200':
+          description: 分析完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultOfferAnalysis'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
 components:
 
   parameters:
@@ -1326,6 +1940,29 @@ components:
         format: int64
     MatchId:
       name: matchId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    InterviewSessionId:
+      name: sessionId
+      in: path
+      required: true
+      description: 模拟面试会话 ID
+      schema:
+        type: integer
+        format: int64
+    QuestionIndex:
+      name: questionIndex
+      in: path
+      required: true
+      description: 会话内的题目序号（主问题与追问统一顺序，从 1 开始）
+      schema:
+        type: integer
+        minimum: 1
+    OfferId:
+      name: offerId
       in: path
       required: true
       schema:
@@ -2811,3 +3448,804 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/ResumeComparison'
+
+    # ---------- 模拟面试 F3（M2 第二批） ----------
+
+    InterviewSessionStatus:
+      type: string
+      description: |
+        - `PREPARING`：初次出题中（含自动重试）
+        - `IN_PROGRESS`：题目就绪，可作答
+        - `GENERATING`：追问生成中（作答主问题后短暂状态）
+        - `SUBMITTED`：已交卷，评估中 / 待评估
+        - `COMPLETED`：评估完成（终态，禁止作答与切换）
+        - `FAILED`：出题失败，可重试
+      enum: [PREPARING, IN_PROGRESS, GENERATING, SUBMITTED, COMPLETED, FAILED]
+
+    InterviewDirection:
+      type: object
+      required: [key, label]
+      properties:
+        key:
+          type: string
+          description: 方向标识，创建会话时传入
+          example: java-backend
+        label:
+          type: string
+          example: Java 后端
+        description:
+          type: [string, "null"]
+          description: 方向说明（考察范围等）
+
+    InterviewQuestionType:
+      type: string
+      description: 主问题 / 追问
+      enum: [MAIN, FOLLOW_UP]
+
+    InterviewQuestionDifficulty:
+      type: string
+      enum: [EASY, MEDIUM, HARD]
+
+    InterviewAnswerStatus:
+      type: string
+      description: 未作答 / 已作答 / 已跳过
+      enum: [UNANSWERED, ANSWERED, SKIPPED]
+
+    InterviewQuestion:
+      type: object
+      required: [questionIndex, type, content, difficulty, answerStatus, keyPoints]
+      properties:
+        questionIndex:
+          type: integer
+          minimum: 1
+          description: 会话内统一顺序号（主问题与追问按实际呈现顺序编号）
+          example: 3
+        parentIndex:
+          type: [integer, "null"]
+          description: 追问所属主问题的 questionIndex；主问题为 null
+          example: 2
+        type:
+          $ref: '#/components/schemas/InterviewQuestionType'
+        content:
+          type: string
+          description: 题目正文
+        topicSummary:
+          type: [string, "null"]
+          description: 知识点摘要，用于历史去重与后续聚合（FR3.3）
+          example: JVM 垃圾回收
+        difficulty:
+          $ref: '#/components/schemas/InterviewQuestionDifficulty'
+        answerStatus:
+          $ref: '#/components/schemas/InterviewAnswerStatus'
+        answer:
+          type: [string, "null"]
+          description: 用户作答原文；未作答或跳过为 null
+        score:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 100
+          description: 评估完成后有值；跳过 / 未作答记 0 分
+        feedback:
+          type: [string, "null"]
+          description: 逐题点评；跳过 / 未作答为 null
+        referenceAnswer:
+          type: [string, "null"]
+          description: 参考答案；跳过 / 未作答为 null
+        keyPoints:
+          type: array
+          description: 答题关键点
+          items:
+            type: string
+        llmProvider:
+          type: [string, "null"]
+          description: 生成该题实际使用的 Provider
+          example: corp-gateway
+        llmModel:
+          type: [string, "null"]
+          example: Qwen3.8-27B
+
+    InterviewSession:
+      type: object
+      required: [id, status, evaluateStatus, questionCount, followUpCount, answeredCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        direction:
+          type: [string, "null"]
+          description: 面试方向 key；仅关联 JD 时仍会回填匹配到的方向
+          example: java-backend
+        directionLabel:
+          type: [string, "null"]
+          example: Java 后端
+        resumeId:
+          type: [integer, "null"]
+          format: int64
+        resumeFileName:
+          type: [string, "null"]
+          description: 冗余展示字段
+          example: 我的简历-v3.pdf
+        jobPositionId:
+          type: [integer, "null"]
+          format: int64
+        jobPositionTitle:
+          type: [string, "null"]
+          example: Java 后端开发工程师
+        companyName:
+          type: [string, "null"]
+          example: 字节跳动
+        status:
+          $ref: '#/components/schemas/InterviewSessionStatus'
+        evaluateStatus:
+          $ref: '#/components/schemas/AnalyzeStatus'
+        questionCount:
+          type: integer
+          description: 配置的主问题数量
+          example: 8
+        followUpCount:
+          type: integer
+          description: 每道主问题配置的追问数量（0 表示不追问）
+          example: 1
+        answeredCount:
+          type: integer
+          description: 已作答 + 已跳过题目数（含追问）
+          example: 3
+        currentProviderKey:
+          type: [string, "null"]
+          example: corp-gateway
+        currentModel:
+          type: [string, "null"]
+          example: Qwen3.8-27B
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    InterviewSessionDetail:
+      allOf:
+        - $ref: '#/components/schemas/InterviewSession'
+        - type: object
+          properties:
+            error:
+              type: [string, "null"]
+              description: 出题失败原因（截断至 500 字）
+            retryCount:
+              type: integer
+              description: 出题已自动重试次数，上限 3
+              example: 0
+            evaluateError:
+              type: [string, "null"]
+              description: 评估失败原因（截断至 500 字）
+            evaluateRetryCount:
+              type: integer
+              description: 评估已自动重试次数，上限 3
+              example: 0
+            questions:
+              type: array
+              description: 已生成的题目，按 questionIndex 升序；出题中可能不完整
+              items:
+                $ref: '#/components/schemas/InterviewQuestion'
+
+    CreateInterviewSessionRequest:
+      type: object
+      properties:
+        direction:
+          type: string
+          pattern: '^[a-z0-9][a-z0-9-]{1,63}$'
+          description: 面试方向 key（来自 `GET /api/interview/directions`）；与 jobPositionId 至少填一个
+          example: java-backend
+        resumeId:
+          type: [integer, "null"]
+          format: int64
+          description: 关联简历；填了则简历题约 60%
+        jobPositionId:
+          type: [integer, "null"]
+          format: int64
+          description: 关联岗位 JD；与 direction 至少填一个
+        questionCount:
+          type: integer
+          minimum: 5
+          maximum: 15
+          default: 8
+          description: 主问题数量
+        followUpCount:
+          type: integer
+          minimum: 0
+          maximum: 3
+          default: 1
+          description: 每道主问题的追问数量，0 表示不追问
+        providerKey:
+          type: string
+          description: 省略时按 `INTERVIEW_QUESTION` 场景绑定取值，未绑定则回落全局默认；与 `model` 需同时提供
+        model:
+          type: string
+          description: 与 `providerKey` 需同时提供
+
+    AnswerInterviewQuestionRequest:
+      type: object
+      required: [answer]
+      properties:
+        answer:
+          type: string
+          minLength: 1
+          maxLength: 5000
+
+    InterviewEvaluationCategory:
+      type: object
+      required: [key, label, score]
+      properties:
+        key:
+          type: string
+          description: 分类标识（由出题方向的知识体系定义）
+          example: java-basics
+        label:
+          type: string
+          example: Java 基础
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          example: 78
+
+    InterviewEvaluation:
+      type: object
+      required: [status, retryCount, categories, strengths, improvements]
+      properties:
+        status:
+          $ref: '#/components/schemas/AnalyzeStatus'
+        error:
+          type: [string, "null"]
+          description: 评估失败原因（截断至 500 字）
+        retryCount:
+          type: integer
+          description: 评估已自动重试次数，上限 3
+          example: 0
+        overallScore:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 100
+          description: 总分（本地按分类得分加权计算），未完成时 null
+          example: 76
+        categories:
+          type: array
+          description: 分类得分；评估未完成时为空数组
+          items:
+            $ref: '#/components/schemas/InterviewEvaluationCategory'
+        strengths:
+          type: array
+          items:
+            type: string
+        improvements:
+          type: array
+          items:
+            type: string
+        summary:
+          type: [string, "null"]
+          description: 整体评语
+        llmProvider:
+          type: [string, "null"]
+          example: corp-gateway
+        llmModel:
+          type: [string, "null"]
+          example: Qwen3.8-27B
+        evaluatedAt:
+          type: [string, "null"]
+          format: date-time
+          description: 评估完成时间；未完成时为 null
+
+    ResultInterviewDirectionList:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/InterviewDirection'
+
+    ResultInterviewSession:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/InterviewSession'
+
+    ResultInterviewSessionDetail:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/InterviewSessionDetail'
+
+    ResultInterviewSessionPage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/InterviewSession'
+
+    ResultInterviewQuestion:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/InterviewQuestion'
+
+    ResultInterviewEvaluation:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/InterviewEvaluation'
+
+    # ---------- Offer 决策 F6（M2 第二批） ----------
+
+    OfferGroup:
+      type: string
+      description: 保留组 / 淘汰组；保留组最多 4 个
+      enum: [KEEP, DROP]
+
+    OfferTendency:
+      type: string
+      description: 值得接受 / 需要确认 / 建议放弃
+      enum: [ACCEPT, CONFIRM, DECLINE]
+
+    OfferAnalysis:
+      type: object
+      required: [tendency, reasons, prospect, risks, sources, basedOnProvidedMaterials, analyzedAt]
+      properties:
+        tendency:
+          $ref: '#/components/schemas/OfferTendency'
+        reasons:
+          type: array
+          description: 倾向理由
+          items:
+            type: string
+        prospect:
+          type: string
+          description: 公司 / 岗位前景与成长空间分析
+        risks:
+          type: array
+          description: 风险与需要确认的点
+          items:
+            type: string
+        sources:
+          type: array
+          description: 联网搜索来源；未开启联网时为空数组
+          items:
+            type: string
+        basedOnProvidedMaterials:
+          type: boolean
+          description: true 表示结论仅基于用户提供的资料（未联网）
+        llmProvider:
+          type: [string, "null"]
+          example: corp-gateway
+        llmModel:
+          type: [string, "null"]
+          example: Qwen3.8-27B
+        analyzedAt:
+          type: string
+          format: date-time
+
+    Offer:
+      type: object
+      required: [id, group, benefits, allowances, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        companyId:
+          type: [integer, "null"]
+          format: int64
+        companyName:
+          type: [string, "null"]
+          description: 冗余展示字段
+          example: 字节跳动
+        jobPositionId:
+          type: [integer, "null"]
+          format: int64
+        jobPositionTitle:
+          type: [string, "null"]
+          example: Java 后端开发工程师
+        monthlySalary:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 10000000
+          description: 月薪总额（元/月）
+          example: 30000
+        baseSalary:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 10000000
+          description: 底薪（元/月）
+          example: 24000
+        performanceRatio:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+          description: 绩效占比（%）
+          example: 20
+        socialInsuranceBase:
+          type: [string, "null"]
+          maxLength: 64
+          description: 五险一金缴纳基数（原文，如“12000”或“按最低基数”）
+        socialInsuranceRatio:
+          type: [string, "null"]
+          maxLength: 32
+          description: 五险一金缴纳比例（原文，如“10.5%”）
+        housingFundBase:
+          type: [string, "null"]
+          maxLength: 64
+          description: 公积金缴纳基数（原文）
+        housingFundRatio:
+          type: [string, "null"]
+          maxLength: 32
+          description: 公积金缴纳比例（原文，如“12%”）
+        twoDayWeekend:
+          type: [boolean, "null"]
+          description: 是否双休；null 表示未填写
+        workHours:
+          type: [string, "null"]
+          maxLength: 64
+          description: 上下班时间
+          example: 10:00-19:00
+        benefits:
+          type: array
+          description: 福利（如餐补、房补、免费班车）
+          items:
+            type: string
+            maxLength: 64
+        allowances:
+          type: array
+          description: 各项补贴
+          items:
+            type: string
+            maxLength: 64
+        annualBonus:
+          type: [string, "null"]
+          maxLength: 64
+          description: 年终奖（原文，如“3 个月”）
+        quarterlyBonus:
+          type: [string, "null"]
+          maxLength: 64
+          description: 季度奖（原文）
+        remark:
+          type: [string, "null"]
+          maxLength: 500
+        group:
+          $ref: '#/components/schemas/OfferGroup'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OfferDetail:
+      allOf:
+        - $ref: '#/components/schemas/Offer'
+        - type: object
+          properties:
+            analysis:
+              oneOf:
+                - $ref: '#/components/schemas/OfferAnalysis'
+                - type: "null"
+              description: 最近一次前景 / 倾向分析；未分析时为 null
+
+    CreateOfferRequest:
+      type: object
+      description: |
+        `companyId` 与 `jobPositionId` 至少填一个；仅填 jobPositionId 时自动带出所属公司。
+        其余字段均为可选，缺失的对比维度统一显示「未填写」。
+      properties:
+        companyId:
+          type: [integer, "null"]
+          format: int64
+        jobPositionId:
+          type: [integer, "null"]
+          format: int64
+        monthlySalary:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 10000000
+        baseSalary:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 10000000
+        performanceRatio:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+        socialInsuranceBase:
+          type: [string, "null"]
+          maxLength: 64
+        socialInsuranceRatio:
+          type: [string, "null"]
+          maxLength: 32
+        housingFundBase:
+          type: [string, "null"]
+          maxLength: 64
+        housingFundRatio:
+          type: [string, "null"]
+          maxLength: 32
+        twoDayWeekend:
+          type: [boolean, "null"]
+        workHours:
+          type: [string, "null"]
+          maxLength: 64
+        benefits:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+        allowances:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+        annualBonus:
+          type: [string, "null"]
+          maxLength: 64
+        quarterlyBonus:
+          type: [string, "null"]
+          maxLength: 64
+        remark:
+          type: [string, "null"]
+          maxLength: 500
+        group:
+          $ref: '#/components/schemas/OfferGroup'
+
+    UpdateOfferRequest:
+      type: object
+      description: |
+        全部字段可选：不传表示不修改，传 `null` 表示清空。
+        移动到保留组时若除当前 Offer 外已有 4 个保留 Offer，返回 409 / 40914。
+      properties:
+        companyId:
+          type: [integer, "null"]
+          format: int64
+        jobPositionId:
+          type: [integer, "null"]
+          format: int64
+        monthlySalary:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 10000000
+        baseSalary:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 10000000
+        performanceRatio:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+        socialInsuranceBase:
+          type: [string, "null"]
+          maxLength: 64
+        socialInsuranceRatio:
+          type: [string, "null"]
+          maxLength: 32
+        housingFundBase:
+          type: [string, "null"]
+          maxLength: 64
+        housingFundRatio:
+          type: [string, "null"]
+          maxLength: 32
+        twoDayWeekend:
+          type: [boolean, "null"]
+        workHours:
+          type: [string, "null"]
+          maxLength: 64
+        benefits:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+        allowances:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+        annualBonus:
+          type: [string, "null"]
+          maxLength: 64
+        quarterlyBonus:
+          type: [string, "null"]
+          maxLength: 64
+        remark:
+          type: [string, "null"]
+          maxLength: 500
+        group:
+          $ref: '#/components/schemas/OfferGroup'
+
+    OfferExtraction:
+      type: object
+      description: LLM 从文本 / 图片提取的 Offer 草稿，所有字段均可能为 null，由用户修正后再保存。
+      properties:
+        companyName:
+          type: [string, "null"]
+          maxLength: 128
+        jobPositionTitle:
+          type: [string, "null"]
+          maxLength: 128
+        monthlySalary:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 10000000
+        baseSalary:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 10000000
+        performanceRatio:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+        socialInsuranceBase:
+          type: [string, "null"]
+          maxLength: 64
+        socialInsuranceRatio:
+          type: [string, "null"]
+          maxLength: 32
+        housingFundBase:
+          type: [string, "null"]
+          maxLength: 64
+        housingFundRatio:
+          type: [string, "null"]
+          maxLength: 32
+        twoDayWeekend:
+          type: [boolean, "null"]
+        workHours:
+          type: [string, "null"]
+          maxLength: 64
+        benefits:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+        allowances:
+          type: array
+          items:
+            type: string
+            maxLength: 64
+        annualBonus:
+          type: [string, "null"]
+          maxLength: 64
+        quarterlyBonus:
+          type: [string, "null"]
+          maxLength: 64
+        remark:
+          type: [string, "null"]
+          maxLength: 500
+
+    AnalyzeOfferRequest:
+      type: object
+      properties:
+        webSearch:
+          type: boolean
+          default: false
+          description: 是否联网搜索补充公司 / 岗位信息；默认关闭，需当前 Provider 支持
+
+    OfferComparisonColumn:
+      type: object
+      required: [offerId, companyName, jobPositionTitle]
+      properties:
+        offerId:
+          type: integer
+          format: int64
+        companyName:
+          type: [string, "null"]
+        jobPositionTitle:
+          type: [string, "null"]
+
+    OfferComparisonRow:
+      type: object
+      required: [key, label, values]
+      properties:
+        key:
+          type: string
+          description: 固定维度标识；行顺序固定，不随 Offer 变化
+          enum:
+            - monthlySalary
+            - baseSalary
+            - performanceRatio
+            - socialInsurance
+            - housingFund
+            - twoDayWeekend
+            - workHours
+            - benefits
+            - allowances
+            - annualBonus
+            - quarterlyBonus
+            - remark
+        label:
+          type: string
+          example: 月薪
+        values:
+          type: array
+          description: 与 `columns` 顺序一一对应；缺失统一为「未填写」
+          items:
+            type: string
+
+    OfferComparison:
+      type: object
+      required: [columns, rows]
+      properties:
+        columns:
+          type: array
+          description: 保留组 Offer（最多 4 个）
+          items:
+            $ref: '#/components/schemas/OfferComparisonColumn'
+        rows:
+          type: array
+          description: 固定维度与固定顺序的对比矩阵
+          items:
+            $ref: '#/components/schemas/OfferComparisonRow'
+
+    ResultOffer:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Offer'
+
+    ResultOfferDetail:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/OfferDetail'
+
+    ResultOfferPage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Offer'
+
+    ResultOfferExtraction:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/OfferExtraction'
+
+    ResultOfferAnalysis:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/OfferAnalysis'
+
+    ResultOfferComparison:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/OfferComparison'
