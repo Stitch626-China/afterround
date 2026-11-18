@@ -49,7 +49,7 @@ npx openapi-typescript ../contracts/openapi.yaml -o src/api/schema.d.ts
 ```
 
 - 校验规则配置在根目录 `redocly.yaml`，其中 `no-server-example.com` 与 `operation-4xx-response` 因本地部署、无鉴权查询接口而关闭，理由写在配置注释里。
-- 契约当前覆盖 **M1 全量**（模型配置 / 对话会话 / 简历）+ **M2 第一批**（场景级模型绑定 / 公司最小 CRUD / 岗位库 JD 解析与匹配 / 简历对比），F3 / F6 与 F4 / F5 随里程碑追加。
+- 契约当前覆盖 **M1 全量**（模型配置 / 对话会话 / 简历）+ **M2 第一批**（场景级模型绑定 / 公司最小 CRUD / 岗位库 JD 解析与匹配 / 简历对比）+ **M2 第二批**（F3 模拟面试 / F6 Offer 决策，已定义待实现），F4 / F5 随里程碑追加。
 - **契约可以先于实现**：尚未实现的路径在路径层标记 `x-implemented: false`，后端契约一致性测试据此区分「已定义」与「必须已实现」；实现完成后删除该标记即可自动收紧校验。
 
 ## 环境依赖
@@ -359,7 +359,7 @@ npx @redocly/cli lint contracts/openapi.yaml
 > 后端 `ContractSchemaTest` 还会比对契约 schema 与 DTO 字段：任意一侧漏改都会直接失败，避免接口文档与实现漂移。
 
 > **测试分层（当前 129 个用例）**：
-> - 契约测试 2 个：45 端点与控制器双向全等、全部 DTO 字段与 schema 一致。
+> - 契约测试 2 个：64 端点（其中 19 个标记待实现）与控制器双向全等、全部 DTO 字段与 schema 一致。
 > - 服务单测：Provider/模型/场景绑定/公司/岗位/匹配/行情/对比/简历分析/会话等，覆盖状态机、重试上限、查重、级联、降级等分支。
 > - HTTP 集成测试 3 个类（`M1b` / `M1c` / `M2Batch1`）：真实 PostgreSQL + 本地假 LLM 上游，走真实 HTTP 请求；
 >   `M2Batch1ApiIntegrationTest` 覆盖「导入 JD → 异步解析 → 公司自动关联 → 场景绑定 → 匹配 → 行情 → 简历对比 → 删除级联」，
