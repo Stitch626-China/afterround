@@ -222,9 +222,12 @@ onBeforeUnmount(() => {
       <div>
         <p class="lead">上传简历，获得五维评分、短板分析与岗位方向推荐；历史上传的记录都会保留。</p>
       </div>
-      <button type="button" class="btn ghost" @click="pasteOpen = !pasteOpen">
-        {{ pasteOpen ? '收起粘贴' : '粘贴文本' }}
-      </button>
+      <div class="head-actions">
+        <button type="button" class="btn ghost" @click="router.push('/resumes/compare')">对比简历</button>
+        <button type="button" class="btn ghost" @click="pasteOpen = !pasteOpen">
+          {{ pasteOpen ? '收起粘贴' : '粘贴文本' }}
+        </button>
+      </div>
     </header>
 
     <!-- 上传区：拖拽 / 点击 -->
@@ -333,6 +336,11 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--space-3);
+}
+
+.head-actions {
+  display: flex;
+  gap: var(--space-2);
 }
 
 .lead {

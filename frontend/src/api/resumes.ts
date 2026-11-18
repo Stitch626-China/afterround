@@ -15,6 +15,10 @@ export type QuoteItem = components['schemas']['QuoteItem']
 export type SuggestionItem = components['schemas']['SuggestionItem']
 export type ResumeBasicInfo = components['schemas']['ResumeBasicInfo']
 export type UpdateSalaryRequest = components['schemas']['UpdateSalaryRequest']
+export type ResumeComparison = components['schemas']['ResumeComparison']
+export type ComparisonSide = components['schemas']['ComparisonSide']
+export type DimensionDelta = components['schemas']['DimensionDelta']
+export type ComparisonSummary = components['schemas']['ComparisonSummary']
 
 /** 分页结构由契约派生，仅把 items 收紧为必填避免页面重复判空。 */
 export type ResumePage = NonNullable<components['schemas']['ResultResumePage']['data']> & {
@@ -43,6 +47,11 @@ export function getAnalysis(id: number): Promise<ResumeAnalysisStatus> {
 
 export function updateResumeSalary(id: number, payload: UpdateSalaryRequest): Promise<ResumeAnalysisStatus> {
   return put<ResumeAnalysisStatus>(`/resumes/${id}/salary`, payload)
+}
+
+/** 简历版本对比（F7）：两份都必须分析完成；同步返回，不落库。 */
+export function compareResumes(baseResumeId: number, targetResumeId: number): Promise<ResumeComparison> {
+  return post<ResumeComparison>('/resume-comparisons', { baseResumeId, targetResumeId })
 }
 
 /** 上传简历：file 与 text 二选一。 */

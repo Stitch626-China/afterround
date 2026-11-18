@@ -71,3 +71,19 @@
 - 验证：全量 `mvn test` **129 tests 全绿**、JaCoCo 门禁通过；行覆盖 **91.90%**（原 90.32%），分支 **76.11%**（原 73.77%）；`JobPositionService` 81%→89%、`JobMatchService` 92%→94%、`JobPositionController` 58%→92%、`JobMatchController` 100%。
 - 剩余：公司并发重复键/标签兜底、JD 导入 IO/Tika 异常、`toResponse` 详情解析兜底、413/500 等中价值缺口（已写入 PROGRESS「下一步」第 5 项）。
 - 下一步 / 断点：中价值缺口或 M2 前端，待选择。
+
+### 16:05 完成 M2 第一批前端页面与 E2E
+- 改动：
+  - API 层：新增 `frontend/src/api/jobs.ts`（岗位/公司/匹配/行情/场景绑定，类型全部来自契约生成 schema）；`api/resumes.ts` 新增 `compareResumes` 与对比类型。
+  - 页面：`JobListView`（岗位列表 + 行情双 Tab：文件/粘贴导入、keyword/状态/城市筛选、分页、批量选择与删除、行内删除确认、解析轮询 2s、状态/解析双徽章）；`components/jobs/MarketPanel.vue`（技能 Top20 / 薪资 5 桶 / 经验与方向 Top10，横向条形）；`JobDetailView`（字段修正、重试解析、发起匹配并轮询、三维得分与差距/建议、历史匹配、原始 JD 折叠）；`ComparisonView`（两份已完成简历对比：总分 delta、五维双条、优势/短板新增消除、方向 chips、LLM 点评、模型/Prompt 版本不一致提示与降级）；`components/settings/SceneSettings.vue`（7 场景绑定/解绑、继承全局徽章）+ 设置抽屉第三个 Tab；简历中心头部新增「对比简历」入口。
+  - 路由与导航：`/jobs`、`/jobs/:id`、`/resumes/compare`；一级导航加「岗位库」。
+  - E2E：新增 `frontend/e2e/m2-flows.spec.ts` 3 个用例（岗位库筛选+行情+批量删除、简历对比、场景绑定）。
+  - README 新增「M2 第一批前端」使用说明、设置抽屉三 Tab、路线图与当前进度；PROGRESS 同步。
+- 原因：用户要求直接进入 M2 前端，并明确「中等价值分支若前端联调需要补，及时记录」。
+- 验证：`npm run build` 通过（vue-tsc + 契约类型生成）；Vitest **9/9**；Playwright **9/9**（原有 6 + 新增 3）。
+- 联调中发现并修复的 E2E 问题（均属测试代码，不改业务）：
+  1. 岗位库 `page.route(/\/api\/job-positions(\?|$)/)` 只能匹配列表路径，`/api/job-positions/batch-delete` 不被捕获，批量删除 payload 永远为空 → 为 batch-delete 单独注册 route，断言恢复。
+  2. `getByText('已投递')` / `getByText('resume-v1.pdf')` 命中隐藏 `<option>` → 断言限定 `.list` 容器或直接断言 `.picker select` 的 value。
+  3. 对比页 `getByText('技术深度')` 同时命中五维标签与 LLM 点评文本（strict violation）→ 限定 `.dims` 容器。
+- 中等价值分支结论：本轮前端只消费既有契约，未触发公司并发重复键、JD 导入 IO/Tika 异常、JSON 兜底等后端分支，**暂不需要为此补测**；清单保留在 PROGRESS「下一步」第 5 项，待真实链路联调或第二批开发触及时再补。新增待记录项：E2E 仍为接口全 mock，真实链路（浏览器 → 真后端 → 临时 PG + 假上游）尚未跑，已写入 PROGRESS 下一步第 1 项。
+- 下一步 / 断点：真实链路联调；随后 M2 第二批（F3 模拟面试 + F6 Offer 决策）契约。

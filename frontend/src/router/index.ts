@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
 /**
- * 路由表：一级业务只保留简历中心；模型配置与主题在左下角设置抽屉中（§6.10）。
- * `/chat` 为 M1 模型能力验证载体，从设置抽屉进入。
+ * 路由表：一级业务为简历中心与岗位库（M2）；模型配置、场景绑定与主题在左下角设置抽屉中（§6.10）。
+ * 简历对比属于简历中心子页面；`/chat` 为模型能力验证载体，从设置抽屉进入。
  */
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/resumes' },
@@ -13,10 +13,28 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '简历中心' },
   },
   {
+    path: '/resumes/compare',
+    name: 'resume-compare',
+    component: () => import('@/views/ComparisonView.vue'),
+    meta: { title: '简历对比' },
+  },
+  {
     path: '/resumes/:id/report',
     name: 'resume-report',
     component: () => import('@/views/ResumeReportView.vue'),
     meta: { title: '分析报告' },
+  },
+  {
+    path: '/jobs',
+    name: 'jobs',
+    component: () => import('@/views/JobListView.vue'),
+    meta: { title: '岗位库' },
+  },
+  {
+    path: '/jobs/:id',
+    name: 'job-detail',
+    component: () => import('@/views/JobDetailView.vue'),
+    meta: { title: '岗位详情' },
   },
   {
     path: '/chat',
