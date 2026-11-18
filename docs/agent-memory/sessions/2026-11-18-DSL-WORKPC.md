@@ -60,3 +60,14 @@
   - 可接受不补：`LlmBootstrapRunner`（25 行，种子仅在配置环境变量时执行）、`main`、DTO、Prompt 资源缺失、`AesGcmCipher.deriveKey` 分支。
 - 远程状态：本地与 `origin/main` 一致（HEAD `7571a14`）；最新 CI run 44253787088 三 job 全绿。
 - 下一步 / 断点：按「下一步」第 5 项补高价值缺口，或先做 M2 前端。
+
+### 15:10 补齐岗位列表、批量删除与匹配异常分支
+- 改动：
+  - `JobPositionServiceTest` 8→10：新增 `pageMapsCompanyNameAndSupportsAllFilters`（status/city/keyword 全传入、公司名映射、分页参数）与 `pageWithoutKeywordSkipsCompanyLookupAndNormalizesPaging`（keyword 空白、page/size 归一、不查公司）。
+  - `JobMatchServiceTest` 5→8：新增 `runFailsWhenResumeDeletedBeforeWorker`、`runFailsWhenProviderClientUnavailable`、`runStopsWhenRecordDeletedMidway`，覆盖 worker 的三类异常/终止分支。
+  - `M2Batch1ApiIntegrationTest` 3→4：新增 `listFiltersAndBatchDelete`，走真实 HTTP 验证状态筛选、城市精确匹配、分页与倒序、公司名/岗位名关键字、批量删除忽略不存在 id 与最终清空。
+  - README 测试分层与 PROGRESS 数字同步。
+- 原因：上一轮盘点的高价值缺口——岗位列表 26 行 0 覆盖、批量删除未走 HTTP、匹配 worker 异常分支未测。
+- 验证：全量 `mvn test` **129 tests 全绿**、JaCoCo 门禁通过；行覆盖 **91.90%**（原 90.32%），分支 **76.11%**（原 73.77%）；`JobPositionService` 81%→89%、`JobMatchService` 92%→94%、`JobPositionController` 58%→92%、`JobMatchController` 100%。
+- 剩余：公司并发重复键/标签兜底、JD 导入 IO/Tika 异常、`toResponse` 详情解析兜底、413/500 等中价值缺口（已写入 PROGRESS「下一步」第 5 项）。
+- 下一步 / 断点：中价值缺口或 M2 前端，待选择。

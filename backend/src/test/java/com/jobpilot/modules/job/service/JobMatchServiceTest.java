@@ -226,6 +226,90 @@ class JobMatchServiceTest {
                 .log(any(), any(), any(), any(), any(), any(), anyLong(), any(Boolean.class), any());
     }
 
+    @Test
+    void runFailsWhenResumeDeletedBeforeWorker() {
+        when(resumeMapper.selectById(1L)).thenReturn(resume(), null);
+        when(jobMapper.selectById(2L)).thenReturn(job());
+        when(matchMapper.selectOne(any())).thenReturn(null);
+        when(matchMapper.insert(any(JobMatchResult.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, JobMatchResult.class).setId(3L);
+            return 1;
+        });
+        JobMatchResult entity = runningMatch();
+        when(matchMapper.selectById(3L)).thenReturn(entity);
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+
+        var response = service().create(new CreateJobMatchRequest(1L, 2L));
+
+        assertThat(response.status()).isEqualTo("PROCESSING");
+        verify(matchMapper).update(any(), any());
+    }
+
+    @Test
+    void runFailsWhenProviderClientUnavailable() {
+        when(resumeMapper.selectById(1L)).thenReturn(resume());
+        when(jobMapper.selectById(2L)).thenReturn(job());
+        when(matchMapper.selectOne(any())).thenReturn(null);
+        when(matchMapper.insert(any(JobMatchResult.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, JobMatchResult.class).setId(3L);
+            return 1;
+        });
+        when(matchMapper.selectById(3L)).thenReturn(runningMatch());
+        when(sceneService.resolve(LlmScene.JOB_MATCH))
+                .thenReturn(new LlmSceneService.SceneModel("p", "m"));
+        when(registry.get("p")).thenThrow(new IllegalStateException("no client"));
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+
+        service().create(new CreateJobMatchRequest(1L, 2L));
+
+        verify(matchMapper).update(any(), any());
+    }
+
+    @Test
+    void runStopsWhenRecordDeletedMidway() {
+        when(resumeMapper.selectById(1L)).thenReturn(resume());
+        when(jobMapper.selectById(2L)).thenReturn(job());
+        when(matchMapper.selectOne(any())).thenReturn(null);
+        when(matchMapper.insert(any(JobMatchResult.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, JobMatchResult.class).setId(3L);
+            return 1;
+        });
+        JobMatchResult entity = runningMatch();
+        // 依次为：worker 入口 / 循环入口 / 失败后复查（已删除）/ create 收尾
+        when(matchMapper.selectById(3L)).thenReturn(entity, entity, null, entity);
+        when(sceneService.resolve(LlmScene.JOB_MATCH))
+                .thenReturn(new LlmSceneService.SceneModel("p", "m"));
+        LlmClient client = org.mockito.Mockito.mock(LlmClient.class);
+        when(registry.get("p")).thenReturn(client);
+        when(client.chatJson(any(), anyList())).thenThrow(new RuntimeException("boom"));
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+
+        service().create(new CreateJobMatchRequest(1L, 2L));
+
+        // 记录已删除时不再写状态、不再记录调用
+        verify(matchMapper, org.mockito.Mockito.never()).update(any(), any());
+        verify(callLogger, org.mockito.Mockito.never())
+                .log(any(), any(), any(), any(), any(), any(), anyLong(), any(Boolean.class), any());
+    }
+
+    private static JobMatchResult runningMatch() {
+        JobMatchResult entity = new JobMatchResult();
+        entity.setId(3L);
+        entity.setResumeId(1L);
+        entity.setJobPositionId(2L);
+        entity.setStatus("PROCESSING");
+        return entity;
+    }
+
     private static void assertCode(Runnable action, ErrorCode expected) {
         assertThatThrownBy(action::run).isInstanceOfSatisfying(BizException.class,
                 ex -> assertThat(ex.errorCode()).isEqualTo(expected));

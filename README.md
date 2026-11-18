@@ -342,13 +342,13 @@ npx @redocly/cli lint contracts/openapi.yaml
 
 > 后端 `ContractSchemaTest` 还会比对契约 schema 与 DTO 字段：任意一侧漏改都会直接失败，避免接口文档与实现漂移。
 
-> **测试分层（当前 123 个用例）**：
+> **测试分层（当前 129 个用例）**：
 > - 契约测试 2 个：45 端点与控制器双向全等、全部 DTO 字段与 schema 一致。
 > - 服务单测：Provider/模型/场景绑定/公司/岗位/匹配/行情/对比/简历分析/会话等，覆盖状态机、重试上限、查重、级联、降级等分支。
 > - HTTP 集成测试 3 个类（`M1b` / `M1c` / `M2Batch1`）：真实 PostgreSQL + 本地假 LLM 上游，走真实 HTTP 请求；
->   `M2Batch1ApiIntegrationTest` 覆盖「导入 JD → 异步解析 → 公司自动关联 → 场景绑定 → 匹配 → 行情 → 简历对比 → 删除级联」
->   以及 HTTP 校验、执行中 409、上游 401 重试 3 次后置 FAILED。
-> - JaCoCo 当前行覆盖 90.32%、分支覆盖 73.77%；门禁只约束行覆盖（总 ≥85%、5 个关键类 ≥95%）。
+>   `M2Batch1ApiIntegrationTest` 覆盖「导入 JD → 异步解析 → 公司自动关联 → 场景绑定 → 匹配 → 行情 → 简历对比 → 删除级联」，
+>   以及岗位列表筛选/分页/批量删除、HTTP 校验、执行中 409、上游 401 重试 3 次后置 FAILED。
+> - JaCoCo 当前行覆盖 91.90%、分支覆盖 76.11%；门禁只约束行覆盖（总 ≥85%、5 个关键类 ≥95%）。
 
 > **集成测试说明**：`JobPilotApplicationTests` 用 Testcontainers 起真实 PostgreSQL 验证 Flyway 迁移，
 > 需要本机 Docker 守护进程可用，并且能拉取 `postgres:16-alpine` 镜像。

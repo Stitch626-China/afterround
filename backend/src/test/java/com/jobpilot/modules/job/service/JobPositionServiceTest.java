@@ -15,6 +15,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.NullNode;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jobpilot.LambdaCacheSupport;
 import com.jobpilot.common.api.ErrorCode;
 import com.jobpilot.common.exception.BizException;
@@ -267,6 +268,52 @@ class JobPositionServiceTest {
         service().batchDelete(new BatchDeleteJobPositionsRequest(List.of(1L, 2L)));
 
         verify(jobMapper).deleteByIds(List.of(1L));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void pageMapsCompanyNameAndSupportsAllFilters() {
+        JobPosition withCompany = job("COMPLETED");
+        withCompany.setCompanyId(7L);
+        withCompany.setTitle("Java 后端");
+        JobPosition withoutCompany = job("COMPLETED");
+        withoutCompany.setId(2L);
+        Page<JobPosition> page = new Page<>(1, 20);
+        page.setRecords(List.of(withCompany, withoutCompany));
+        page.setTotal(2);
+        when(jobMapper.selectPage(any(), any())).thenReturn(page);
+        when(companyMapper.selectList(any())).thenReturn(List.of(company(7L, "字节跳动")));
+        when(companyMapper.selectByIds(anyList())).thenReturn(List.of(company(7L, "字节跳动")));
+
+        var result = service().page(1, 20, "SAVED", "上海", "字节");
+
+        assertThat(result.total()).isEqualTo(2);
+        assertThat(result.items()).extracting("companyName").containsExactly("字节跳动", null);
+        verify(companyMapper).selectList(any());
+        verify(jobMapper).selectPage(any(), any());
+    }
+
+    @Test
+    void pageWithoutKeywordSkipsCompanyLookupAndNormalizesPaging() {
+        Page<JobPosition> page = new Page<>(1, 20);
+        page.setRecords(List.of());
+        page.setTotal(0);
+        when(jobMapper.selectPage(any(), any())).thenReturn(page);
+
+        var result = service().page(null, 0, null, null, "  ");
+
+        assertThat(result.items()).isEmpty();
+        assertThat(result.page()).isEqualTo(1);
+        assertThat(result.size()).isEqualTo(20);
+        verify(companyMapper, never()).selectList(any());
+        verify(companyMapper, never()).selectByIds(anyList());
+    }
+
+    private static Company company(Long id, String name) {
+        Company company = new Company();
+        company.setId(id);
+        company.setName(name);
+        return company;
     }
 
     private static void assertCode(Runnable action, ErrorCode expected) {

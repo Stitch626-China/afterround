@@ -298,6 +298,52 @@ class M2Batch1ApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("岗位列表筛选/分页/公司名关键字 + 批量删除")
+    void listFiltersAndBatchDelete() {
+        configureDefaultProvider();
+        long first = importJd("Java 后端 A 岗位");
+        long second = importJd("Java 后端 B 岗位");
+        long third = importJd("Java 后端 C 岗位");
+        awaitJob(first, "COMPLETED");
+        awaitJob(second, "COMPLETED");
+        awaitJob(third, "COMPLETED");
+
+        // 生命周期状态筛选
+        client.put().uri("/api/job-positions/{id}", second).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("status", "APPLIED"))
+                .exchange().expectStatus().isOk();
+        assertThat(getJson("/api/job-positions?status=SAVED").path("data").path("total").asInt()).isEqualTo(2);
+        assertThat(getJson("/api/job-positions?status=APPLIED").path("data").path("total").asInt()).isEqualTo(1);
+
+        // 城市精确匹配 + 分页 + 公司名关键字 + 岗位名关键字
+        JsonNode byCity = getJson(uri -> uri.path("/api/job-positions")
+                .queryParam("city", "上海").build());
+        assertThat(byCity.path("data").path("total").asInt()).isEqualTo(3);
+        JsonNode paged = getJson("/api/job-positions?page=1&size=2");
+        assertThat(paged.path("data").path("items")).hasSize(2);
+        assertThat(paged.path("data").path("total").asInt()).isEqualTo(3);
+        // 创建时间倒序：最后导入的排第一
+        assertThat(paged.path("data").path("items").get(0).path("id").asLong()).isEqualTo(third);
+        assertThat(paged.path("data").path("items").get(0).path("companyName").asText()).isEqualTo("字节跳动");
+        assertThat(getJson(uri -> uri.path("/api/job-positions")
+                .queryParam("keyword", "字节").build()).path("data").path("total").asInt()).isEqualTo(3);
+        assertThat(getJson(uri -> uri.path("/api/job-positions")
+                .queryParam("keyword", "Java").build()).path("data").path("total").asInt()).isEqualTo(3);
+
+        // 批量删除：不存在的 id 忽略，剩余记录保留
+        client.post().uri("/api/job-positions/batch-delete").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("ids", List.of(first, second, 999999)))
+                .exchange().expectStatus().isOk();
+        assertThat(getJson("/api/job-positions").path("data").path("total").asInt()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM job_positions", Integer.class)).isEqualTo(1);
+
+        client.post().uri("/api/job-positions/batch-delete").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("ids", List.of(third)))
+                .exchange().expectStatus().isOk();
+        assertThat(getJson("/api/job-positions").path("data").path("total").asInt()).isZero();
+    }
+
+    @Test
     @DisplayName("上游持续 401 时 JD 解析重试 3 次后置为 FAILED")
     void parseFailsAfterRetries() {
         createProvider("bad", upstreamBase + "/bad");

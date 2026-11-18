@@ -13,8 +13,8 @@
 
 - 进行中：**M2 第一批后端实现完成（2026-11-17）**——场景绑定 3 端点、公司 4 端点、岗位库 6 端点、匹配 3 端点、行情 1 端点、简历对比 1 端点全部实现；契约 `1.6.0` 45 端点已无 `x-implemented: false`
 - **M2 第一批实现细节（2026-11-17）**：Flyway `V3__m2_batch1.sql`（场景绑定 / 公司 / 岗位 / 匹配四表 + `resume_analyses.prompt_version`）；JD 解析与匹配复用「外置模板 + JSON 模式 + 本地修复 + 带错误反馈重试 ≤3 + AI DTO + 本地兜底校验」；匹配总分本地按 50/30/20 加权；对比差异本地计算、LLM 仅生成点评，失败降级；启动恢复扩展到岗位解析与匹配；**后端 118 tests 全绿、JaCoCo 门禁通过、契约 lint 0 error 0 warning、前端构建通过**；V3 迁移已随 Testcontainers（postgres:16-alpine）集成测试在真实 PG 上执行
-- **测试补强（2026-11-18）**：新增 `M2Batch1ApiIntegrationTest`（3 个用例，真实 PostgreSQL + 假 LLM 上游）覆盖 M2 HTTP 主链路与校验/409/401 重试 FAILED；新增 JD 解析与匹配「重试打满置 FAILED」单测。**后端 123 tests 全绿，行覆盖 90.32%、分支覆盖 73.77%**，门禁通过
-- **测试缺口盘点（2026-11-18）**：基于 JaCoCo 方法级报告梳理剩余未覆盖（详见「下一步」第 5 项）。M2 业务类现状：`JobPositionService` 81%、`JobMatchService` 92%、`CompanyService` 85%、`LlmSceneService` 98%、`ResumeComparisonService` 97%、`JobMarketService` 95%。最大缺口是**岗位列表接口完全未测**（`page` 15 行 / 10 分支为 0），其次是批量删除 HTTP、匹配 worker 异常分支、公司更新冲突分支
+- **测试补强（2026-11-18）**：新增 `M2Batch1ApiIntegrationTest`（4 个用例，真实 PostgreSQL + 假 LLM 上游）覆盖 M2 HTTP 主链路、校验/409/401 重试 FAILED、岗位列表筛选与批量删除；新增 JD 解析与匹配「重试打满置 FAILED」及匹配 worker 异常分支单测。**后端 129 tests 全绿，行覆盖 91.90%、分支覆盖 76.11%**，门禁通过
+- **测试缺口盘点（2026-11-18）**：高价值缺口已补——岗位列表分页/筛选/公司名关键字、批量删除 HTTP、匹配 worker 的三类异常分支全部覆盖；`JobPositionService` 81%→89%、`JobMatchService` 92%→94%、`JobPositionController` 58%→92%。剩余高价值缺口见「下一步」第 5 项
 - **CI 状态（2026-11-18）**：main 最新提交 `7571a14` 的 CI 运行成功（run 44253787088，契约 / 后端 / 前端三 job 全绿）
 - 下一步待办：M2 前端页面（岗位库 / 公司 / 匹配 / 行情 / 简历对比 / 场景绑定设置）与真实链路联调
 - **M2 契约第一批完成（2026-11-17）**：新增 12 路径 / 19 端点 / 34 schema——场景级模型绑定（7 场景枚举一次定全）、公司最小 CRUD、岗位库（JD 导入+异步解析 / 匹配评分 / 行情洞察）、简历版本对比（同步、不落库）；lint 0 error 0 warning；前端类型生成与构建通过；契约测试改为按 `x-implemented` 区分已实现与待实现（26 / 19），不再维护例外清单
@@ -51,9 +51,8 @@
 2. **M2 第二批契约**：F3 模拟面试（Skill 文件目录出题 / 追问树 / 统一评估）+ F6 Offer 决策（含 companies 复用）。
 3. 非阻塞遗留：开源前补 `LICENSE` 并同步契约 `info.license`；CD 待换机稳定手动部署后再做。
 4. M2 改进项：历史消息升级为「完整轮次 + token 预算 + 摘要」；契约类型/required 深度校验；SSE E2E 增量渲染断言。
-5. **测试缺口（2026-11-18 盘点，非阻塞，按价值排序）**：
-   - 高价值：岗位列表分页/筛选/公司名关键字（`JobPositionService.page` + `companyIdsMatching` + `companyNames` 共 26 行 0 覆盖）；批量删除 HTTP 层；匹配 worker 的「简历/岗位已删除」「客户端获取失败」「记录删除终止」分支；公司更新「名称未变」与并发重复键分支；JD 文件导入的 Tika/IO 异常分支；`GlobalExceptionHandler` 的 413（上传超限）与 500 兜底。
-   - 中价值：JSON 兜底异常分支（`skillsJson` / `skills` / `parseList` / `write`）；`LlmGlobalSettingService` 部分分支；Provider/Model 删除的 HTTP 层。
+5. **测试缺口（2026-11-18 盘点，高价值项已补，剩余非阻塞）**：
+   - 中价值：公司 `create/update` 的并发重复键分支与标签 JSON 兜底；岗位 `importJd/parse` 的 Tika/IO 异常与循环自然退出分支；`JobMatchService.toResponse` 的详情解析失败兜底；JSON 兜底异常（`skillsJson` / `skills` / `parseList` / `write`）；`LlmGlobalSettingService` 部分分支；Provider/Model 删除的 HTTP 层；`GlobalExceptionHandler` 的 413/500。
    - 可接受不补：`LlmBootstrapRunner`（环境变量种子）、`main`、DTO、Prompt 资源缺失异常、`AesGcmCipher.deriveKey` 分支。
 
 ## 关键决策
