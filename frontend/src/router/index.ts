@@ -37,6 +37,24 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '岗位详情' },
   },
   {
+    path: '/interviews',
+    name: 'interviews',
+    component: () => import('@/views/InterviewListView.vue'),
+    meta: { title: '模拟面试' },
+  },
+  {
+    path: '/interviews/:id',
+    name: 'interview-room',
+    component: () => import('@/views/InterviewRoomView.vue'),
+    meta: { title: '模拟面试' },
+  },
+  {
+    path: '/offers',
+    name: 'offers',
+    component: () => import('@/views/OfferView.vue'),
+    meta: { title: 'Offer 决策' },
+  },
+  {
     path: '/chat',
     name: 'chat',
     component: () => import('@/views/ChatView.vue'),

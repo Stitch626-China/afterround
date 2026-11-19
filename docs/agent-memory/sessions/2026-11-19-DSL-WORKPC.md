@@ -51,3 +51,30 @@
 - 原因：按契约 `1.8.0` 落地 M2 第二批后端，使 64 个契约端点全部有实现；面试与 Offer 的异步、状态机、结构化输出复用既有统一机制。
 - 验证：`mvn test` **133 tests 全绿**，行覆盖 89.43%、分支 68.60%，JaCoCo 门禁通过；`redocly lint` **0 error / 0 warning**；`npm run build`（含契约类型重新生成）通过。
 - 下一步 / 断点：M2 第二批前端页面（模拟面试 / Offer 决策）；随后真实链路联调。
+
+### 16:15 M2 第二批后端独立复验通过
+- 改动：无代码改动，仅追加本记录。
+- 原因：用户要求独立检查并验证第二批后端交付，不沿用「已完成」结论。
+- 验证：
+  - 契约 `1.8.0`：41 路径 / 64 端点 / 115 schema，`x-implemented: false` 无残留；`redocly lint` **0 error / 0 warning**。
+  - 后端全量 **133 tests 全绿**，JaCoCo 门禁通过；Docker 29.9.3 可用，真实 PostgreSQL 16 集成测试未被跳过。
+  - 前端 `npm run build`（80 modules，含契约类型重新生成）+ Vitest **9 passed**；页面仍只有第一批功能（第二批前端未做，符合进度）。
+  - `V5__m2_batch2.sql`：`interview_sessions` 出题/评估双状态机各带 error + retry_count；`interview_questions` 追问树 CHECK 一致、`(session_id, question_index)` 唯一；`offers` 分组 CHECK 与薪资校验。
+  - 业务规则抽查：追问数默认 1、跳过置 `SKIPPED` 且计 0 分、`SUBMITTED/COMPLETED` 禁改禁切、执行中 409、保留组上限 4、固定 12 维对比与「未填写」、联网开关默认关闭。
+  - Skill：`java-backend` / `ai-agent` 各含 `SKILL.md` + `skill.meta.yml`，方向列表由资源加载。
+  - CI：`e5df181`（M2 第二批后端）运行 **success**。
+- 差异：`PROGRESS.md` 记 schema 116，实测 115（移除未使用 `ResultOffer` 后的计数口径差异，非缺陷）。
+- 下一步 / 断点：M2 第二批前端（模拟面试 / Offer 决策）→ 真实链路联调。
+
+### 17:47 M2 第二批前端完成 + 真实链路联调通过
+- 改动：
+  - 新增 `frontend/src/api/interview.ts` / `offers.ts`、`utils/interview.ts` / `offer.ts`；页面 `InterviewListView.vue` / `InterviewRoomView.vue` / `OfferView.vue`；路由 `/interviews`、`/interviews/:id`、`/offers`，导航加「模拟面试 / Offer 决策」。
+  - 面试房间：创建后轮询出题、逐题作答 / 跳过、追问实时插入、会话级 Provider + Model 切换、交卷轮询评估、总分 / 分类条 / 逐题点评、失败重试。
+  - Offer：列表 / 对比双 Tab、文本图片提取回填、保留淘汰分组、固定 12 行矩阵、行内前景分析。
+  - 测试：新增 Vitest 10 个（纯函数）与 Playwright 2 个（接口 mock），Vitest 总 19、E2E 总 11。
+- 原因：按契约 `1.8.0` 补齐 M2 第二批前端，并用真实链路验证前后端与 V5 迁移。
+- 验证：
+  - `npm run build` 通过（含契约类型生成）。
+  - `npm run test` 19 全过；`npm run test:e2e` 11 全过。
+  - 真实链路：临时 PostgreSQL 16（5433）+ 本地假上游（3001）+ 真后端（8080）+ Playwright 浏览器；面试创建 → 出题 → 作答 → 追问 → 跳过 → 交卷 → 评估 69 分；Offer 新增 → 前景分析「值得接受」→ 对比矩阵；临时容器、脚本与进程已清理。
+- 下一步 / 断点：进入 M3（F4 面试复盘 / F5 求职洞察）。
