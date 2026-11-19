@@ -39,3 +39,15 @@
   - 浏览器：岗位列表显示「录用」「备注：二面已约」；行情 Tab 显示「样本 1 份」与 Java 技能条；详情页备注为「二面已约」、匹配总分 76 与三维条正确；均无红色报错横幅。
   - 清理：5173 / 8080 / 3001 / 5433 已无监听，`jobpilot-it-pg` 容器已删除，git 工作区干净。
 - 下一步 / 断点：M2 第二批后端实现（F3 / F6）。
+
+### 14:44 M2 第二批后端完成（F3 模拟面试 / F6 Offer 决策）
+- 改动：
+  - Flyway `V5__m2_batch2.sql`：`interview_sessions`（出题 / 评估双状态机 + 四件套）、`interview_questions`（主问题 / 追问树、唯一题号）、`offers`（分组、JSONB 福利与分析）。
+  - F3：方向 Skill 资源（`java-backend` / `ai-agent` 的 `SKILL.md` + `skill.meta.yml`）与加载器；8 个 DTO + 3 个 Prompt 模板；`InterviewService`（异步出题、追问插入与题号顺延、作答 / 跳过、交卷、评估、两级切换、重试、删除）与两个控制器。
+  - F6：Offer 实体 / Mapper + 10 个 DTO + 2 个 Prompt；`OfferService`（CRUD、保留组 ≤4、显式 null 清空、固定 12 行对比、文本 / 图片提取、前景分析持久化）与控制器。
+  - `ChatMessage` / `OpenAiCompatibleClient` 支持 OpenAI 视觉消息（图片提取）；`LlmSceneService.optionalResolve` 支持「评估场景显式绑定优先、其次会话模型」；启动恢复扩展面试出题 / 评估；`@MapperScan` 补 interview / offer 包。
+  - 契约：移除 14 处 `x-implemented: false`（19 端点）与未使用的 `ResultOffer` schema；`ContractCoverageTest` / `ContractSchemaTest` 纳入新控制器与 18 个新 DTO。
+  - 测试：新增 `M2Batch2ApiIntegrationTest` 4 个用例（真实 PG + 假上游），覆盖面试全链路 / 守卫 / 失败重试与 Offer 全链路。
+- 原因：按契约 `1.8.0` 落地 M2 第二批后端，使 64 个契约端点全部有实现；面试与 Offer 的异步、状态机、结构化输出复用既有统一机制。
+- 验证：`mvn test` **133 tests 全绿**，行覆盖 89.43%、分支 68.60%，JaCoCo 门禁通过；`redocly lint` **0 error / 0 warning**；`npm run build`（含契约类型重新生成）通过。
+- 下一步 / 断点：M2 第二批前端页面（模拟面试 / Offer 决策）；随后真实链路联调。

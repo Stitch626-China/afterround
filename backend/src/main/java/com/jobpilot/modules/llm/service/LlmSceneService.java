@@ -115,6 +115,13 @@ public class LlmSceneService {
         return new SceneModel(global.getDefaultProviderKey(), global.getDefaultModel());
     }
 
+    /** 仅读取显式场景绑定；未绑定时返回 null，供「会话模型优先、场景绑定其次」的组合场景使用。 */
+    public SceneModel optionalResolve(LlmScene scene) {
+        LlmSceneSetting setting = sceneMapper.selectOne(Wrappers.<LlmSceneSetting>lambdaQuery()
+                .eq(LlmSceneSetting::getScene, scene.name()));
+        return setting == null ? null : new SceneModel(setting.getProviderKey(), setting.getModel());
+    }
+
     /** 全局默认模型（JD 解析、简历对比等未列入场景枚举的调用使用）。 */
     public SceneModel resolveGlobal() {
         LlmGlobalSetting global = globalMapper.selectById(1);

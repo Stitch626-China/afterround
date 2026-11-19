@@ -5,6 +5,8 @@ import java.time.OffsetDateTime;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.jobpilot.modules.chat.entity.ChatSession;
 import com.jobpilot.modules.chat.mapper.ChatSessionMapper;
+import com.jobpilot.modules.interview.entity.InterviewSession;
+import com.jobpilot.modules.interview.mapper.InterviewSessionMapper;
 import com.jobpilot.modules.job.entity.JobMatchResult;
 import com.jobpilot.modules.job.entity.JobPosition;
 import com.jobpilot.modules.job.mapper.JobMatchResultMapper;
@@ -30,13 +32,16 @@ public class StartupRecovery implements ApplicationRunner {
     private final ResumeMapper resumeMapper;
     private final JobPositionMapper jobMapper;
     private final JobMatchResultMapper matchMapper;
+    private final InterviewSessionMapper interviewMapper;
 
     public StartupRecovery(ChatSessionMapper sessionMapper, ResumeMapper resumeMapper,
-                           JobPositionMapper jobMapper, JobMatchResultMapper matchMapper) {
+                           JobPositionMapper jobMapper, JobMatchResultMapper matchMapper,
+                           InterviewSessionMapper interviewMapper) {
         this.sessionMapper = sessionMapper;
         this.resumeMapper = resumeMapper;
         this.jobMapper = jobMapper;
         this.matchMapper = matchMapper;
+        this.interviewMapper = interviewMapper;
     }
 
     @Override
@@ -60,9 +65,19 @@ public class StartupRecovery implements ApplicationRunner {
                 .set(JobMatchResult::getStatus, "PENDING")
                 .set(JobMatchResult::getError, "上次匹配因服务重启中断，请重新发起")
                 .set(JobMatchResult::getUpdatedAt, OffsetDateTime.now()));
-        if (sessions + resumes + jobs + matches > 0) {
-            log.warn("启动恢复：回收中断会话 {} 个、简历分析 {} 个、JD 解析 {} 个、匹配 {} 个",
-                    sessions, resumes, jobs, matches);
+        int interviews = interviewMapper.update(null, Wrappers.<InterviewSession>lambdaUpdate()
+                .in(InterviewSession::getStatus, "PREPARING", "GENERATING")
+                .set(InterviewSession::getStatus, "FAILED")
+                .set(InterviewSession::getError, "上次出题因服务重启中断，请重试")
+                .set(InterviewSession::getUpdatedAt, OffsetDateTime.now()));
+        int evaluations = interviewMapper.update(null, Wrappers.<InterviewSession>lambdaUpdate()
+                .eq(InterviewSession::getEvaluateStatus, "PROCESSING")
+                .set(InterviewSession::getEvaluateStatus, "FAILED")
+                .set(InterviewSession::getEvaluateError, "上次评估因服务重启中断，请重新交卷")
+                .set(InterviewSession::getUpdatedAt, OffsetDateTime.now()));
+        if (sessions + resumes + jobs + matches + interviews + evaluations > 0) {
+            log.warn("启动恢复：回收中断会话 {} 个、简历分析 {} 个、JD 解析 {} 个、匹配 {} 个、面试出题 {} 个、面试评估 {} 个",
+                    sessions, resumes, jobs, matches, interviews, evaluations);
         }
     }
 }

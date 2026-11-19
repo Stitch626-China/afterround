@@ -30,6 +30,7 @@
 | v1.7 | 2026-11-12 | 界面分层：业务归业务，设置收进左下角抽屉 |
 | v1.8 | 2026-11-17 | 把「AI 按模板思考、稳定输出」的机制写成明确规范 |
 | v1.9 | 2026-11-18 | 岗位跟踪更贴近真实求职：结果分录用 / 淘汰，并能随手记面试轮次与淘汰环节 |
+| v1.10 | 2026-11-19 | 数据模型补齐：模拟面试题目独立成表，Offer 决策正式落表 |
 
 > **状态同步（2026-11-16）**：M1 已由用户完成功能验收（服务商添加与全局默认、对话内模型切换、简历上传与分析均通过），状态字段由「M1 进行中」改为「M1 已完成并验收」。仅同步状态事实，无需求变化，版本号不变。
 
@@ -56,6 +57,29 @@
 
 - `JobPositionStatus` 枚举为 `SAVED / APPLIED / INTERVIEWING / OFFERED / REJECTED`；契约 `1.7.0`。
 - `job_positions.remark VARCHAR(200)`，`V4__job_position_outcome_remark.sql` 负责加列、迁移历史 `CLOSED`、重建状态 CHECK。
+
+---
+
+### v1.10 · 2026-11-19 —— 数据模型补齐：模拟面试与 Offer 落地对齐
+
+**多了什么**
+
+- 数据模型补上 Offer 决策表（`offers`）：保留 / 淘汰分组、固定对比字段、最近一次前景与倾向分析都有明确存储位置。
+- 模拟面试的题目独立成表：主问题与追问按题号顺序维护，逐题记录作答状态、得分与点评。
+
+**变了什么**
+
+- 面试会话不再用整段题目快照，改为 `interview_questions` 按题号存储，便于追加追问和逐题更新。
+- 会话表补充主问题数量、追问数量与已答数量，直接支撑列表进度与「继续未完成面试」。
+
+**砍了什么**
+
+- 不存整段题目快照，避免每次追问都重写整份 JSON，也避免题目与作答状态混在一起。
+
+**附：技术实现要点**
+
+- `V5__m2_batch2.sql`：`interview_sessions` / `interview_questions` / `offers` 三表；题目 `(session_id, question_index)` 唯一。
+- 契约仍为 `1.8.0`（端点与字段未变化，本次仅把实现落地后的数据模型写回需求文档）。
 
 ---
 
@@ -643,8 +667,9 @@ interview-main/
 | resume_analyses | resume_id FK、overall_score、五维分数各自成列、strengths / suggestions / career_directions JSONB、llm_provider、llm_model |
 | job_positions | **company_id FK、status（SAVED / APPLIED / INTERVIEWING / OFFERED / REJECTED）、remark（用户备注）**、title、company、city、salary_min / max、experience、raw_text、structured JSONB |
 | job_match_results | resume_id、job_position_id、match_status / error / retry_count、overall_score、detail JSONB、llm_provider、llm_model |
-| interview_sessions | direction、resume_id、job_position_id、status、evaluate_status / error / retry_count、current_provider_key、current_model、question_snapshot JSONB |
-| interview_questions | session_id、question_index（UNIQUE 组合）、parent_index（追问树）、type（主问题/追问）、content、topic_summary、answer、answer_status（已答 / 跳过 / 未答）、score、feedback、reference_answer、key_points JSONB、llm_provider、llm_model |
+| interview_sessions | direction、resume_id、job_position_id、status（PREPARING / IN_PROGRESS / GENERATING / SUBMITTED / COMPLETED / FAILED）、evaluate_status / error / retry_count、question_count / follow_up_count / answered_count、current_provider_key、current_model |
+| interview_questions | session_id、question_index（UNIQUE 组合）、parent_index（追问树）、type（主问题/追问）、content、topic_summary、difficulty、answer、answer_status（已答 / 跳过 / 未答）、score、feedback、reference_answer、key_points JSONB、llm_provider、llm_model |
+| offers | company_id / job_position_id FK、monthly_salary / base_salary / performance_ratio、五险一金与公积金基数 / 比例、two_day_weekend、work_hours、benefits / allowances JSONB、annual_bonus / quarterly_bonus、remark、group（KEEP / DROP，保留组 ≤4）、analysis JSONB、analyzed_at |
 | review_sessions | audio storage_key、duration、asr_status / error / retry_count、analyze_status / error / retry_count |
 | review_transcripts | review_session_id、speaker、text、start / end_time |
 | review_analyses | review_session_id、qa_analysis JSONB、summary JSONB、**topics JSONB（本次知识点标签）、loss_tags JSONB（失分类型）**、llm_provider、llm_model |

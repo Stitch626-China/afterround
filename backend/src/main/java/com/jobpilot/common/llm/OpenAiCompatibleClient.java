@@ -179,11 +179,28 @@ public class OpenAiCompatibleClient implements LlmClient {
     private Map<String, Object> payload(String model, List<ChatMessage> messages, boolean stream) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", model);
-        body.put("messages", messages);
+        body.put("messages", messagePayloads(messages));
         body.put("stream", stream);
         // NFR7：单次任务 token 硬上限，超限由上游中断并返回明确错误
         body.put("max_tokens", maxTokens);
         return body;
+    }
+
+    /** 文本消息保持 {role, content}；带图片时 content 转为 OpenAI 视觉数组格式。 */
+    private static List<Map<String, Object>> messagePayloads(List<ChatMessage> messages) {
+        return messages.stream().map(message -> {
+            Map<String, Object> node = new LinkedHashMap<>();
+            node.put("role", message.role());
+            String text = message.content() == null ? "" : message.content();
+            if (message.imageUrl() == null) {
+                node.put("content", text);
+            } else {
+                node.put("content", List.of(
+                        Map.of("type", "text", "text", text),
+                        Map.of("type", "image_url", "image_url", Map.of("url", message.imageUrl()))));
+            }
+            return node;
+        }).toList();
     }
 
     private static Integer intOrNull(JsonNode node) {

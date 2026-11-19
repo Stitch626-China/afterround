@@ -1,0 +1,29 @@
+key: java-backend
+label: Java 后端
+description: Java 基础、并发与 JVM、Spring、数据库与缓存、分布式与工程实践
+sortOrder: 10
+keywords:
+  - java
+  - spring
+  - jvm
+  - mysql
+  - redis
+  - mybatis
+  - 微服务
+  - 分布式
+categories:
+  - key: java-basics
+    label: Java 基础
+    weight: 20
+  - key: concurrency-jvm
+    label: 并发与 JVM
+    weight: 25
+  - key: spring-framework
+    label: Spring 与框架
+    weight: 20
+  - key: database-cache
+    label: 数据库与缓存
+    weight: 20
+  - key: distributed-system
+    label: 分布式与工程实践
+    weight: 15

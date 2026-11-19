@@ -2,12 +2,15 @@ package com.jobpilot.common.config;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.jobpilot.LambdaCacheSupport;
 import com.jobpilot.modules.chat.entity.ChatSession;
 import com.jobpilot.modules.chat.mapper.ChatSessionMapper;
+import com.jobpilot.modules.interview.entity.InterviewSession;
+import com.jobpilot.modules.interview.mapper.InterviewSessionMapper;
 import com.jobpilot.modules.job.entity.JobMatchResult;
 import com.jobpilot.modules.job.entity.JobPosition;
 import com.jobpilot.modules.job.mapper.JobMatchResultMapper;
@@ -35,9 +38,13 @@ class StartupRecoveryTest {
     @Mock
     private JobMatchResultMapper matchMapper;
 
+    @Mock
+    private InterviewSessionMapper interviewMapper;
+
     @BeforeAll
     static void initLambdaCache() {
-        LambdaCacheSupport.init(ChatSession.class, Resume.class, JobPosition.class, JobMatchResult.class);
+        LambdaCacheSupport.init(ChatSession.class, Resume.class, JobPosition.class, JobMatchResult.class,
+                InterviewSession.class);
     }
 
     @Test
@@ -46,12 +53,14 @@ class StartupRecoveryTest {
         when(resumeMapper.update(isNull(), any())).thenReturn(1);
         when(jobMapper.update(isNull(), any())).thenReturn(1);
         when(matchMapper.update(isNull(), any())).thenReturn(1);
+        when(interviewMapper.update(isNull(), any())).thenReturn(1, 1);
 
-        new StartupRecovery(sessionMapper, resumeMapper, jobMapper, matchMapper).run(null);
+        new StartupRecovery(sessionMapper, resumeMapper, jobMapper, matchMapper, interviewMapper).run(null);
 
         verify(sessionMapper).update(isNull(), any());
         verify(resumeMapper).update(isNull(), any());
         verify(jobMapper).update(isNull(), any());
         verify(matchMapper).update(isNull(), any());
+        verify(interviewMapper, times(2)).update(isNull(), any());
     }
 }

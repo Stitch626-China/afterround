@@ -23,6 +23,14 @@ import com.jobpilot.modules.chat.dto.SwitchModelRequest;
 import com.jobpilot.modules.company.dto.CompanyResponse;
 import com.jobpilot.modules.company.dto.CreateCompanyRequest;
 import com.jobpilot.modules.company.dto.UpdateCompanyRequest;
+import com.jobpilot.modules.interview.dto.AnswerInterviewQuestionRequest;
+import com.jobpilot.modules.interview.dto.CreateInterviewSessionRequest;
+import com.jobpilot.modules.interview.dto.InterviewDirection;
+import com.jobpilot.modules.interview.dto.InterviewEvaluation;
+import com.jobpilot.modules.interview.dto.InterviewEvaluationCategory;
+import com.jobpilot.modules.interview.dto.InterviewQuestion;
+import com.jobpilot.modules.interview.dto.InterviewSession;
+import com.jobpilot.modules.interview.dto.InterviewSessionDetail;
 import com.jobpilot.modules.job.dto.BatchDeleteJobPositionsRequest;
 import com.jobpilot.modules.job.dto.CountItemResponse;
 import com.jobpilot.modules.job.dto.CreateJobMatchRequest;
@@ -47,6 +55,16 @@ import com.jobpilot.modules.llm.dto.UpdateGlobalSettingRequest;
 import com.jobpilot.modules.llm.dto.UpdateModelRequest;
 import com.jobpilot.modules.llm.dto.UpdateProviderRequest;
 import com.jobpilot.modules.llm.dto.UpstreamModelListResponse;
+import com.jobpilot.modules.offer.dto.AnalyzeOfferRequest;
+import com.jobpilot.modules.offer.dto.CreateOfferRequest;
+import com.jobpilot.modules.offer.dto.Offer;
+import com.jobpilot.modules.offer.dto.OfferAnalysis;
+import com.jobpilot.modules.offer.dto.OfferComparison;
+import com.jobpilot.modules.offer.dto.OfferComparisonColumn;
+import com.jobpilot.modules.offer.dto.OfferComparisonRow;
+import com.jobpilot.modules.offer.dto.OfferDetail;
+import com.jobpilot.modules.offer.dto.OfferExtraction;
+import com.jobpilot.modules.offer.dto.UpdateOfferRequest;
 import com.jobpilot.modules.resume.dto.AnalysisDimensionResponse;
 import com.jobpilot.modules.resume.dto.CareerDirectionResponse;
 import com.jobpilot.modules.resume.dto.ComparisonSideResponse;
@@ -92,7 +110,13 @@ class ContractSchemaTest {
             JobMatchResponse.class, CountItemResponse.class, SkillCountItemResponse.class,
             JobMarketInsightsResponse.class, CreateResumeComparisonRequest.class,
             ComparisonSideResponse.class, DimensionDeltaResponse.class,
-            ComparisonSummaryResponse.class, ResumeComparisonResponse.class);
+            ComparisonSummaryResponse.class, ResumeComparisonResponse.class,
+            InterviewDirection.class, InterviewQuestion.class, InterviewSession.class,
+            InterviewSessionDetail.class, CreateInterviewSessionRequest.class,
+            AnswerInterviewQuestionRequest.class, InterviewEvaluationCategory.class, InterviewEvaluation.class,
+            Offer.class, OfferDetail.class, CreateOfferRequest.class, UpdateOfferRequest.class,
+            OfferExtraction.class, AnalyzeOfferRequest.class, OfferComparisonColumn.class,
+            OfferComparisonRow.class, OfferComparison.class, OfferAnalysis.class);
 
     @Test
     @SuppressWarnings("unchecked")

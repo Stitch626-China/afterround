@@ -14,11 +14,14 @@ import java.util.Set;
 
 import com.jobpilot.modules.chat.controller.ChatController;
 import com.jobpilot.modules.company.controller.CompanyController;
+import com.jobpilot.modules.interview.controller.InterviewController;
+import com.jobpilot.modules.interview.controller.InterviewSessionController;
 import com.jobpilot.modules.job.controller.JobMarketController;
 import com.jobpilot.modules.job.controller.JobMatchController;
 import com.jobpilot.modules.job.controller.JobPositionController;
 import com.jobpilot.modules.llm.controller.LlmController;
 import com.jobpilot.modules.llm.controller.LlmSceneController;
+import com.jobpilot.modules.offer.controller.OfferController;
 import com.jobpilot.modules.resume.controller.ResumeComparisonController;
 import com.jobpilot.modules.resume.controller.ResumeController;
 import org.junit.jupiter.api.Test;
@@ -84,7 +87,8 @@ class ContractCoverageTest {
         for (Class<?> controller : List.of(LlmController.class, LlmSceneController.class,
                 CompanyController.class, JobPositionController.class, JobMatchController.class,
                 JobMarketController.class, ChatController.class, ResumeController.class,
-                ResumeComparisonController.class)) {
+                ResumeComparisonController.class, InterviewController.class, InterviewSessionController.class,
+                OfferController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (Method method : controller.getDeclaredMethods()) {
                 for (Annotation annotation : method.getAnnotations()) {

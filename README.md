@@ -49,8 +49,8 @@ npx openapi-typescript ../contracts/openapi.yaml -o src/api/schema.d.ts
 ```
 
 - 校验规则配置在根目录 `redocly.yaml`，其中 `no-server-example.com` 与 `operation-4xx-response` 因本地部署、无鉴权查询接口而关闭，理由写在配置注释里。
-- 契约当前覆盖 **M1 全量**（模型配置 / 对话会话 / 简历）+ **M2 第一批**（场景级模型绑定 / 公司最小 CRUD / 岗位库 JD 解析与匹配 / 简历对比）+ **M2 第二批**（F3 模拟面试 / F6 Offer 决策，已定义待实现），F4 / F5 随里程碑追加。
-- **契约可以先于实现**：尚未实现的路径在路径层标记 `x-implemented: false`，后端契约一致性测试据此区分「已定义」与「必须已实现」；实现完成后删除该标记即可自动收紧校验。
+- 契约当前覆盖 **M1 全量**（模型配置 / 对话会话 / 简历）+ **M2 第一批**（场景级模型绑定 / 公司最小 CRUD / 岗位库 JD 解析与匹配 / 简历对比）+ **M2 第二批**（F3 模拟面试 / F6 Offer 决策），F4 / F5 随里程碑追加。
+- **契约可以先于实现**：尚未实现的路径可在路径层标记 `x-implemented: false`，后端契约一致性测试据此区分「已定义」与「必须已实现」；实现完成后删除该标记即可自动收紧校验。当前 64 个端点已全部实现，无待实现标记。
 
 ## 环境依赖
 
@@ -310,6 +310,29 @@ server {
   一次 LLM 生成点评（失败 `degraded=true`，本地结果照常返回）；模型或 Prompt 版本不同会标注仅供参考。
 - 进程重启后遗留的 `PROCESSING`（简历分析、JD 解析、匹配）由启动恢复统一回收为可重试状态。
 
+## M2 第二批接口（模拟面试 / Offer 决策）
+
+- `/api/interview/directions`：方向由 `backend/src/main/resources/skills/<key>/` 下的 `SKILL.md`（面试官人格）
+  + `skill.meta.yml`（分类权重 / 关键词）定义，新增方向只加目录，不改代码与契约枚举。
+- `/api/interview-sessions`：创建时 `direction` 与 `jobPositionId` 至少一个；关联 `resumeId` 时简历题约 60%，
+  否则全部为方向题；创建立即返回 `PREPARING` 并异步出题（轮询详情）。出题会注入同方向历史会话的
+  `topicSummary` 避免重复考察。状态机 `PREPARING → IN_PROGRESS →（追问 GENERATING）→ SUBMITTED → COMPLETED`，
+  出题失败为 `FAILED` 可重试；列表支持方向 / 状态 / 时间筛选，删除级联清理题目与评估。
+- 作答 / 跳过：主问题作答后按 `followUpCount` 异步生成追问并插入到主问题之后，后续题号整体顺延；
+  执行中（`PREPARING` / `GENERATING` / `SUBMITTED`）返回 409/40911，已评估返回 409/40912，状态不符返回 409/40913。
+- `PATCH /{id}/model`：仅 `IN_PROGRESS` / `FAILED` 可切换，执行中 409/40901、终态 409/40902；
+  只影响后续出题 / 追问 / 评估，不迁移已有题目。
+- 交卷后异步评估：逐题得分 + 点评 + 参考答案；跳过与未作答强制 0 分且不生成点评；
+  分类得分由模型给出，总分本地按 `skill.meta.yml` 权重加权；评估状态独立四件套（PENDING / PROCESSING / COMPLETED / FAILED）。
+- `/api/offers`：`companyId` 与 `jobPositionId` 至少一个，仅填岗位时自动带出所属公司；保留组最多 4 个（409/40914），
+  淘汰组可随时移回；更新时未传字段不修改、显式 `null` 清空。
+- `/api/offers/extract`：文本或图片（PNG / JPEG / WEBP，≤5MB）提取草稿且不落库；图片走 OpenAI 视觉消息格式，
+  模型不支持时返回 400 并引导改用文本粘贴。
+- `/api/offers/comparison`：保留组固定 12 个维度、固定顺序的矩阵，缺失统一「未填写」，保留组为空时列与行均为空数组。
+- `/api/offers/{id}/analyze`：场景 `OFFER_ANALYZE`，默认基于所给资料（`basedOnProvidedMaterials=true`、`sources=[]`）；
+  开启 `webSearch` 时返回来源标注；结果覆盖持久化，详情返回最近一次。
+- 启动恢复新增：中断的出题（`PREPARING` / `GENERATING`）与评估（`PROCESSING`）统一置为 `FAILED`，可重试。
+
 ## M1-d 前端（信息架构）
 
 - **一级导航只放业务主线**：简历中心（M1）→ 岗位库（M2）→ 模拟面试（M2）→ 面试复盘 / 求职洞察（M3，占位灰显）。
@@ -358,13 +381,15 @@ npx @redocly/cli lint contracts/openapi.yaml
 
 > 后端 `ContractSchemaTest` 还会比对契约 schema 与 DTO 字段：任意一侧漏改都会直接失败，避免接口文档与实现漂移。
 
-> **测试分层（当前 129 个用例）**：
-> - 契约测试 2 个：64 端点（其中 19 个标记待实现）与控制器双向全等、全部 DTO 字段与 schema 一致。
+> **测试分层（当前 133 个用例）**：
+> - 契约测试 2 个：64 端点与控制器双向全等、全部 DTO 字段与 schema 一致。
 > - 服务单测：Provider/模型/场景绑定/公司/岗位/匹配/行情/对比/简历分析/会话等，覆盖状态机、重试上限、查重、级联、降级等分支。
-> - HTTP 集成测试 3 个类（`M1b` / `M1c` / `M2Batch1`）：真实 PostgreSQL + 本地假 LLM 上游，走真实 HTTP 请求；
+> - HTTP 集成测试 4 个类（`M1b` / `M1c` / `M2Batch1` / `M2Batch2`）：真实 PostgreSQL + 本地假 LLM 上游，走真实 HTTP 请求；
 >   `M2Batch1ApiIntegrationTest` 覆盖「导入 JD → 异步解析 → 公司自动关联 → 场景绑定 → 匹配 → 行情 → 简历对比 → 删除级联」，
->   以及岗位列表筛选/分页/批量删除、HTTP 校验、执行中 409、上游 401 重试 3 次后置 FAILED。
-> - JaCoCo 当前行覆盖 91.92%、分支覆盖 76.23%；门禁只约束行覆盖（总 ≥85%、5 个关键类 ≥95%）。
+>   以及岗位列表筛选/分页/批量删除、HTTP 校验、执行中 409、上游 401 重试 3 次后置 FAILED；
+>   `M2Batch2ApiIntegrationTest` 覆盖面试「出题 → 追问 → 跳过 → 切换模型 → 交卷 → 评估 → 删除」、状态守卫与重试，
+>   以及 Offer「自动带公司 → 保留组上限 → 固定 12 行对比 → 文本/图片提取 → 前景分析 → 删除」。
+> - JaCoCo 当前行覆盖 89.43%、分支覆盖 68.60%；门禁只约束行覆盖（总 ≥85%、5 个关键类 ≥95%）。
 
 > **集成测试说明**：`JobPilotApplicationTests` 用 Testcontainers 起真实 PostgreSQL 验证 Flyway 迁移，
 > 需要本机 Docker 守护进程可用，并且能拉取 `postgres:16-alpine` 镜像。
@@ -439,12 +464,12 @@ npx @redocly/cli lint contracts/openapi.yaml
   - M1-d 前端与测试收口：业务导航分层 + 简历列表/上传 + 分析报告页 + 左下角设置抽屉（模型服务 / 外观 Light·Dark）+ 设计 tokens + 全量测试
 - **M2**：完整前端 + JD 导入 / 匹配评分 / 行情统计 + 结构化模拟面试 + Offer 决策（多 Offer 同维度对比、保留/淘汰可反悔）
   - 第一批（已完成）：场景绑定 + 公司 + 岗位库 + 匹配评分 + 行情洞察 + 简历对比，后端 19 端点 + 对应前端页面
-  - 第二批（待开始）：F3 模拟面试 + F6 Offer 决策
+  - 第二批（后端已完成，前端待开发）：F3 模拟面试 + F6 Offer 决策，后端 19 端点（V5 三张表 + 方向 Skill + 出题 / 追问 / 评估异步链路 + Offer 对比 / 提取 / 分析）
 - **M3**：面试复盘（ASR / 分析 / 报告）+ PDF 导出 + Token 成本统计 + 产品化准备
 
 ## 当前进度
 
-M1 四阶段已完成；M2 第一批后端 19 端点与前端页面（岗位库 / 岗位详情 / 行情洞察 / 简历对比 / 场景模型）已落地，后端 129 个测试通过（总行覆盖 91.92%，JaCoCo 门禁通过），前端构建通过、Vitest 9 个单测 + Playwright 9 个 E2E 通过。岗位跟踪支持「录用 / 淘汰」两种结果与自由备注。剩余：真实链路联调，随后进入 M2 第二批（模拟面试 / Offer 决策）。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
+M1 四阶段已完成；M2 第一批后端 19 端点与前端页面（岗位库 / 岗位详情 / 行情洞察 / 简历对比 / 场景模型）已落地；M2 第二批后端 19 端点（模拟面试 / Offer 决策）已完成，前端页面待开发。后端 **133 个测试通过**（总行覆盖 89.43%，JaCoCo 门禁通过），契约 lint 0 error / 0 warning，前端构建通过、Vitest 9 个单测 + Playwright 9 个 E2E 通过。岗位跟踪支持「录用 / 淘汰」两种结果与自由备注。详见 [PROGRESS.md](docs/agent-memory/PROGRESS.md)。
 
 ## 合规说明
 

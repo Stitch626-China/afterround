@@ -41,6 +41,18 @@ public enum ErrorCode {
     /** 简历分析任务已在执行中（FR1.5）。 */
     ANALYSIS_IN_PROGRESS(40910, "分析任务进行中", HttpStatus.CONFLICT),
 
+    /** 模拟面试出题 / 追问生成中，或已交卷评估中（F3）。 */
+    INTERVIEW_TASK_IN_PROGRESS(40911, "面试任务执行中，请等待完成", HttpStatus.CONFLICT),
+
+    /** 模拟面试已评估完成，答案与模型均锁定（F3）。 */
+    INTERVIEW_FINISHED(40912, "面试已结束，不可再操作", HttpStatus.CONFLICT),
+
+    /** 模拟面试当前状态不允许该操作（F3）。 */
+    INTERVIEW_STATE_INVALID(40913, "当前面试状态不允许该操作", HttpStatus.CONFLICT),
+
+    /** Offer 保留组最多 4 个（F6）。 */
+    OFFER_KEEP_LIMIT(40914, "保留组最多 4 个 Offer", HttpStatus.CONFLICT),
+
     PAYLOAD_TOO_LARGE(41301, "文件超过大小限制", HttpStatus.PAYLOAD_TOO_LARGE),
 
     UNSUPPORTED_MEDIA_TYPE(41501, "不支持的文件类型", HttpStatus.UNSUPPORTED_MEDIA_TYPE),

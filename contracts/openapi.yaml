@@ -29,9 +29,9 @@ info:
       JD 结构化解析与简历对比总结未列入枚举，使用全局默认，不参与场景级绑定。
 
     ## 实现状态标记
-    M2 第一批已全部实现，后端 `ContractCoverageTest` 对「契约端点 = 实际控制器端点」做双向全等校验。
-    M2 第二批（F3 / F6）已在契约中定义，路径级标记 `x-implemented: false` 表示「已定义、待实现」；
-    后端实现完成后删除标记即可自动纳入双向全等校验，无需维护例外清单。
+    M2 第一批与第二批（F3 / F6）已全部实现，后端 `ContractCoverageTest` 对「契约端点 = 实际控制器端点」做双向全等校验。
+    后续里程碑新增路径可先用路径级 `x-implemented: false` 标记「已定义、待实现」，
+    实现完成后删除标记即自动纳入双向全等校验，无需维护例外清单。
 
     ## 错误码补充（M2）
     - `40906` 公司名称已存在（`companies.name` UNIQUE）
@@ -1290,7 +1290,6 @@ paths:
   # ==========================================================
 
   /api/interview/directions:
-    x-implemented: false
     get:
       tags: [模拟面试]
       operationId: listInterviewDirections
@@ -1309,7 +1308,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/interview-sessions:
-    x-implemented: false
     get:
       tags: [模拟面试]
       operationId: listInterviewSessions
@@ -1393,7 +1391,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/interview-sessions/{sessionId}:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/InterviewSessionId'
     get:
@@ -1433,7 +1430,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/interview-sessions/{sessionId}/model:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/InterviewSessionId'
     patch:
@@ -1472,7 +1468,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/interview-sessions/{sessionId}/questions/retry:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/InterviewSessionId'
     post:
@@ -1501,7 +1496,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/interview-sessions/{sessionId}/questions/{questionIndex}/answer:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/InterviewSessionId'
       - $ref: '#/components/parameters/QuestionIndex'
@@ -1547,7 +1541,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/interview-sessions/{sessionId}/questions/{questionIndex}/skip:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/InterviewSessionId'
       - $ref: '#/components/parameters/QuestionIndex'
@@ -1583,7 +1576,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/interview-sessions/{sessionId}/submit:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/InterviewSessionId'
     post:
@@ -1615,7 +1607,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/interview-sessions/{sessionId}/evaluation:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/InterviewSessionId'
     get:
@@ -1649,7 +1640,6 @@ paths:
   # ==========================================================
 
   /api/offers:
-    x-implemented: false
     get:
       tags: [Offer 决策]
       operationId: listOffers
@@ -1714,7 +1704,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/offers/extract:
-    x-implemented: false
     post:
       tags: [Offer 决策]
       operationId: extractOffer
@@ -1763,7 +1752,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/offers/comparison:
-    x-implemented: false
     get:
       tags: [Offer 决策]
       operationId: getOfferComparison
@@ -1784,7 +1772,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/offers/{offerId}:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/OfferId'
     get:
@@ -1858,7 +1845,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/offers/{offerId}/analyze:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/OfferId'
     post:
@@ -4194,14 +4180,6 @@ components:
           description: 固定维度与固定顺序的对比矩阵
           items:
             $ref: '#/components/schemas/OfferComparisonRow'
-
-    ResultOffer:
-      allOf:
-        - $ref: '#/components/schemas/ResultVoid'
-        - type: object
-          properties:
-            data:
-              $ref: '#/components/schemas/Offer'
 
     ResultOfferDetail:
       allOf:
