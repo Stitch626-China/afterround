@@ -171,6 +171,10 @@ test('设置抽屉新增服务商后自动拉取模型并设为全局默认', as
     })
   })
 
+  await page.route(/\/api\/chat\/sessions\?/, (route) => route.fulfill({
+    json: { code: 0, message: 'ok', data: { items: [], total: 0, page: 1, size: 20 } },
+  }))
+
   await page.goto('/resumes')
   await page.getByRole('button', { name: '设置' }).click()
   await page.getByRole('button', { name: '模型服务' }).click()
@@ -191,4 +195,9 @@ test('设置抽屉新增服务商后自动拉取模型并设为全局默认', as
   await expect(page.getByText('已添加 1 个模型，并将 Qwen3.8-27B 设为全局默认')).toBeVisible()
   await expect(page.locator('.tag.primary').filter({ hasText: '全局默认' })).toBeVisible()
   await expect(page.locator('.provider').filter({ hasText: '公司内网网关' })).toBeVisible()
+
+  // 「打开模型对话」应关闭抽屉并跳转到 /chat
+  await page.getByRole('button', { name: '打开模型对话' }).click()
+  await expect(page).toHaveURL(/\/chat$/)
+  await expect(page.getByRole('dialog', { name: '设置' })).toHaveCount(0)
 })

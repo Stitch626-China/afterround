@@ -4,6 +4,7 @@
  * 三个 Tab：模型服务 / 场景模型 / 外观。
  */
 import { onBeforeUnmount, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import ModelSettings from './ModelSettings.vue'
 import SceneSettings from './SceneSettings.vue'
 import AppearanceSettings from './AppearanceSettings.vue'
@@ -11,9 +12,16 @@ import { settingsTab, type SettingsTab } from '@/composables/useSettings'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
+const router = useRouter()
 
 function selectTab(tab: SettingsTab): void {
   settingsTab.value = tab
+}
+
+/** 关闭抽屉并跳转到模型对话页（M1 能力验证入口）。 */
+function openChat(): void {
+  emit('close')
+  void router.push('/chat')
 }
 
 function onKeydown(event: KeyboardEvent): void {
@@ -50,7 +58,7 @@ onBeforeUnmount(() => {
           </nav>
 
           <div class="drawer-body">
-            <ModelSettings v-if="settingsTab === 'model'" @navigate="emit('close')" />
+            <ModelSettings v-if="settingsTab === 'model'" @navigate="openChat" />
             <SceneSettings v-else-if="settingsTab === 'scene'" />
             <AppearanceSettings v-else />
           </div>
