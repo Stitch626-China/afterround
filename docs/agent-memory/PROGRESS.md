@@ -11,7 +11,8 @@
 
 ## 当前状态
 
-- **M2 用户验收中（2026-11-20，DSL-WORKPC）**：隔离验收环境（Docker PostgreSQL 16 @5433 + 后端 8080 + 前端 5173）启动并冒烟通过（Flyway V1→V5、16 张表、关键接口 200、`/interviews` 与 `/offers` 页面无报错）；用户已在页面配置内网网关（Qwen3.8-27B 全局默认）。验收发现并修复「打开模型对话」点击无响应：`SettingsDrawer` 原实现只关闭抽屉未跳转，改为关闭抽屉 + `router.push('/chat')`，并补 E2E 回归断言（`main-flows` 3 passed）；前端构建通过。前后端服务已按用户要求关闭，验收数据保留在隔离容器 `jobpilot-verify-pg` 中
+- **产品重定位 v1.11（2026-11-23，DSL-WORKPC）**：需求文档升级 v1.11 —— 从「模拟面试工具」转为「个人求职档案与决策系统」，核心为真实面试复盘（≤5 分钟录入）、跨场归因与改进闭环；新增 F8 投递档案与归因链（P0）、F4/F5 升 P0，F3 模拟面试降 P2 可选、F7 降 P2；新增产品原则（≤5 分钟、必填 ≤3、不增加用户工作量）；数据模型新增 `applications` / `improvement_actions`，扩展 `interview_events` / `review_*`；M3 重排为 F8 → F4 → F5 → 收口；命名待定位确认后按五项检查
+- **M2 用户验收中（2026-11-20 起，DSL-WORKPC）**：隔离验收环境（Docker PostgreSQL 16 @5433 + 后端 8080 + 前端 5173）已启动；Flyway v5、Provider 持久化正常。验收修复「打开模型对话」不跳转（抽屉 + `/chat` 路由 + E2E 断言）与「粘贴导入 JD 后列表 500 / 输入丢失」（公司名映射 null 保护 + 刷新成功才清空输入，12 tests 通过，已提交 `e094c9f` 并推送）。用户已暂停验收转向产品定位讨论；服务当前仍在运行
 - **M2 第二批前端完成 + 真实链路联调通过（2026-11-19，DSL-WORKPC）**：新增 `api/interview.ts` / `api/offers.ts`、纯函数 `utils/interview.ts` / `utils/offer.ts`；页面 `InterviewListView`（方向 / 岗位 / 简历筛选创建、出题轮询、状态筛选、继续与删除）、`InterviewRoomView`（逐题作答 / 跳过、追问实时插入、两级切换、交卷、总分与分类条、逐题点评、失败重试）、`OfferView`（列表 / 对比双 Tab、文本图片提取回填、保留淘汰分组、固定 12 行对比、前景分析）；路由 `/interviews`、`/interviews/:id`、`/offers`，导航加「模拟面试 / Offer 决策」。验证：`npm run build` 通过（含契约类型生成）、**Vitest 19 全过**、**Playwright 11 E2E 全过**（新增面试全流程与 Offer 决策 2 个）；真实链路（临时 PostgreSQL 5433 + 本地假上游 3001 + 真后端 8080 + Playwright 浏览器）通过「创建面试 → 出题 → 作答 → 追问 → 跳过 → 交卷 → 评估 69 分」与「新增公司/Offer → 分析 → 对比矩阵」，临时容器与进程已清理
 - **M2 第二批后端完成（2026-11-19，DSL-WORKPC）**：F3 模拟面试 11 端点 + F6 Offer 决策 8 端点全部实现。Flyway `V5__m2_batch2.sql`（`interview_sessions` 双状态机 / `interview_questions` 追问树 / `offers`）；方向 Skill 加载（`java-backend` / `ai-agent`）；异步出题、追问插入与题号顺延、交卷评估（分类加权本地总分、跳过/未答 0 分）；Offer CRUD（保留组 ≤4、显式 null 清空）、固定 12 行对比、文本/图片提取（OpenAI 视觉消息）、前景分析持久化；启动恢复扩展出题 / 评估。契约移除 19 个待实现标记（64 端点全部实现），`ContractCoverageTest` / `ContractSchemaTest` 同步。**后端 133 tests 全绿（行 89.43% / 分支 68.60%），redocly 0 error / 0 warning，前端构建通过**
 - **M2 第一批真实链路联调通过（2026-11-19，DSL-WORKPC）**：临时 PostgreSQL 16（5433）+ 本地假 OpenAI 上游 + 真后端 + 前端浏览器；HTTP 全链路验证「导入 JD → 异步解析 → 公司自动关联 → 简历上传/分析 → 匹配评分 → 行情洞察 → 简历对比 → 状态/备注保存」；浏览器核对岗位列表、行情、详情页与匹配结果（总分 76 / 三维 82·78·60），无报错横幅；测试数据只存在临时库，容器与进程已清理
@@ -50,12 +51,13 @@
 
 ## 下一步
 
-1. **M2 用户验收（进行中，2026-11-20）**：前后端服务已关闭，验收数据保留在隔离容器 `jobpilot-verify-pg`（127.0.0.1:5433）；继续验收时启动容器 + 后端（`DB_URL` 指向 5433）+ 前端 5173 即可，验收完成后清理容器并进入 M3。
-2. **M3 启动**：F4 面试复盘（ASR / 转写校对 / 分析 / 报告）与 F5 求职洞察（跨场聚合）；先补契约再实现，沿用统一结构化输出链路。
-3. **M2 收口（已完成）**：两批 38 端点、前端页面、Vitest 19 / Playwright 11 与真实链路联调全部通过。
-4. 非阻塞遗留：开源前补 `LICENSE` 并同步契约 `info.license`；CD 待换机稳定手动部署后再做。
-5. M2 改进项：历史消息升级为「完整轮次 + token 预算 + 摘要」；契约类型/required 深度校验；SSE E2E 增量渲染断言。
-6. **测试缺口（2026-11-18 盘点，高价值项已补，剩余非阻塞）**：
+1. **M3 契约与实现（下一步）**：按 v1.11 先改 `contracts/openapi.yaml`（applications / interview-events / reviews / improvement-actions / insights），再按 M3-a（F8 投递档案与归因链）→ M3-b（F4 真实面试复盘）→ M3-c（F5 跨场归因与改进闭环）→ M3-d（收口）实施；ASR 多厂商、PDF、token 统计、登录后置。
+2. **M2 用户验收（暂停，可继续）**：验收环境（5433 + 8080 + 5173）仍在运行；M2 两批功能已实现并修复验收问题。F3 模拟面试后续只保留为可选练习。
+3. **命名与公开仓库准备**：候选名必须通过 GitHub（仓库名/Star/功能）、搜索引擎、App Store / 应用市场、中国商标网、域名五项检查，并附同名项目的功能与未做功能清单；同时补 LICENSE、差异化 README 与 5 分钟演示。
+4. **M2 收口（已完成）**：两批 38 端点、前端页面、Vitest 19 / Playwright 11 与真实链路联调全部通过。
+5. 非阻塞遗留：开源前补 `LICENSE` 并同步契约 `info.license`；CD 待换机稳定手动部署后再做。
+6. M2 改进项：历史消息升级为「完整轮次 + token 预算 + 摘要」；契约类型/required 深度校验；SSE E2E 增量渲染断言。
+7. **测试缺口（2026-11-18 盘点，高价值项已补，剩余非阻塞）**：
    - 中价值：公司 `create/update` 的并发重复键分支与标签 JSON 兜底；岗位 `importJd/parse` 的 Tika/IO 异常与循环自然退出分支；`JobMatchService.toResponse` 的详情解析失败兜底；JSON 兜底异常（`skillsJson` / `skills` / `parseList` / `write`）；`LlmGlobalSettingService` 部分分支；Provider/Model 删除的 HTTP 层；`GlobalExceptionHandler` 的 413/500。
    - 可接受不补：`LlmBootstrapRunner`（环境变量种子）、`main`、DTO、Prompt 资源缺失异常、`AesGcmCipher.deriveKey` 分支。
 
