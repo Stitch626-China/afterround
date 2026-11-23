@@ -38,7 +38,7 @@ info:
     后续里程碑新增路径可先用路径级 `x-implemented: false` 标记「已定义、待实现」，
     实现完成后删除标记即自动纳入双向全等校验，无需维护例外清单。
     M3 1.9.0 契约的全部端点已实现（1.9.3 真实面试轮次、1.9.4 复盘 / 分析 / 词表 / 改进动作、1.9.5 ASR 重试），
-    当前 87 个端点均纳入双向全等校验，无待实现标记。
+    1.10.0 新增跨场洞察端点；当前 88 个端点全部纳入双向全等校验，无待实现标记。
 
     ## 错误码补充（M2）
     - `40906` 公司名称已存在（`companies.name` UNIQUE）
@@ -2593,7 +2593,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/insights:
-    x-implemented: false
     get:
       tags: [跨场洞察]
       operationId: getInsights
@@ -6005,6 +6004,7 @@ components:
           type: [number, "null"]
           minimum: 0
           maximum: 1
+          description: verified / (total - dropped)；全部放弃时为 null
         staleActions:
           type: array
           items:

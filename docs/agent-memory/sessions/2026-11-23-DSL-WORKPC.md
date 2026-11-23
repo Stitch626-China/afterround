@@ -119,5 +119,12 @@
 - 验证：`redocly lint` **0 error / 0 warning**；`ContractCoverageTest` / `ContractSchemaTest` 通过（88 端点，1 个待实现，实际已实现 87）。
 - 下一步 / 断点：实现 `modules/insights`（mapper 原生 JSONB 聚合 + service 计算比例/趋势/本地总结 + controller），移除 `x-implemented: false` 后补 DTO 字段对齐测试。
 
+### 20:32 M3-c 后端跨场洞察聚合实现完成（契约 88/88）
+- 改动：新增 `modules/insights`——`InsightsController`（`GET /api/insights`）、`InsightsService`（比例、样本保护、趋势、本地规则总结）、`InsightsMapper`（PostgreSQL 原生聚合：JSONB `topics` / `lossTags` / `questions` unnest、轮次通过率、公司画像与 Top3 标签、投递 / 简历漏斗、改进统计）、`InsightsRows`、`InsightDtos`（14 个 record，字段与契约一致）；移除契约 `/api/insights` 的 `x-implemented: false`（**88/88 全部实现**），补 `verificationRate = verified/(total-dropped)` 说明；`ContractCoverageTest` 纳入 `InsightsController`，`ContractSchemaTest` 纳入 14 个洞察 DTO；`@MapperScan` 增加 insights mapper。
+- 原因：F5 需要跨场规律与样本保护；SQL 侧完成 JSONB 展开与分组，Java 侧只做比例/标签/总结，避免把全量 JSON 拉回内存；N<5 时只给原始统计，防止过度解读。
+- 验证：`redocly lint` **0 error / 0 warning**；契约双测试通过；`InsightsServiceTest` 4 tests（比例、样本不足、趋势差值、公司 / 简历 / 陈旧行动映射、参数校验）；后端全量 **178 tests 全绿、JaCoCo 门禁通过**；真实接口冒烟（验收库 5433 + 真后端 + 真 LLM）：空库返回全 0 与 `sufficient=false`；创建 1 条已确认复盘后返回 `topics=4 / lossTags=3 / rounds=1 / companies=1 / questions=2 / funnel.applications=1 / resumeRows=1 / actions=1`，总结正确提示样本不足；删除后只读 SELECT（带 WHERE）复核 5 张表临时数据均为 0。
+- 下一步 / 断点：前端洞察页 `/insights`（窗口 / 公司筛选、样本不足提示、知识点失败率、失分频次、轮次通过率、公司画像、高频问题、漏斗、改进验证、趋势）+ Vitest / E2E；随后 M3-c 收口与 M3-d。
+
+
 
 

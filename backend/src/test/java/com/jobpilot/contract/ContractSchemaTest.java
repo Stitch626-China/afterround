@@ -27,6 +27,7 @@ import com.jobpilot.modules.chat.dto.SwitchModelRequest;
 import com.jobpilot.modules.company.dto.CompanyResponse;
 import com.jobpilot.modules.company.dto.CreateCompanyRequest;
 import com.jobpilot.modules.company.dto.UpdateCompanyRequest;
+import com.jobpilot.modules.insights.dto.InsightDtos;
 import com.jobpilot.modules.interview.dto.AnswerInterviewQuestionRequest;
 import com.jobpilot.modules.interview.dto.CreateInterviewSessionRequest;
 import com.jobpilot.modules.interview.dto.InterviewDirection;
