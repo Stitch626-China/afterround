@@ -107,3 +107,10 @@
 - 验证：`npm run build`（含契约类型重新生成 + `vue-tsc`）通过；Vitest **23 tests 全过**（新增 `utils/review.spec.ts` 4 个：标签清洗、状态判定、确认 payload 重编号/去空/行动 ≤3、文案）；Playwright **14 E2E 全过**（新增 `e2e/reviews.spec.ts` 3 个：列表文本创建与删除、详情修正并确认行动、看板状态流转 / 证据 / 新增；既有 11 个回归；沙箱对 Edge 系统缓存写入报 restricted 导致退出码 1，测试结果为 14 passed）。
 - 下一步 / 断点：B5 全量测试（后端 JaCoCo + 契约 lint + 前端 build / Vitest / E2E）+ 真实接口回归 + README / PROGRESS 收口 + commit push；随后 M3-c 跨场归因（契约 1.10.0）。
 
+### 20:02 M3-b B5 全量回归与收口完成（M3-b 完成）
+- 改动：无新增业务代码；完成全量回归、真实接口冒烟与文档收口。
+- 原因：B4 完成后按约定执行 B5，确认 B1~B4 在真实链路与全量测试下无回归，才能进入 M3-c。
+- 验证：`redocly lint contracts/openapi.yaml` **0 error / 0 warning**（1.9.5，87 端点）；后端 `mvn test` **174 tests 全绿、JaCoCo 全部门禁通过**（JDK 21）；前端 `npm run build`（含契约类型生成 + `vue-tsc`）通过、Vitest **23 tests 全过**、Playwright **14 E2E 全过**（沙箱对 Edge 系统缓存写入报 restricted 导致退出码 1，测试结果为 14 passed）。真实接口冒烟（验收库 5433 + 真后端 + 全局默认 `deepseek/deepseek-flash`）：「建公司 → JD 文本导入异步解析 COMPLETED → 建投递 APPLIED → 建文本复盘 ANALYZING → 轮询 READY（2 题 / 3 知识点 / 3 行动，模型 deepseek-flash）→ PUT 确认 → 生成行动 TODO → PATCH VERIFIED + 证据 → 投递时间线含 1 事件 / 1 复盘 / 1 行动 → 删除复盘 / 事件 / 投递 / 岗位 / 公司全部 200」；只读 SELECT（带 WHERE）复核临时 ID 在 companies / job_positions / applications / review_sessions / review_analyses / improvement_actions **全部 0 行**；后端进程已停止。
+- 下一步 / 断点：M3-c 跨场归因与改进闭环——契约 1.10.0（知识点 × 结果、失分类型频次、轮次通过率、公司 / 岗位画像、高频问题、转化漏斗、改进验证率，N<5 样本不足保护）+ 聚合实现 + 前端洞察页；随后 M3-d 收口（命名五项检查需用户最终确认、LICENSE、公开仓库与演示准备）。
+
+
