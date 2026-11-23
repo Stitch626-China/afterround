@@ -87,17 +87,17 @@ class JobPositionServiceTest {
 
     @Test
     void importRejectsEmptyInputAndOversizeOrUnsupportedFile() throws Exception {
-        assertCode(() -> service().importJd(null, " "), ErrorCode.BAD_REQUEST);
+        assertCode(() -> service().importJd(null, " ", null), ErrorCode.BAD_REQUEST);
 
         MultipartFile unsupported = org.mockito.Mockito.mock(MultipartFile.class);
         when(unsupported.isEmpty()).thenReturn(false);
         when(unsupported.getOriginalFilename()).thenReturn("jd.xyz");
-        assertCode(() -> service().importJd(unsupported, null), ErrorCode.UNSUPPORTED_MEDIA_TYPE);
+        assertCode(() -> service().importJd(unsupported, null, null), ErrorCode.UNSUPPORTED_MEDIA_TYPE);
 
         MultipartFile oversize = org.mockito.Mockito.mock(MultipartFile.class);
         when(oversize.isEmpty()).thenReturn(false);
         when(oversize.getSize()).thenReturn(6L * 1024 * 1024);
-        assertCode(() -> service().importJd(oversize, null), ErrorCode.PAYLOAD_TOO_LARGE);
+        assertCode(() -> service().importJd(oversize, null, null), ErrorCode.PAYLOAD_TOO_LARGE);
     }
 
     @Test
@@ -110,7 +110,7 @@ class JobPositionServiceTest {
         });
         when(jobMapper.selectById(1L)).thenAnswer(invocation -> job("PENDING"));
 
-        var response = service().importJd(null, "Java 后端\n要求 Redis");
+        var response = service().importJd(null, "Java 后端\n要求 Redis", null);
 
         assertThat(response.parseStatus()).isEqualTo("PENDING");
         assertThat(response.title()).isNull();
@@ -134,11 +134,87 @@ class JobPositionServiceTest {
         });
         when(jobMapper.selectById(2L)).thenReturn(job("PENDING"));
 
-        var response = service().importJd(file, null);
+        var response = service().importJd(file, null, null);
 
         assertThat(response.parseStatus()).isEqualTo("PENDING");
         verify(storage).save(any(), any());
         verify(jobMapper).insert(any(JobPosition.class));
+    }
+
+    @Test
+    void importScreenshotsRunsVisionOcrAndKeepsTextOnly() throws Exception {
+        MultipartFile image = image("image/png", new byte[]{1, 2, 3});
+        when(sceneService.resolveGlobal()).thenReturn(new LlmSceneService.SceneModel("p", "v"));
+        LlmClient client = org.mockito.Mockito.mock(LlmClient.class);
+        when(registry.get("p")).thenReturn(client);
+        when(client.chat(any(), anyList())).thenReturn(new ChatResult("岗位职责\n任职要求", "v", 1, 2, 3));
+        when(jobMapper.insert(any(JobPosition.class))).thenAnswer(invocation -> {
+            JobPosition entity = invocation.getArgument(0);
+            entity.setId(3L);
+            return 1;
+        });
+        when(jobMapper.selectById(3L)).thenAnswer(invocation -> job("PENDING"));
+
+        var response = service().importJd(null, null, List.of(image));
+
+        assertThat(response.parseStatus()).isEqualTo("PENDING");
+        var captor = org.mockito.ArgumentCaptor.forClass(JobPosition.class);
+        verify(jobMapper).insert(captor.capture());
+        assertThat(captor.getValue().getSourceType()).isEqualTo("IMAGE");
+        assertThat(captor.getValue().getRawText()).contains("岗位职责").contains("任职要求");
+        assertThat(captor.getValue().getStorageKey()).isNull();
+        assertThat(captor.getValue().getFileName()).isNull();
+        verify(storage, never()).save(any(), any());
+        verify(callLogger).log(org.mockito.ArgumentMatchers.eq("JD_OCR"), any(), any(),
+                any(), any(), any(), anyLong(), any(Boolean.class), any());
+    }
+
+    @Test
+    void importScreenshotsRejectInvalidSourcesAndVisionFailure() throws Exception {
+        MultipartFile wrongType = org.mockito.Mockito.mock(MultipartFile.class);
+        when(wrongType.isEmpty()).thenReturn(false);
+        when(wrongType.getSize()).thenReturn(3L);
+        when(wrongType.getContentType()).thenReturn("image/gif");
+        assertCode(() -> service().importJd(null, null, List.of(wrongType)),
+                ErrorCode.UNSUPPORTED_MEDIA_TYPE);
+
+        MultipartFile oversize = org.mockito.Mockito.mock(MultipartFile.class);
+        when(oversize.isEmpty()).thenReturn(false);
+        when(oversize.getSize()).thenReturn(6L * 1024 * 1024);
+        assertCode(() -> service().importJd(null, null, List.of(oversize)),
+                ErrorCode.PAYLOAD_TOO_LARGE);
+
+        MultipartFile conflict = org.mockito.Mockito.mock(MultipartFile.class);
+        when(conflict.isEmpty()).thenReturn(false);
+        assertCode(() -> service().importJd(null, "文本", List.of(conflict)), ErrorCode.BAD_REQUEST);
+
+        List<MultipartFile> six = java.util.stream.IntStream.range(0, 6)
+                .mapToObj(index -> {
+                    MultipartFile blank = org.mockito.Mockito.mock(MultipartFile.class);
+                    when(blank.isEmpty()).thenReturn(false);
+                    return blank;
+                }).toList();
+        assertCode(() -> service().importJd(null, null, six), ErrorCode.BAD_REQUEST);
+
+        MultipartFile image = image("image/png", new byte[]{1, 2, 3});
+        when(sceneService.resolveGlobal()).thenReturn(new LlmSceneService.SceneModel("p", "v"));
+        LlmClient client = org.mockito.Mockito.mock(LlmClient.class);
+        when(registry.get("p")).thenReturn(client);
+        when(client.chat(any(), anyList())).thenThrow(new RuntimeException("no vision"));
+        assertCode(() -> service().importJd(null, null, List.of(image)), ErrorCode.BAD_REQUEST);
+
+        org.mockito.Mockito.doReturn(new ChatResult("   ", "v", 1, 2, 3))
+                .when(client).chat(any(), anyList());
+        assertCode(() -> service().importJd(null, null, List.of(image)), ErrorCode.BAD_REQUEST);
+    }
+
+    private static MultipartFile image(String contentType, byte[] bytes) throws Exception {
+        MultipartFile image = org.mockito.Mockito.mock(MultipartFile.class);
+        when(image.isEmpty()).thenReturn(false);
+        when(image.getSize()).thenReturn((long) bytes.length);
+        when(image.getContentType()).thenReturn(contentType);
+        when(image.getBytes()).thenReturn(bytes);
+        return image;
     }
 
     @Test

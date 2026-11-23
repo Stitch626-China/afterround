@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 职点（JobPilot）API
-  version: 1.8.0
+  version: 1.9.1
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -1027,9 +1027,12 @@ paths:
     post:
       tags: [岗位库]
       operationId: importJobPosition
-      summary: 导入 JD（文件或粘贴文本），并触发异步结构化解析
+      summary: 导入 JD（文件 / 文本 / 截图），并触发异步结构化解析
       description: |
-        - `file` 与 `text` 二选一，**不可同时为空**；文件支持 PDF / DOCX / DOC / TXT，≤ 5MB。
+        - `file`、`text`、`images` 三选一，**不可同时为空**。
+        - 文件支持 PDF / DOCX / DOC / TXT，≤ 5MB；截图支持 PNG / JPEG / WebP，最多 5 张，单张 ≤5MB。
+        - 截图先走视觉模型提取 JD 原文，再进入结构化解析；原图不落库，只保存提取文本，`sourceType = IMAGE`。
+        - 当前模型不支持图片时返回 400，并提示改用文本粘贴。
         - 创建后立即返回，`parseStatus = PENDING`；前端轮询 `GET /api/job-positions/{jobPositionId}` 直到 `COMPLETED` / `FAILED`。
         - 解析调用走全局默认（JD 解析不属于 `LlmScene` 枚举），不参与场景级绑定。
         - 解析出公司名后：与已有公司**全等同名**才自动关联，否则新建公司记录；不做模糊自动合并。
@@ -1044,10 +1047,17 @@ paths:
                 file:
                   type: string
                   format: binary
-                  description: JD 文件（与 text 二选一）
+                  description: JD 文件（与 text / images 三选一）
                 text:
                   type: string
-                  description: 粘贴的 JD 纯文本（与 file 二选一）
+                  description: 粘贴的 JD 纯文本（与 file / images 三选一）
+                images:
+                  type: array
+                  maxItems: 5
+                  description: JD 截图（与 file / text 三选一）；仅 PNG / JPEG / WebP，单张 ≤5MB
+                  items:
+                    type: string
+                    format: binary
       responses:
         '200':
           description: 导入成功，解析进行中
@@ -3680,11 +3690,11 @@ components:
           properties:
             sourceType:
               type: string
-              enum: [TEXT, FILE]
-              description: 导入来源
+              enum: [TEXT, FILE, IMAGE]
+              description: 导入来源（IMAGE = 截图视觉识别，原图不落库）
             fileName:
               type: [string, "null"]
-              description: 粘贴文本导入时为 null
+              description: 文本 / 截图导入时为 null
             rawText:
               type: string
               description: JD 原文（文件导入时为解析清洗后的文本）

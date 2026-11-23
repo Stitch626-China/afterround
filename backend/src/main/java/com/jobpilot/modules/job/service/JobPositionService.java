@@ -1,18 +1,24 @@
 package com.jobpilot.modules.job.service;
 
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.imageio.ImageIO;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -66,6 +72,12 @@ public class JobPositionService {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final long MAX_BYTES = 5L * 1024 * 1024;
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "docx", "doc", "txt");
+    private static final Set<String> IMAGE_TYPES = Set.of("image/png", "image/jpeg", "image/webp");
+    private static final int MAX_IMAGES = 5;
+    /** 长截图切片高度与重叠像素，避免视觉模型缩放后文字不可读。 */
+    private static final int SLICE_HEIGHT = 3000;
+    private static final int SLICE_OVERLAP = 300;
+    private static final int MAX_SLICES = 4;
     private static final int MAX_RETRIES = 3;
     private static final int MAX_PARSED_CHARS = 500_000;
 
@@ -115,17 +127,24 @@ public class JobPositionService {
                 result.getTotal(), current, pageSize);
     }
 
-    /** 文件与粘贴文本二选一；创建后立即返回 PENDING 并静默触发异步解析。 */
-    public JobPositionListItemResponse importJd(MultipartFile file, String text) {
+    /** 文件 / 粘贴文本 / 截图三选一；创建后立即返回 PENDING 并静默触发异步解析。 */
+    public JobPositionListItemResponse importJd(MultipartFile file, String text, List<MultipartFile> images) {
         boolean hasFile = file != null && !file.isEmpty();
         boolean hasText = text != null && !text.isBlank();
-        if (!hasFile && !hasText) {
-            throw BizException.of(ErrorCode.BAD_REQUEST, "file 与 text 至少提供一个");
+        List<MultipartFile> shots = images == null ? List.of() : images.stream()
+                .filter(image -> image != null && !image.isEmpty()).toList();
+        boolean hasImages = !shots.isEmpty();
+        int sources = (hasFile ? 1 : 0) + (hasText ? 1 : 0) + (hasImages ? 1 : 0);
+        if (sources == 0) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "file / text / images 至少提供一个");
+        }
+        if (sources > 1) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "file / text / images 只能三选一");
         }
         String fileName = null;
         String storageKey = null;
         String rawText;
-        byte[] bytes;
+        byte[] fileBytes = null;
         try {
             if (hasFile) {
                 if (file.getSize() > MAX_BYTES) {
@@ -133,14 +152,20 @@ public class JobPositionService {
                 }
                 fileName = file.getOriginalFilename();
                 String extension = extensionOf(fileName);
-                bytes = file.getBytes();
-                rawText = parse(bytes);
+                fileBytes = file.getBytes();
+                rawText = parse(fileBytes);
                 if (rawText.isBlank()) {
                     throw BizException.of(ErrorCode.BAD_REQUEST, "JD 解析结果为空");
                 }
-                storageKey = "job-positions/" + sha256(bytes) + "." + extension;
+                storageKey = "job-positions/" + sha256(fileBytes) + "." + extension;
+            } else if (hasImages) {
+                // 原图不落库：同步视觉识别为文本后只保存 raw_text（FR2.8）
+                rawText = ocr(shots);
+                if (rawText.isBlank()) {
+                    throw BizException.of(ErrorCode.BAD_REQUEST, "截图未识别到文字，请改用文本粘贴");
+                }
             } else {
-                bytes = text.getBytes(StandardCharsets.UTF_8);
+                byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
                 if (bytes.length > MAX_BYTES) {
                     throw BizException.of(ErrorCode.PAYLOAD_TOO_LARGE);
                 }
@@ -155,11 +180,11 @@ public class JobPositionService {
             throw BizException.of(ErrorCode.BAD_REQUEST, "文件读取失败: " + ex.getMessage());
         }
         if (storageKey != null) {
-            storage.save(storageKey, bytes);
+            storage.save(storageKey, fileBytes);
         }
         JobPosition entity = new JobPosition();
         entity.setUserId(1L);
-        entity.setSourceType(hasFile ? "FILE" : "TEXT");
+        entity.setSourceType(hasFile ? "FILE" : hasImages ? "IMAGE" : "TEXT");
         entity.setFileName(fileName);
         entity.setStorageKey(storageKey);
         entity.setRawText(rawText);
@@ -172,6 +197,102 @@ public class JobPositionService {
 
         autoTrigger(entity.getId());
         return toListItem(jobMapper.selectById(entity.getId()), null);
+    }
+
+    // ---------- 截图识别（FR2.8 / FR2.9） ----------
+
+    /** 截图 OCR：逐张（长图切片）识别，按行合并去重；原图不落库，只保留识别文本。 */
+    private String ocr(List<MultipartFile> images) {
+        if (images.size() > MAX_IMAGES) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "截图最多 5 张");
+        }
+        // 先完成格式/大小校验与切片，避免无效截图触发模型调用
+        List<String> dataUrls = new ArrayList<>();
+        images.forEach(image -> dataUrls.addAll(imageChunks(image)));
+        LlmSceneService.SceneModel target = sceneService.resolveGlobal();
+        LlmClient client = registry.get(target.providerKey());
+        LinkedHashSet<String> lines = new LinkedHashSet<>();
+        for (String dataUrl : dataUrls) {
+            lines.addAll(ocrChunk(dataUrl, client, target));
+        }
+        return String.join("\n", lines);
+    }
+
+    private List<String> ocrChunk(String dataUrl, LlmClient client, LlmSceneService.SceneModel target) {
+        long start = System.nanoTime();
+        try {
+            ChatResult result = client.chat(target.model(), List.of(
+                    ChatMessage.system(prompts.ocrSystem()),
+                    ChatMessage.userWithImage(prompts.ocrUser(), dataUrl)));
+            callLogger.log("JD_OCR", target.providerKey(), target.model(),
+                    result.promptTokens(), result.completionTokens(), result.totalTokens(),
+                    elapsed(start), true, null);
+            if (result.content() == null || result.content().isBlank()) {
+                return List.of();
+            }
+            return TextCleaner.clean(result.content()).lines()
+                    .filter(line -> !line.isBlank()).toList();
+        } catch (Exception ex) {
+            callLogger.log("JD_OCR", target.providerKey(), target.model(), null, null, null,
+                    elapsed(start), false, ex.getMessage());
+            throw BizException.of(ErrorCode.BAD_REQUEST,
+                    "截图识别失败，当前模型可能不支持图片输入，请切换支持视觉的模型或粘贴文本");
+        }
+    }
+
+    /** 校验单张截图并转为 data URL；长截图切片保留重叠，JDK 无法解码（如 WebP）时整图送入。 */
+    private static List<String> imageChunks(MultipartFile image) {
+        if (image.getSize() > MAX_BYTES) {
+            throw BizException.of(ErrorCode.PAYLOAD_TOO_LARGE, "单张截图不能超过 5MB");
+        }
+        String contentType = image.getContentType() == null ? ""
+                : image.getContentType().toLowerCase(Locale.ROOT);
+        String normalized = "image/jpg".equals(contentType) ? "image/jpeg" : contentType;
+        if (!IMAGE_TYPES.contains(normalized)) {
+            throw BizException.of(ErrorCode.UNSUPPORTED_MEDIA_TYPE, "截图仅支持 PNG / JPEG / WEBP");
+        }
+        byte[] bytes;
+        try {
+            bytes = image.getBytes();
+        } catch (Exception ex) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "图片读取失败，请重新上传");
+        }
+        BufferedImage full = null;
+        try {
+            full = ImageIO.read(new ByteArrayInputStream(bytes));
+        } catch (Exception ex) {
+            log.info("截图无法解码，整图识别: {}", ex.getMessage());
+        }
+        if (full == null || full.getHeight() <= SLICE_HEIGHT) {
+            return List.of(dataUrl(bytes, normalized));
+        }
+        int step = SLICE_HEIGHT - SLICE_OVERLAP;
+        List<Integer> starts = new ArrayList<>();
+        for (int y = 0; y < full.getHeight(); y += step) {
+            starts.add(y);
+        }
+        if (starts.size() > MAX_SLICES) {
+            starts = new ArrayList<>(starts.subList(0, MAX_SLICES - 1));
+            starts.add(full.getHeight() - SLICE_HEIGHT);
+        }
+        List<String> chunks = new ArrayList<>(starts.size());
+        String format = "image/jpeg".equals(normalized) ? "jpg" : "png";
+        for (int top : starts) {
+            BufferedImage slice = full.getSubimage(0, top, full.getWidth(),
+                    Math.min(SLICE_HEIGHT, full.getHeight() - top));
+            try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                if (ImageIO.write(slice, format, out)) {
+                    chunks.add(dataUrl(out.toByteArray(), normalized));
+                }
+            } catch (Exception ex) {
+                return List.of(dataUrl(bytes, normalized));
+            }
+        }
+        return chunks.isEmpty() ? List.of(dataUrl(bytes, normalized)) : chunks;
+    }
+
+    private static String dataUrl(byte[] bytes, String contentType) {
+        return "data:" + contentType + ";base64," + Base64.getEncoder().encodeToString(bytes);
     }
 
     public JobPositionDetailResponse detail(Long jobPositionId) {

@@ -8,6 +8,7 @@ import com.jobpilot.modules.job.dto.JobPositionListItemResponse;
 import com.jobpilot.modules.job.dto.UpdateJobPositionRequest;
 import com.jobpilot.modules.job.service.JobPositionService;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -44,8 +45,9 @@ public class JobPositionController {
     @PostMapping
     public Result<JobPositionListItemResponse> importJd(
             @RequestPart(value = "file", required = false) MultipartFile file,
-            @RequestParam(value = "text", required = false) String text) {
-        return Result.ok(jobService.importJd(file, text));
+            @RequestParam(value = "text", required = false) String text,
+            @RequestPart(value = "images", required = false) List<MultipartFile> images) {
+        return Result.ok(jobService.importJd(file, text, images));
     }
 
     @PostMapping("/batch-delete")

@@ -79,8 +79,12 @@ export function retryJobParse(id: number): Promise<JobPositionListItem> {
   return post<JobPositionListItem>(`/job-positions/${id}/parse`)
 }
 
-/** 导入 JD：file 与 text 二选一。 */
-export async function importJobPosition(input: { file?: File; text?: string }): Promise<JobPositionListItem> {
+/** 导入 JD：file / text / images 三选一；截图由后端视觉识别为文本。 */
+export async function importJobPosition(input: {
+  file?: File
+  text?: string
+  images?: File[]
+}): Promise<JobPositionListItem> {
   const form = new FormData()
   if (input.file) {
     form.append('file', input.file)
@@ -88,6 +92,7 @@ export async function importJobPosition(input: { file?: File; text?: string }): 
   if (input.text) {
     form.append('text', input.text)
   }
+  input.images?.forEach((image) => form.append('images', image))
   const response = await fetch('/api/job-positions', { method: 'POST', body: form })
   const text = await response.text()
   let envelope: { code: number; message?: string; data?: unknown } | null = null

@@ -22,9 +22,9 @@ spring:
 
   servlet:
     multipart:
-      # FR1.1：单文件 ≤ 5MB
+      # FR1.1：单文件 ≤ 5MB；FR2.8：截图最多 5 张，整体上限放宽到 30MB
       max-file-size: 5MB
-      max-request-size: 6MB
+      max-request-size: 30MB
 
   jackson:
     default-property-inclusion: always

@@ -49,7 +49,7 @@ npx openapi-typescript ../contracts/openapi.yaml -o src/api/schema.d.ts
 ```
 
 - 校验规则配置在根目录 `redocly.yaml`，其中 `no-server-example.com` 与 `operation-4xx-response` 因本地部署、无鉴权查询接口而关闭，理由写在配置注释里。
-- 契约当前覆盖 **M1 全量**（模型配置 / 对话会话 / 简历）+ **M2 第一批**（场景级模型绑定 / 公司最小 CRUD / 岗位库 JD 解析与匹配 / 简历对比）+ **M2 第二批**（F3 模拟面试 / F6 Offer 决策）+ **M3 1.9.0**（F8 投递档案 / F4 真实面试复盘 / 改进闭环，已定义待实现）；跨场洞察（F5）计划在 1.10.0 追加。
+- 契约当前覆盖 **M1 全量**（模型配置 / 对话会话 / 简历）+ **M2 第一批**（场景级模型绑定 / 公司最小 CRUD / 岗位库 JD 解析与匹配 / 简历对比）+ **M2 第二批**（F3 模拟面试 / F6 Offer 决策）+ **M3 1.9.0**（F8 投递档案 / F4 真实面试复盘 / 改进闭环，已定义待实现）+ **1.9.1**（F2 JD 截图导入）；跨场洞察（F5）计划在 1.10.0 追加。
 - **契约可以先于实现**：尚未实现的路径可在路径层标记 `x-implemented: false`，后端契约一致性测试据此区分「已定义」与「必须已实现」；实现完成后删除该标记即可自动收紧校验。当前共 **86 个端点**：64 个已实现，22 个 M3 1.9.0 端点待实现。
 
 ## 环境依赖
@@ -297,8 +297,10 @@ server {
   `PUT /scenes/{scene}` 保存、`DELETE` 解绑即回落全局默认。JD 解析与简历对比不在枚举内，使用全局默认。
 - `/api/companies`：公司分页 + `keyword` 名称联想（仅候选，不自动合并）；名称全等查重（409/40906），
   仍被岗位引用时禁止删除（409/40905）。
-- `/api/job-positions`：JD 导入（`file` 与 `text` 二选一，PDF/DOCX/DOC/TXT ≤5MB）后异步结构化解析
-  （`parseStatus` PENDING → PROCESSING → COMPLETED/FAILED，自动重试 ≤3）；详情为轮询端点；
+- `/api/job-positions`：JD 导入（`file` / `text` / `images` 三选一；文件支持 PDF/DOCX/DOC/TXT，截图最多 5 张、单张 ≤5MB、仅 PNG/JPEG/WebP）后异步结构化解析
+  （`parseStatus` PENDING → PROCESSING → COMPLETED/FAILED，自动重试 ≤3）；详情为轮询端点。
+  截图先经视觉模型提取原文（长截图按高度切片并保留重叠），**原图不落库**，只保存识别文本，`sourceType = IMAGE`；
+  当前模型不支持图片时返回 400 并提示改用文本粘贴。
   `PUT` 支持修正字段、生命周期状态（SAVED 待跟进 / APPLIED 已投递 / INTERVIEWING 面试中 / OFFERED 录用 / REJECTED 淘汰）、
   用户备注（`remark`，≤200 字，传空字符串即清空）与 `companyId`（显式 `null` 解除关联）；
   支持单条 / 批量删除（级联删除匹配结果）；`POST /{id}/parse` 手动重试（解析中 409/40908）。
@@ -347,7 +349,7 @@ server {
 ## M2 第一批前端（岗位库 / 行情 / 简历对比 / 场景模型）
 
 - **岗位库 `/jobs`**：两个 Tab——
-  - 岗位列表：按文件名或粘贴文本导入 JD（PDF/DOCX/DOC/TXT ≤5MB）；`keyword`（岗位名或公司）/ 状态 / 城市筛选 + 分页；
+  - 岗位列表：按文件 / 粘贴文本 / 截图导入 JD（文件 PDF/DOCX/DOC/TXT ≤5MB；截图 PNG/JPEG/WebP、最多 5 张、单张 ≤5MB，支持缩略图预览与移除，识别失败保留已选截图）；`keyword`（岗位名或公司）/ 状态 / 城市筛选 + 分页；
     解析中自动轮询（2s），状态与解析结果双徽章；结果分「录用 / 淘汰」，每个岗位可在行内直接写 / 改备注（如一面 / 二面、简历淘汰 / 面试淘汰），
     行内勾选后「批量删除」（二次确认），行内删除为单条二次确认。
   - 行情洞察：样本数与生成时间、技能 Top20、薪资 5 桶、经验 / 方向 Top10，横向条形图；JD 增删后重新进入即刷新。

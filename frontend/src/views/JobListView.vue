@@ -41,10 +41,12 @@ const remarkDraft = ref('')
 const savingRemark = ref(false)
 
 const importOpen = ref(false)
-const importMode = ref<'file' | 'text'>('file')
+const importMode = ref<'file' | 'text' | 'image'>('file')
 const importText = ref('')
 const importing = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
+const imageInput = ref<HTMLInputElement | null>(null)
+const importImages = ref<{ file: File; url: string }[]>([])
 
 const pages = computed(() => Math.max(1, Math.ceil(total.value / size)))
 const running = computed(() =>
@@ -164,7 +166,7 @@ function validFile(file: File): string {
   return ''
 }
 
-async function submitImport(input: { file?: File; text?: string }): Promise<void> {
+async function submitImport(input: { file?: File; text?: string; images?: File[] }): Promise<void> {
   importing.value = true
   error.value = ''
   notice.value = ''
@@ -173,9 +175,10 @@ async function submitImport(input: { file?: File; text?: string }): Promise<void
     notice.value = '已导入，正在解析；完成后可直接发起简历匹配。'
     page.value = 1
     await load()
-    // 列表刷新成功后才清空输入并收起面板；刷新失败时保留用户已填的 JD 文本
+    // 列表刷新成功后才清空输入并收起面板；失败时保留用户已填的文本与截图
     if (!error.value) {
       importText.value = ''
+      clearImages()
       importOpen.value = false
     }
   } catch (ex) {
@@ -206,6 +209,59 @@ async function importPasted(): Promise<void> {
     return
   }
   await submitImport({ text: importText.value })
+}
+
+/** FR2.8：最多 5 张、单张 ≤5MB、仅 PNG / JPEG / WebP。 */
+function validImage(file: File): string {
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    return '截图仅支持 PNG / JPEG / WebP'
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    return '单张截图不能超过 5MB'
+  }
+  return ''
+}
+
+function onPickImages(event: Event): void {
+  const input = event.target as HTMLInputElement
+  const picked = Array.from(input.files ?? [])
+  input.value = ''
+  error.value = ''
+  for (const file of picked) {
+    const invalid = validImage(file)
+    if (invalid) {
+      error.value = invalid
+      return
+    }
+    if (importImages.value.length >= 5) {
+      error.value = '截图最多 5 张'
+      return
+    }
+    importImages.value.push({ file, url: URL.createObjectURL(file) })
+  }
+}
+
+function removeImage(index: number): void {
+  URL.revokeObjectURL(importImages.value[index].url)
+  importImages.value.splice(index, 1)
+}
+
+function clearImages(): void {
+  importImages.value.forEach((image) => URL.revokeObjectURL(image.url))
+  importImages.value = []
+}
+
+function cancelImages(): void {
+  clearImages()
+  importOpen.value = false
+}
+
+async function importScreenshots(): Promise<void> {
+  if (!importImages.value.length) {
+    error.value = '请先选择 JD 截图'
+    return
+  }
+  await submitImport({ images: importImages.value.map((image) => image.file) })
 }
 
 async function retry(item: JobPositionListItem): Promise<void> {
@@ -316,6 +372,7 @@ onMounted(load)
 onBeforeUnmount(() => {
   disposed = true
   clearTimer()
+  clearImages()
 })
 </script>
 
@@ -342,6 +399,7 @@ onBeforeUnmount(() => {
         <div class="import-switch">
           <button type="button" :class="{ active: importMode === 'file' }" @click="importMode = 'file'">文件</button>
           <button type="button" :class="{ active: importMode === 'text' }" @click="importMode = 'text'">粘贴文本</button>
+          <button type="button" :class="{ active: importMode === 'image' }" @click="importMode = 'image'">截图</button>
         </div>
         <template v-if="importMode === 'file'">
           <input ref="fileInput" type="file" accept=".pdf,.docx,.doc,.txt" hidden @change="onPick" />
@@ -350,13 +408,50 @@ onBeforeUnmount(() => {
             <span>PDF / DOCX / DOC / TXT · 单文件不超过 5MB</span>
           </button>
         </template>
-        <template v-else>
+        <template v-else-if="importMode === 'text'">
           <textarea v-model="importText" rows="6" placeholder="把招聘 JD 粘贴到这里…" />
           <div class="import-actions">
             <button type="button" class="btn primary" :disabled="importing" @click="importPasted">
               {{ importing ? '导入中…' : '导入并解析' }}
             </button>
             <button type="button" class="btn ghost" @click="importOpen = false; importText = ''">取消</button>
+          </div>
+        </template>
+        <template v-else>
+          <input
+            ref="imageInput"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            multiple
+            hidden
+            @change="onPickImages"
+          />
+          <div class="shots">
+            <figure v-for="(image, index) in importImages" :key="image.url" class="shot">
+              <img :src="image.url" :alt="`JD 截图 ${index + 1}`" />
+              <button type="button" class="shot-remove" @click="removeImage(index)">移除</button>
+            </figure>
+            <button
+              v-if="importImages.length < 5"
+              type="button"
+              class="dropzone shot-add"
+              :disabled="importing"
+              @click="imageInput?.click()"
+            >
+              <strong>{{ importing ? '正在识别…' : '添加截图' }}</strong>
+              <span>PNG / JPEG / WebP · 最多 5 张 · 单张 ≤5MB</span>
+            </button>
+          </div>
+          <div class="import-actions">
+            <button
+              type="button"
+              class="btn primary"
+              :disabled="importing || !importImages.length"
+              @click="importScreenshots"
+            >
+              {{ importing ? '识别中…' : '导入并解析' }}
+            </button>
+            <button type="button" class="btn ghost" @click="cancelImages">取消</button>
           </div>
         </template>
       </section>
@@ -403,7 +498,7 @@ onBeforeUnmount(() => {
       <EmptyState
         v-else-if="!items.length"
         title="还没有岗位"
-        hint="导入 PDF / DOCX / DOC / TXT，或直接粘贴 JD 文本；解析完成后可发起简历匹配。"
+        hint="导入 PDF / DOCX / DOC / TXT、粘贴 JD 文本或上传截图；解析完成后可发起简历匹配。"
         action-label="导入 JD"
         @action="importOpen = true"
       />
@@ -639,6 +734,46 @@ onBeforeUnmount(() => {
 .import-actions {
   display: flex;
   gap: var(--space-2);
+}
+
+.shots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-2);
+}
+
+.shot {
+  position: relative;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+  overflow: hidden;
+  background: var(--surface-muted);
+}
+
+.shot img {
+  display: block;
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+}
+
+.shot-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-tag);
+  background: var(--surface);
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.shot-add {
+  height: 140px;
+  justify-content: center;
+  padding: var(--space-3);
 }
 
 .filters {

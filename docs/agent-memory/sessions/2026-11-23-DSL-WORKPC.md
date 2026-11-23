@@ -64,3 +64,15 @@
 - 原因：招聘软件/网站 JD 多以截图形式存在，粘贴文本摩擦大；截图导入符合「≤5 分钟」原则。只存文本可降低磁盘与隐私风险；视觉兜底方案先探测、不引依赖。
 - 验证：需求版本与迭代记录、F2 FR2.1/FR2.8/FR2.9、数据模型已交叉核对；本次只改需求与记录，未改代码/契约。
 - 下一步 / 断点：实现时契约升至 1.9.1，`POST /api/job-positions` 增加 `images`、`sourceType` 增加 `IMAGE`；与 M3-a 一起排期，先探测当前模型是否支持图片。
+
+### 16:45 视觉能力探测通过
+- 探测对象：全局默认 `deepseek / deepseek-flash`（`https://api.deepseek.com`）。
+- 方法：生成一张含「月薪 30000 元，双休」的 PNG，调用 `POST /api/offers/extract`（图片走全局默认视觉消息）；`llm_call_logs` 记录 `scene=OFFER_EXTRACT`、`provider=deepseek`、`model=deepseek-flash`、775 tokens、8704ms、success。
+- 结果：HTTP 200，正确提取 `monthlySalary=30000`、`twoDayWeekend=true`。结论：当前默认模型支持图片输入，JD 截图导入可直接复用全局默认，无需新增视觉 Provider。
+- 下一步 / 断点：实现契约 1.9.1 + 后端图片导入 + 前端截图 Tab。
+
+### 17:20 JD 截图导入实现完成（契约 1.9.1）
+- 改动：契约升至 **1.9.1**（`POST /api/job-positions` 增加 `images`、`sourceType` 增加 `IMAGE`）；新增 Flyway `V6__job_position_source_image.sql` 重建来源 CHECK；`application.yml` multipart 总上限 6MB→30MB；后端 `JobPositionController`/`JobPositionService` 支持 `images` 三选一，校验 5 张/5MB/PNG·JPEG·WebP，长截图按 3000px 切片保留 300px 重叠（JDK 无法解码时整图送入），视觉 OCR 按行合并去重、原图不落库、`sourceType=IMAGE`、失败 400 提示切换视觉模型或粘贴文本，`JD_OCR` 埋点；新增 `job-position-ocr-system.st` / `job-position-ocr-user.st`；前端 `api/jobs.ts` 支持多图 FormData，`JobListView` 新增「截图」Tab（多选、缩略图、移除、失败保留）。
+- 原因：JD 多为招聘软件截图，按 v1.13 规则补齐截图导入；同步契约、迁移、后端、前端，避免中间态。
+- 验证：`redocly lint` 0 error / 0 warning；`JobPositionServiceTest` 14 tests、`ContractCoverageTest` / `ContractSchemaTest` 通过；Vitest 19、前端生产构建通过；真实接口用本地渲染 JD 截图导入成功（HTTP 200、`sourceType=IMAGE`、`storage_key`/`file_name` 为空、OCR 原文准确、结构化出「高级 Java 后端工程师 / 字节跳动 / 上海 / 20-35K」；`llm_call_logs` 记 `JD_OCR` 1122 tokens / 2654ms），验证岗位已通过 DELETE 接口清理。
+- 下一步 / 断点：M3-a（F8 投递档案）：契约补 Offer `applicationId` 与删除 409，Flyway `applications` + `offers.application_id`，实现 5 端点与状态向前同步、删除守卫。
