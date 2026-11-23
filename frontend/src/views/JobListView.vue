@@ -171,10 +171,13 @@ async function submitImport(input: { file?: File; text?: string }): Promise<void
   try {
     await importJobPosition(input)
     notice.value = '已导入，正在解析；完成后可直接发起简历匹配。'
-    importOpen.value = false
-    importText.value = ''
     page.value = 1
     await load()
+    // 列表刷新成功后才清空输入并收起面板；刷新失败时保留用户已填的 JD 文本
+    if (!error.value) {
+      importText.value = ''
+      importOpen.value = false
+    }
   } catch (ex) {
     error.value = ex instanceof Error ? ex.message : '导入失败'
   } finally {

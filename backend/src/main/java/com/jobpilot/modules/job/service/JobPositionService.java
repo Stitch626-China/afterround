@@ -108,7 +108,9 @@ public class JobPositionService {
                         .orderByDesc(JobPosition::getCreatedAt).orderByDesc(JobPosition::getId));
         Map<Long, String> names = companyNames(result.getRecords());
         return PageResult.of(result.getRecords().stream()
-                        .map(job -> toListItem(job, names.get(job.getCompanyId())))
+                        // 未关联公司的岗位（如刚粘贴导入、解析未完成）companyId 为 null，
+                        // 而 companyNames 在无关联时返回不可变空 Map，get(null) 会抛 NPE
+                        .map(job -> toListItem(job, job.getCompanyId() == null ? null : names.get(job.getCompanyId())))
                         .toList(),
                 result.getTotal(), current, pageSize);
     }

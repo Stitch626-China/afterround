@@ -299,6 +299,20 @@ class JobPositionServiceTest {
     }
 
     @Test
+    void pageHandlesJobsWithoutCompanyAssociation() {
+        Page<JobPosition> page = new Page<>(1, 20);
+        page.setRecords(List.of(job("PENDING")));
+        page.setTotal(1);
+        when(jobMapper.selectPage(any(), any())).thenReturn(page);
+
+        var result = service().page(1, 20, null, null, null);
+
+        assertThat(result.items()).hasSize(1);
+        assertThat(result.items().get(0).companyName()).isNull();
+        verify(companyMapper, never()).selectByIds(anyList());
+    }
+
+    @Test
     void pageWithoutKeywordSkipsCompanyLookupAndNormalizesPaging() {
         Page<JobPosition> page = new Page<>(1, 20);
         page.setRecords(List.of());
