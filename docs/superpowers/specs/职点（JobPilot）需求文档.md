@@ -2,9 +2,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| 文档版本 | v1.11 |
+| 文档版本 | v1.12 |
 | 日期 | 2026-11-23 |
-| 状态 | 需求已重定位（M1 已完成验收；M2 两批已实现；M3 按 v1.11 重组为「求职档案 + 真实面试复盘 + 跨场归因 + 改进闭环」） |
+| 状态 | 需求已重定位（M1 已完成验收；M2 两批已实现；M3 按 v1.11 / v1.12 重组为「求职档案 + 真实面试复盘 + 跨场归因 + 改进闭环」） |
 | 技术底座 | Spring Boot 3.5.x + Java 21 + PostgreSQL + MyBatis-Plus |
 
 ---
@@ -32,6 +32,7 @@
 | v1.9 | 2026-11-18 | 岗位跟踪更贴近真实求职：结果分录用 / 淘汰，并能随手记面试轮次与淘汰环节 |
 | v1.10 | 2026-11-19 | 数据模型补齐：模拟面试题目独立成表，Offer 决策正式落表 |
 | v1.11 | 2026-11-23 | 产品重定位：从「模拟面试工具」转为「求职档案与决策系统」，聚焦真实面试复盘、跨场归因与改进闭环 |
+| v1.12 | 2026-11-23 | 档案链路规则：Offer 关联投递、被引用数据禁止删除、投递状态向前同步岗位状态 |
 
 > **状态同步（2026-11-16）**：M1 已由用户完成功能验收（服务商添加与全局默认、对话内模型切换、简历上传与分析均通过），状态字段由「M1 进行中」改为「M1 已完成并验收」。仅同步状态事实，无需求变化，版本号不变。
 
@@ -114,6 +115,34 @@
 - 知识点 / 失分标签使用受控词表，落 JSONB 并建 GIN 索引；跨场统计走 SQL 聚合，不引入 RAG。
 - `interview_sessions` / `interview_questions` 仅用于模拟面试；真实面试走 `interview_events` + `review_*`，两套数据不混用。
 - 契约版本随新端点升级；先改契约再实现。
+
+---
+
+### v1.12 · 2026-11-23 —— 档案链路的三个规则：Offer 关联、删除保护、状态向前同步
+
+**多了什么**
+
+- **Offer 可以关联到具体投递**：Offer 增加可空的投递记录 ID，时间线能准确回答"这个 Offer 来自哪次投递、用了哪版简历"；旧 Offer 保持未关联。
+- **删除保护**：被投递档案引用的简历或岗位，默认禁止删除，避免把"哪版简历带来面试"的历史链路删断。
+- **状态向前同步**：新建投递时岗位状态自动从"待跟进"推进到"已投递"；投递进入面试中 / 录用 / 淘汰时，岗位状态只向前同步，不回退、不覆盖手动终态。
+
+**变了什么**
+
+- 删除简历 / 岗位从"直接硬删除"变为"有引用时返回 409，先解绑或先删关联记录"。
+- 删除投递记录时若有关联面试事件，也返回 409，避免误删面试与复盘。
+- 岗位状态成为"快速摘要"，投递状态才是归因的事实源；两者不再完全独立。
+
+**砍了什么**
+
+- 不做无提示的级联删除：不会因为删一份简历或一个岗位，就静默清空投递、面试与复盘历史。
+- 不做岗位状态自动回退或按投递状态重算；向前同步只在状态推进时发生。
+
+**附：技术实现要点**
+
+- `offers.application_id` 可空外键；新增 / 更新 Offer 时可传 `applicationId`，传了就由投递记录带出公司与岗位。
+- `applications` 状态推进时触发岗位状态向前同步：SAVED → APPLIED → INTERVIEWING → OFFERED / REJECTED；WITHDRAWN 不改岗位状态。
+- 删除守卫：简历 / 岗位 / 投递被下游引用时返回 409（复用通用「资源被引用」语义）；契约需补 409 响应。
+- 这些改动与 `applications` 建表同批落地，避免出现"契约有字段、数据库没有"的中间态。
 
 ---
 
@@ -521,6 +550,7 @@
 - FR6.4 前景与成长空间：默认基于用户提供的公司 / 岗位资料分析，并标注「基于所给资料」；联网搜索为开关，默认关闭，开启后结果标注来源。
 - FR6.5 决策参考：输出「值得接受 / 需要确认 / 建议放弃」的倾向与理由，只作参考，不替代用户决定。
 - FR6.6 数据关联：Offer 关联 `companies` / `job_positions`，不重复维护公司信息。
+- FR6.7 档案关联：Offer 可关联具体投递记录（`applicationId`，可空）；关联后由投递记录带出公司与岗位，时间线按 `applicationId` 精确返回 Offer；保留决策依据快照（当时看重什么、最终选择及原因），供后续复盘。
 
 ### 4.9 F7 简历版本对比（P2，辅助能力）
 
@@ -540,8 +570,11 @@
 - FR8.2 **最简录入**：从岗位库一键「记录投递」，默认使用当前默认简历；渠道、备注可后补；不要求填写完整表单。
 - FR8.3 **归因链**：投递 → 面试事件 → 复盘 → Offer 全部关联；时间线可查。
 - FR8.4 **归因看板**：简历版本 × 投递量 × 面试邀约率 × 通过率；渠道 / 公司类型对比；样本不足时明确提示。
-- FR8.5 **列表与删除**：分页、按状态 / 时间筛选；删除投递记录时提示关联的面试 / Offer，按级联规则处理。
+- FR8.5 **列表与删除**：分页、按状态 / 时间筛选；删除投递记录时若有关联面试事件，返回 409，需先处理关联数据。
 - FR8.6 **不做自动投递 / 爬虫**：只记录用户手动发生的投递，避免合规与账号风险。
+- FR8.7 **状态向前同步**：新建投递时，岗位状态自动从「待跟进」推进到「已投递」；投递进入面试中 / 录用 / 淘汰时，岗位状态只向前同步，不回退、不覆盖手动终态；撤回（WITHDRAWN）不改变岗位状态。
+- FR8.8 **删除保护**：简历 / 岗位被投递记录引用时禁止删除（返回 409），先解绑或先删除投递记录，避免历史归因被清空。
+- FR8.9 **Offer 关联**：Offer 可关联 `applicationId`；关联后由投递记录带出公司与岗位，时间线按 `applicationId` 精确返回 Offer。
 
 ## 5. 非功能需求
 
@@ -740,7 +773,7 @@ interview-main/
 | applications | job_position_id FK、resume_id FK、channel、applied_at、status（APPLIED / INTERVIEWING / OFFERED / REJECTED / WITHDRAWN）、outcome、notes；索引 `(job_position_id, applied_at)` |
 | interview_sessions | **仅模拟面试**：direction、resume_id、job_position_id、status（PREPARING / IN_PROGRESS / GENERATING / SUBMITTED / COMPLETED / FAILED）、evaluate_status / error / retry_count、question_count / follow_up_count / answered_count、current_provider_key、current_model |
 | interview_questions | session_id、question_index（UNIQUE 组合）、parent_index（追问树）、type（主问题/追问）、content、topic_summary、difficulty、answer、answer_status（已答 / 跳过 / 未答）、score、feedback、reference_answer、key_points JSONB、llm_provider、llm_model |
-| offers | company_id / job_position_id FK、monthly_salary / base_salary / performance_ratio、五险一金与公积金基数 / 比例、two_day_weekend、work_hours、benefits / allowances JSONB、annual_bonus / quarterly_bonus、remark、group（KEEP / DROP，保留组 ≤4）、analysis JSONB、analyzed_at |
+| offers | company_id / job_position_id FK、**application_id（可空 FK）**、monthly_salary / base_salary / performance_ratio、五险一金与公积金基数 / 比例、two_day_weekend、work_hours、benefits / allowances JSONB、annual_bonus / quarterly_bonus、remark、group（KEEP / DROP，保留组 ≤4）、analysis JSONB、analyzed_at |
 | review_sessions | interview_event_id FK、input_type（AUDIO / TEXT / NOTES）、audio storage_key、duration、asr_status / error / retry_count、analyze_status / error / retry_count |
 | review_transcripts | review_session_id、speaker、text、start / end_time |
 | review_analyses | review_session_id、qa_analysis JSONB（问答、评分、证据片段）、summary JSONB、**topics JSONB（本次知识点标签）、loss_tags JSONB（失分类型）**、rubric_version、prompt_version、llm_provider、llm_model；topics / loss_tags 建 GIN 索引 |

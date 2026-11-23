@@ -52,3 +52,9 @@
 - 原因：用户选择两阶段契约，先定义采集与档案骨架，洞察（F5）待真实数据形状稳定后进 1.10.0，避免过早固化聚合口径。
 - 验证：`redocly lint` **0 error / 0 warning**；`ContractCoverageTest` 端点总数 64→86 并通过（新端点均为 pending，已实现集合仍 64）；`ContractSchemaTest` 通过；前端契约类型重新生成 + 生产构建通过。
 - 下一步 / 断点：按 M3-a 实现 F8 投递档案（`applications` 表 + 5 端点），完成后逐路径删除 `x-implemented: false`。
+
+### 16:23 档案链路规则确认（需求 v1.12）
+- 改动：需求文档升级 v1.12，明确三条规则——(1) Offer 增加可空 `applicationId`，关联具体投递；(2) 被投递引用的简历 / 岗位禁止删除（409），删除投递时若有关联面试事件也返回 409；(3) 投递状态向前同步岗位状态（SAVED → APPLIED → INTERVIEWING → OFFERED/REJECTED，只升不降，WITHDRAWN 不改岗位状态）。同步更新 F6 / F8 / 数据模型 / README / PROGRESS。
+- 原因：现有 `offers` 只有 companyId/jobPositionId，同一岗位多次投递时 Offer 归属会歧义；硬删简历/岗位会断掉归因链；岗位状态与投递状态如果完全独立，会让用户重复维护。
+- 验证：需求文档版本与迭代记录、F6/F8、数据模型 `offers.application_id`、README/PROGRESS 已交叉核对；本次只改需求与记录，未改代码/契约。
+- 下一步 / 断点：M3-a 第一件事把这三条写进契约 1.9.0（Offer 的 applicationId、现有删除端点的 409、岗位状态同步说明），并与 `applications` 建表 + `offers.application_id` 同批实现，避免中间态。
