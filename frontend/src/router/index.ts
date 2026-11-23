@@ -61,6 +61,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '改进看板' },
   },
   {
+    path: '/insights',
+    name: 'insights',
+    component: () => import('@/views/InsightsView.vue'),
+    meta: { title: '求职洞察' },
+  },
+  {
     path: '/interviews',
     name: 'interviews',
     component: () => import('@/views/InterviewListView.vue'),

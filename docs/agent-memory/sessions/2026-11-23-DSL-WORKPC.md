@@ -125,6 +125,13 @@
 - 验证：`redocly lint` **0 error / 0 warning**；契约双测试通过；`InsightsServiceTest` 4 tests（比例、样本不足、趋势差值、公司 / 简历 / 陈旧行动映射、参数校验）；后端全量 **178 tests 全绿、JaCoCo 门禁通过**；真实接口冒烟（验收库 5433 + 真后端 + 真 LLM）：空库返回全 0 与 `sufficient=false`；创建 1 条已确认复盘后返回 `topics=4 / lossTags=3 / rounds=1 / companies=1 / questions=2 / funnel.applications=1 / resumeRows=1 / actions=1`，总结正确提示样本不足；删除后只读 SELECT（带 WHERE）复核 5 张表临时数据均为 0。
 - 下一步 / 断点：前端洞察页 `/insights`（窗口 / 公司筛选、样本不足提示、知识点失败率、失分频次、轮次通过率、公司画像、高频问题、漏斗、改进验证、趋势）+ Vitest / E2E；随后 M3-c 收口与 M3-d。
 
+### 20:55 M3-c 前端求职洞察页与全量 E2E 完成（M3-c 完成）
+- 改动：新增 `api/insights.ts`（契约生成类型 + `GET /insights` 筛选）、`utils/insights.ts`（百分比 / 条形宽度 / 样本提示 / 趋势差值）与单测；新增 `InsightsView`（30/90/180/365 天与公司筛选、样本门槛提示、归因总结、知识点 × 结果、失分频次、轮次通过率、公司 / 岗位画像、高频问题 Top10、投递 / 简历漏斗、改进闭环与趋势）；路由 `/insights`，导航「求职洞察」从 M3 占位转为正式入口；新增 `e2e/insights.spec.ts` 2 个用例（聚合区块与窗口筛选、无复盘空状态跳转）；README / PROGRESS 同步。
+- 原因：F5 的后端聚合已就绪，必须让用户能直接看到「我有没有变好、为什么、下一步做什么」，并在样本不足时避免过度解读。
+- 验证：前端生产构建（含 `vue-tsc` 与契约类型生成）通过；Vitest **26 tests 全过**（新增 insights utils 3）；Playwright **16 E2E 全过**（新增 2 个洞察用例，既有 14 个回归；沙箱对 Edge 系统缓存写入报 restricted，测试结果为 16 passed）；后端 178 tests / 契约 lint 0/0 已在前一步验证。
+- 下一步 / 断点：M3-d 收口——全量回归、命名五项检查（需用户最终确认）、LICENSE 与契约 `info.license`、公开仓库与 5 分钟演示准备；不做自动投递、模板库、PDF 导出等 Out of Scope 功能。
+
+
 
 
 

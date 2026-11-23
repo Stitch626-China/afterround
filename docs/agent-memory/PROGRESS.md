@@ -7,10 +7,12 @@
 
 - 产品：职点（JobPilot），个人求职档案与决策系统（真实面试复盘 → 跨场归因 → 改进闭环 → Offer 决策）
 - 形态：个人自用版，免登录、单用户，本地 Docker Compose
-- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.13** 已确认；契约 **1.9.5**（M3-a + M3-b B1~B5 全部完成，**87 端点全部实现**）；M3-c 跨场归因进行中
+- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.13** 已确认；契约 **1.10.0**（M3-a / M3-b / M3-c 全部完成，**88 端点全部实现**）；M3-d 收口中
 
 ## 当前状态
 
+- **M3-c 跨场洞察已实现（2026-11-23，DSL-WORKPC）**：契约 **1.10.0** 新增 `GET /api/insights` 与 17 个 schema（**88/88 实现**）；后端 `modules/insights` 用 PostgreSQL 原生聚合（JSONB topics / lossTags / questions unnest、轮次通过率、公司画像 Top3、投递 / 简历漏斗、改进统计、当前 vs 上一等长窗口趋势），`InsightsService` 负责比例、样本保护（N<5 只展示原始统计）与本地规则总结（不调用 LLM）；前端新增 `/insights` 求职洞察页（30/90/180/365 天与公司筛选、样本提示、知识点失败率、失分频次、轮次通过率、公司画像、高频问题、漏斗、改进闭环、趋势）；导航「求职洞察」转正式入口。验证：`redocly lint` 0/0；后端 **178 tests 全绿、JaCoCo 门禁通过**（`InsightsServiceTest` 4）；前端构建通过、Vitest **26**、Playwright **16 E2E 全过**；真实接口冒烟空库与 1 条已确认复盘均正确（topics=4 / lossTags=3 / companies=1 / questions=2 / funnel=1 / actions=1，样本不足提示正确），清理后只读 SELECT 复核 5 张表均为 0。
+- **M3-b B5 全量回归与收口完成（2026-11-23，DSL-WORKPC）**：`redocly lint` **0 error / 0 warning**（1.9.5，87 端点）；后端 `mvn test` **174 tests 全绿、JaCoCo 全部门禁通过**（JDK 21）；前端生产构建（含 `vue-tsc`）通过、Vitest **23 tests 全过**、Playwright **14 E2E 全过**（沙箱对 Edge 系统缓存写入报 restricted 导致退出码 1，测试结果为 14 passed）；真实接口冒烟（验收库 5433 + 真后端 + 全局默认 `deepseek/deepseek-flash`）跑通「建公司 → JD 文本导入解析 → 建投递 → 建文本复盘 → 异步分析 READY（2 题 / 3 知识点 / 3 行动）→ 确认 → 行动 VERIFIED + 证据 → 投递时间线 → 全部删除」；只读 SELECT（带 WHERE）复核临时数据 6 张表均为 0 行，后端进程已停止。**M3-b 完成，进入 M3-c。**
 - **M3-b B4 前端复盘页面已实现（2026-11-23，DSL-WORKPC）**：新增 `api/reviews.ts`（复盘 / 转写 / 分析 / 改进行动 / 词表，类型由契约生成）、`utils/review.ts`（枚举文案、状态色调、`isProcessing`、`parseTagList`、`buildAnalysisPayload`）；`api/http.ts` 支持 FormData 并新增 `postForm`；新增 `ReviewListView`（投递选择、轮次自动 +1、录音 / 文本 / 笔记三输入、处理中 3 秒轮询、重试转写 / 重新分析 / 二次确认删除、失败保留输入）、`ReviewDetailView`（转写修正、轻量状态轮询、分析展示、总结与行动修正、确认生成行动、来源行动）、`ImprovementBoardView`（状态筛选 / 流转、验证证据、新增 / 删除）；路由 `/reviews`、`/reviews/:id`、`/improvements`，导航加入「面试复盘 / 改进看板」；投递时间线展示复盘条目与状态；补 Offer E2E 缺失的 `job-applications` mock。验证：前端生产构建（含 `vue-tsc`）通过；Vitest **23 tests 全过**；Playwright **14 E2E 全过**（新增 3 个复盘用例，既有 11 个回归；沙箱对 Edge 系统缓存写入报 restricted，测试结果为 14 passed）。
 - **M3-b B3 音频转写已实现（2026-11-23，DSL-WORKPC）**：契约升至 **1.9.5**（新增 `POST /review-sessions/{id}/transcribe`，落实 FR4.8 ASR 手动重试，**87 端点全部实现**）；新增 `infrastructure/asr`（`AsrClient` / `OpenAiCompatibleAsrClient` / `AsrProperties`，OpenAI 兼容 `/audio/transcriptions`，env `ASR_BASE_URL` / `ASR_API_KEY` / `ASR_MODEL` / `ASR_LANGUAGE` / `ASR_TIMEOUT_SECONDS`）；`AsyncConfig` 新增独立 `asrTaskExecutor`（长任务与普通异步隔离）；multipart 上限提升到 100MB / 120MB；`ReviewSessionService` 支持 mp3/wav/m4a ≤100MB 上传、`reviews/{uuid}.{ext}` 落盘、ASR 状态机（PENDING→PROCESSING→COMPLETED/FAILED + ≤3 次重试）、成功后自动分析、失败保留音频可 `/transcribe` 重试、删除复盘同时删磁盘音频；未配置 ASR 时返回可操作 400 且不产生数据。验证：`ReviewSessionServiceTest` 15 + `OpenAiCompatibleAsrClientTest` 3 + 契约双测试；后端全量 **174 tests 全绿、JaCoCo 门禁通过**；`redocly lint` 0/0；真实链路验证（本地假 ASR 3001 + 真后端 + 真 LLM）：「未配置 ASR → 400 明确提示；配置后音频上传 → TRANSCRIBING → 假 ASR 转写 → 真实 LLM 分析 → READY（转写文本正确、2 题分析）；假 ASR 故障 → FAILED/retry=3/错误可读；恢复后 `/transcribe` → READY；删除复盘后磁盘音频目录清零、临时数据全部清理」。
 - **M3-b B2 复盘分析 / 词表 / 改进闭环已实现（2026-11-23，DSL-WORKPC）**：契约升至 **1.9.4**，移除复盘 8、改进动作 4、词表 1 的 `x-implemented: false`（**86 端点全部实现**）；后端新增 `ReviewAnalysis` / `ImprovementAction` 实体与 mapper、`ReviewSessionController`（列表/创建/详情/修正/删除/状态/重跑/确认）、`ImprovementActionController`（列表/新增/更新/删除）、`ReviewTaxonomyController`；`ReviewSessionService` 支持转写/笔记创建（音频明确提示 B3 启用）、idempotencyKey、同一轮次唯一（40917）、异步分析（状态机 + ≤3 次重试 + `REVIEW_ANALYZE` 埋点 + Prompt/rubric/词表版本 + 重跑覆盖并重置确认）、确认时按草稿创建或复用改进行动；新增外置 Prompt `review-analyze-*.st`、受控词表 `taxonomy-v1` / `interview-rubric-v1`（14 知识点 / 8 失分类型 / 6 维度）；投递时间线接入复盘与行动。验证：`ReviewSessionServiceTest` 10 + `ImprovementActionServiceTest` 5 + 契约双测试；后端全量 **166 tests 全绿、JaCoCo 门禁通过**；`redocly lint` 0/0；真实接口验证「建公司/JD→建复盘（仅给岗位，自动建投递+事件）→自动分析 READY（6 题 + 标签 + 3 行动，`REVIEW_ANALYZE` 成功）→确认分析生成 2 条行动→行动置 VERIFIED+证据→时间线含事件/复盘/行动→重跑分析（confirm 归 false、行动状态保留）→存在复盘时删事件 409→删复盘后行动级联清零→临时数据全部清理」。
@@ -60,8 +62,8 @@
 
 ## 下一步
 
-1. **M3-c 跨场归因与改进闭环（下一步）**：契约 1.10.0 新增洞察端点（知识点 × 结果、失分类型频次、轮次通过率、公司 / 岗位画像、高频问题、转化漏斗、改进验证率，N<5 样本不足保护）+ PG 聚合实现 + 前端洞察页；随后 M3-d 收口（命名五项检查需用户最终确认、LICENSE、公开仓库与演示准备）。
-2. **M2 用户验收（暂停，可继续）**：验收环境（5433 + 8080 + 5173）仍在运行；M2 两批功能已实现并修复验收问题。F3 模拟面试后续只保留为可选练习。
+1. **M3-d 收口（下一步）**：全量回归与真实链路复核；命名五项检查（GitHub / 搜索引擎 / 应用商店 / 商标 / 域名）需用户最终确认；补 `LICENSE` 并同步契约 `info.license`；公开仓库与 5 分钟演示准备。
+2. **M2 用户验收（暂停，可继续）**：验收库容器 5433 仍在运行，后端按需启动；M2 两批功能已实现并修复验收问题。F3 模拟面试后续只保留为可选练习。
 3. **命名与公开仓库准备**：候选名必须通过 GitHub（仓库名/Star/功能）、搜索引擎、App Store / 应用市场、中国商标网、域名五项检查，并附同名项目的功能与未做功能清单；同时补 LICENSE、差异化 README 与 5 分钟演示。
 4. **M2 收口（已完成）**：两批 38 端点、前端页面、Vitest 19 / Playwright 11 与真实链路联调全部通过。
 5. 非阻塞遗留：开源前补 `LICENSE` 并同步契约 `info.license`；CD 待换机稳定手动部署后再做。
