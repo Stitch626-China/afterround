@@ -27,7 +27,9 @@ import com.jobpilot.modules.job.mapper.JobPositionMapper;
 import com.jobpilot.modules.offer.service.OfferService;
 import com.jobpilot.modules.resume.entity.Resume;
 import com.jobpilot.modules.resume.mapper.ResumeMapper;
+import com.jobpilot.modules.review.service.ImprovementActionService;
 import com.jobpilot.modules.review.service.InterviewEventService;
+import com.jobpilot.modules.review.service.ReviewSessionService;
 import org.springframework.stereotype.Service;
 
 /**
@@ -47,16 +49,21 @@ public class JobApplicationService {
     private final ResumeMapper resumeMapper;
     private final OfferService offerService;
     private final InterviewEventService eventService;
+    private final ReviewSessionService reviewService;
+    private final ImprovementActionService actionService;
 
     public JobApplicationService(JobApplicationMapper applicationMapper, JobPositionMapper jobMapper,
                                  CompanyMapper companyMapper, ResumeMapper resumeMapper,
-                                 OfferService offerService, InterviewEventService eventService) {
+                                 OfferService offerService, InterviewEventService eventService,
+                                 ReviewSessionService reviewService, ImprovementActionService actionService) {
         this.applicationMapper = applicationMapper;
         this.jobMapper = jobMapper;
         this.companyMapper = companyMapper;
         this.resumeMapper = resumeMapper;
         this.offerService = offerService;
         this.eventService = eventService;
+        this.reviewService = reviewService;
+        this.actionService = actionService;
     }
 
     public PageResult<JobApplicationListItemResponse> page(Integer page, Integer size, String status,
@@ -140,12 +147,12 @@ public class JobApplicationService {
         applicationMapper.deleteById(applicationId);
     }
 
-    /** 时间线：面试轮次按轮次升序；复盘与改进动作随 M3-b B2 / B3 接入，当前返回空数组。 */
+    /** 时间线：面试轮次按轮次升序，复盘与改进动作按时间倒序；offer 为该投递最新 Offer。 */
     public JobApplicationTimelineResponse timeline(Long applicationId) {
         JobApplication entity = require(applicationId);
         return new JobApplicationTimelineResponse(toItems(List.of(entity)).get(0),
-                eventService.listByApplication(applicationId), List.of(),
-                offerService.findByApplicationId(applicationId), List.of());
+                eventService.listByApplication(applicationId), reviewService.listByApplication(applicationId),
+                offerService.findByApplicationId(applicationId), actionService.listByApplication(applicationId));
     }
 
     /** 状态向前同步：SAVED < APPLIED < INTERVIEWING < OFFERED/REJECTED；WITHDRAWN 不改岗位。 */

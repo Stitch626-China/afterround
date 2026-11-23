@@ -56,6 +56,12 @@ public enum ErrorCode {
     /** 同一投递的轮次已存在面试事件或复盘（M3 F4/F5，契约 40917）。 */
     REVIEW_ROUND_EXISTS(40917, "该投递的面试轮次已存在", HttpStatus.CONFLICT),
 
+    /** 复盘 ASR / 分析任务执行中（M3 F4，契约 40915）。 */
+    REVIEW_TASK_IN_PROGRESS(40915, "复盘任务执行中，请等待完成", HttpStatus.CONFLICT),
+
+    /** 复盘分析尚未完成，无法确认（M3 F4，契约 40916）。 */
+    REVIEW_NOT_READY(40916, "复盘分析尚未完成，无法确认", HttpStatus.CONFLICT),
+
     PAYLOAD_TOO_LARGE(41301, "文件超过大小限制", HttpStatus.PAYLOAD_TOO_LARGE),
 
     UNSUPPORTED_MEDIA_TYPE(41501, "不支持的文件类型", HttpStatus.UNSUPPORTED_MEDIA_TYPE),

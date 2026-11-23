@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 职点（JobPilot）API
-  version: 1.9.3
+  version: 1.9.4
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -26,7 +26,8 @@ info:
     - **M2 第一批**：场景级模型绑定（FRX.11）、公司最小 CRUD（F6 / F5 数据前置）、岗位库（F2：JD 导入解析 / 匹配评分 / 行情洞察）、简历版本对比（F7）。
     - **M2 第二批**：模拟面试（F3）、Offer 决策（F6）。
     - **M3 1.9.0（契约先行）**：投递档案（F8）、真实面试档案与复盘（F4）、改进动作（F5 闭环）。
-      1.9.1 完成 JD 截图导入；1.9.2 完成投递档案与 Offer 归因链；1.9.3 完成真实面试轮次（interview-events）。
+      1.9.1 完成 JD 截图导入；1.9.2 完成投递档案与 Offer 归因链；1.9.3 完成真实面试轮次；
+      1.9.4 完成复盘会话、结构化分析、受控词表与改进动作（M3 1.9.0 端点全部实现）。
     - **M3 1.10.0（后续）**：跨场洞察（F5）在真实数据形状稳定后追加，避免过早固化聚合口径。
     - 场景枚举 `LlmScene` 一次性定义全部 7 个场景（含 M2 未落地的预留项），避免后续扩展改动枚举。
       JD 结构化解析与简历对比总结未列入枚举，使用全局默认，不参与场景级绑定。
@@ -35,8 +36,8 @@ info:
     M2 第一批与第二批（F3 / F6）已全部实现，后端 `ContractCoverageTest` 对「契约端点 = 实际控制器端点」做双向全等校验。
     后续里程碑新增路径可先用路径级 `x-implemented: false` 标记「已定义、待实现」，
     实现完成后删除标记即自动纳入双向全等校验，无需维护例外清单。
-    M3 1.9.0 的投递档案接口（F8）与 1.9.3 的真实面试轮次接口（interview-events）已实现；
-    复盘会话、分析、改进动作与词表接口仍为 `x-implemented: false`。
+    M3 1.9.0 契约的全部端点已实现（1.9.3 真实面试轮次、1.9.4 复盘 / 分析 / 词表 / 改进动作），
+    当前 86 个端点均纳入双向全等校验，无待实现标记。
 
     ## 错误码补充（M2）
     - `40906` 公司名称已存在（`companies.name` UNIQUE）
@@ -2180,7 +2181,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/review-sessions:
-    x-implemented: false
     get:
       tags: [真实面试复盘]
       operationId: listReviewSessions
@@ -2300,7 +2300,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/review-sessions/{reviewSessionId}:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/ReviewSessionId'
     get:
@@ -2366,7 +2365,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/review-sessions/{reviewSessionId}/status:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/ReviewSessionId'
     get:
@@ -2387,7 +2385,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/review-sessions/{reviewSessionId}/analyze:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/ReviewSessionId'
     post:
@@ -2416,7 +2413,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/review-sessions/{reviewSessionId}/analysis:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/ReviewSessionId'
     put:
@@ -2454,7 +2450,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/improvement-actions:
-    x-implemented: false
     get:
       tags: [改进闭环]
       operationId: listImprovementActions
@@ -2509,7 +2504,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/improvement-actions/{actionId}:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/ActionId'
     patch:
@@ -2552,7 +2546,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/review-taxonomy:
-    x-implemented: false
     get:
       tags: [复盘词表]
       operationId: getReviewTaxonomy

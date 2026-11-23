@@ -109,6 +109,62 @@ public class InterviewEventService {
         return toItems(List.of(entity)).get(0);
     }
 
+    /**
+     * 复盘创建时复用或新建面试轮次：已有轮次只补非空上下文，不覆盖用户已填内容。
+     */
+    public InterviewEvent ensureEvent(Long applicationId, Long jobPositionId, Integer roundNo, String roundType,
+                                      String interviewerRole, String format, OffsetDateTime interviewTime) {
+        if (roundNo == null || roundNo < 1) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "roundNo 至少为 1");
+        }
+        String type = enumValue(roundType, ROUND_TYPES, "roundType", true);
+        String fmt = enumValue(format, FORMATS, "format", false);
+        JobApplication application = resolveApplication(applicationId, jobPositionId);
+        InterviewEvent existing = eventMapper.selectOne(Wrappers.<InterviewEvent>lambdaQuery()
+                .eq(InterviewEvent::getApplicationId, application.getId())
+                .eq(InterviewEvent::getRoundNo, roundNo));
+        if (existing != null) {
+            boolean dirty = false;
+            if (!blank(interviewerRole) && !interviewerRole.trim().equals(existing.getInterviewerRole())) {
+                existing.setInterviewerRole(text(interviewerRole, 64));
+                dirty = true;
+            }
+            if (fmt != null && !fmt.equals(existing.getFormat())) {
+                existing.setFormat(fmt);
+                dirty = true;
+            }
+            if (interviewTime != null && !interviewTime.equals(existing.getInterviewTime())) {
+                existing.setInterviewTime(interviewTime);
+                dirty = true;
+            }
+            if (dirty) {
+                existing.setUpdatedAt(OffsetDateTime.now());
+                eventMapper.updateById(existing);
+            }
+            return existing;
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        InterviewEvent entity = new InterviewEvent();
+        entity.setUserId(1L);
+        entity.setApplicationId(application.getId());
+        entity.setRoundNo(roundNo);
+        entity.setRoundType(type);
+        entity.setInterviewerRole(text(interviewerRole, 64));
+        entity.setFormat(fmt);
+        entity.setInterviewTime(interviewTime == null ? now : interviewTime);
+        entity.setResult("PENDING");
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        try {
+            eventMapper.insert(entity);
+            return entity;
+        } catch (DuplicateKeyException ex) {
+            return eventMapper.selectOne(Wrappers.<InterviewEvent>lambdaQuery()
+                    .eq(InterviewEvent::getApplicationId, application.getId())
+                    .eq(InterviewEvent::getRoundNo, roundNo));
+        }
+    }
+
     public InterviewEventListItemResponse update(Long eventId, UpdateInterviewEventRequest request) {
         InterviewEvent entity = require(eventId);
         if (request.roundType() != null) {
@@ -174,7 +230,7 @@ public class InterviewEventService {
     }
 
     /** applicationId 优先；仅给岗位时复用最近一条投递，没有则创建为「面试中」。 */
-    private JobApplication resolveApplication(Long applicationId, Long jobPositionId) {
+    public JobApplication resolveApplication(Long applicationId, Long jobPositionId) {
         if (applicationId != null) {
             JobApplication application = applicationMapper.selectById(applicationId);
             if (application == null) {

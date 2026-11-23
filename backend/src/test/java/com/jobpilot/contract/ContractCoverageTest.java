@@ -25,7 +25,10 @@ import com.jobpilot.modules.llm.controller.LlmSceneController;
 import com.jobpilot.modules.offer.controller.OfferController;
 import com.jobpilot.modules.resume.controller.ResumeComparisonController;
 import com.jobpilot.modules.resume.controller.ResumeController;
+import com.jobpilot.modules.review.controller.ImprovementActionController;
 import com.jobpilot.modules.review.controller.InterviewEventController;
+import com.jobpilot.modules.review.controller.ReviewSessionController;
+import com.jobpilot.modules.review.controller.ReviewTaxonomyController;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -91,7 +94,9 @@ class ContractCoverageTest {
                 CompanyController.class, JobPositionController.class, JobMatchController.class,
                 JobMarketController.class, ChatController.class, ResumeController.class,
                 ResumeComparisonController.class, InterviewController.class, InterviewSessionController.class,
-                OfferController.class, JobApplicationController.class, InterviewEventController.class)) {
+                OfferController.class, JobApplicationController.class, InterviewEventController.class,
+                ReviewSessionController.class, ImprovementActionController.class,
+                ReviewTaxonomyController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (Method method : controller.getDeclaredMethods()) {
                 for (Annotation annotation : method.getAnnotations()) {

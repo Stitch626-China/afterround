@@ -85,9 +85,27 @@ import com.jobpilot.modules.resume.dto.ResumeListItemResponse;
 import com.jobpilot.modules.resume.dto.ResumeUploadResponse;
 import com.jobpilot.modules.resume.dto.SuggestionItemResponse;
 import com.jobpilot.modules.resume.dto.UpdateSalaryRequest;
+import com.jobpilot.modules.review.dto.CreateImprovementActionRequest;
 import com.jobpilot.modules.review.dto.CreateInterviewEventRequest;
+import com.jobpilot.modules.review.dto.ImprovementActionDraftResponse;
+import com.jobpilot.modules.review.dto.ImprovementActionResponse;
 import com.jobpilot.modules.review.dto.InterviewEventListItemResponse;
+import com.jobpilot.modules.review.dto.ReviewAnalysisResponse;
+import com.jobpilot.modules.review.dto.ReviewAnalysisUpdateRequest;
+import com.jobpilot.modules.review.dto.ReviewDimensionScoreResponse;
+import com.jobpilot.modules.review.dto.ReviewQuestionResponse;
+import com.jobpilot.modules.review.dto.ReviewSessionDetailResponse;
+import com.jobpilot.modules.review.dto.ReviewSessionListItemResponse;
+import com.jobpilot.modules.review.dto.ReviewSessionStatusResponse;
+import com.jobpilot.modules.review.dto.ReviewSummaryResponse;
+import com.jobpilot.modules.review.dto.ReviewTagResponse;
+import com.jobpilot.modules.review.dto.ReviewTaxonomyResponse;
+import com.jobpilot.modules.review.dto.ReviewTranscriptSegmentResponse;
+import com.jobpilot.modules.review.dto.TaxonomyDimensionResponse;
+import com.jobpilot.modules.review.dto.TaxonomyItemResponse;
+import com.jobpilot.modules.review.dto.UpdateImprovementActionRequest;
 import com.jobpilot.modules.review.dto.UpdateInterviewEventRequest;
+import com.jobpilot.modules.review.dto.UpdateReviewSessionRequest;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
@@ -127,7 +145,14 @@ class ContractSchemaTest {
             JobApplicationListItemResponse.class, CreateJobApplicationRequest.class,
             UpdateJobApplicationRequest.class, JobApplicationTimelineResponse.class,
             InterviewEventListItemResponse.class, CreateInterviewEventRequest.class,
-            UpdateInterviewEventRequest.class);
+            UpdateInterviewEventRequest.class, ReviewSessionListItemResponse.class,
+            ReviewSessionDetailResponse.class, ReviewSessionStatusResponse.class,
+            UpdateReviewSessionRequest.class, ReviewTranscriptSegmentResponse.class,
+            ReviewDimensionScoreResponse.class, ReviewQuestionResponse.class, ReviewTagResponse.class,
+            ReviewSummaryResponse.class, ImprovementActionDraftResponse.class, ReviewAnalysisResponse.class,
+            ReviewAnalysisUpdateRequest.class, ImprovementActionResponse.class,
+            CreateImprovementActionRequest.class, UpdateImprovementActionRequest.class,
+            TaxonomyItemResponse.class, TaxonomyDimensionResponse.class, ReviewTaxonomyResponse.class);
 
     @Test
     @SuppressWarnings("unchecked")

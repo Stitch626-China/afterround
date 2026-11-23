@@ -28,7 +28,9 @@ import com.jobpilot.modules.offer.service.OfferService;
 import com.jobpilot.modules.resume.entity.Resume;
 import com.jobpilot.modules.resume.mapper.ResumeMapper;
 import com.jobpilot.modules.review.dto.InterviewEventListItemResponse;
+import com.jobpilot.modules.review.service.ImprovementActionService;
 import com.jobpilot.modules.review.service.InterviewEventService;
+import com.jobpilot.modules.review.service.ReviewSessionService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,6 +55,10 @@ class JobApplicationServiceTest {
     private OfferService offerService;
     @Mock
     private InterviewEventService eventService;
+    @Mock
+    private ReviewSessionService reviewService;
+    @Mock
+    private ImprovementActionService actionService;
 
     @BeforeAll
     static void initLambdaCache() {
@@ -61,7 +67,7 @@ class JobApplicationServiceTest {
 
     private JobApplicationService service() {
         return new JobApplicationService(applicationMapper, jobMapper, companyMapper, resumeMapper, offerService,
-                eventService);
+                eventService, reviewService, actionService);
     }
 
     private static JobPosition job(String status) {
