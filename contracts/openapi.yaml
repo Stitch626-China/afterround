@@ -24,7 +24,9 @@ info:
     ## 覆盖范围
     - **M1 全量**：模型配置（X1）、对话会话（M1 能力验证载体）、简历中心（F1 轨一）。
     - **M2 第一批**：场景级模型绑定（FRX.11）、公司最小 CRUD（F6 / F5 数据前置）、岗位库（F2：JD 导入解析 / 匹配评分 / 行情洞察）、简历版本对比（F7）。
-    - **M2 第二批**：模拟面试（F3）、Offer 决策（F6）；F4 / F5 的接口在 M3 追加。
+    - **M2 第二批**：模拟面试（F3）、Offer 决策（F6）。
+    - **M3 1.9.0（契约先行，待实现）**：投递档案（F8）、真实面试档案与复盘（F4）、改进动作（F5 闭环）。
+    - **M3 1.10.0（后续）**：跨场洞察（F5）在真实数据形状稳定后追加，避免过早固化聚合口径。
     - 场景枚举 `LlmScene` 一次性定义全部 7 个场景（含 M2 未落地的预留项），避免后续扩展改动枚举。
       JD 结构化解析与简历对比总结未列入枚举，使用全局默认，不参与场景级绑定。
 
@@ -32,6 +34,7 @@ info:
     M2 第一批与第二批（F3 / F6）已全部实现，后端 `ContractCoverageTest` 对「契约端点 = 实际控制器端点」做双向全等校验。
     后续里程碑新增路径可先用路径级 `x-implemented: false` 标记「已定义、待实现」，
     实现完成后删除标记即自动纳入双向全等校验，无需维护例外清单。
+    M3 1.9.0 的投递档案、真实面试复盘与改进动作接口当前均为 `x-implemented: false`。
 
     ## 错误码补充（M2）
     - `40906` 公司名称已存在（`companies.name` UNIQUE）
@@ -43,6 +46,11 @@ info:
     - `40912` 面试会话已交卷或已评估，不可再操作
     - `40913` 当前面试会话状态不允许该操作
     - `40914` 保留组 Offer 已达上限（最多 4 个）
+
+    ## 错误码补充（M3 1.9.0）
+    - `40915` 复盘任务执行中（ASR / 分析），请等待完成
+    - `40916` 复盘分析尚未完成，无法确认
+    - `40917` 该投递的面试轮次已存在复盘记录
 
   contact:
     name: 职点（JobPilot）
@@ -71,6 +79,14 @@ tags:
     description: 结构化模拟面试：选方向或关联 JD、异步出题、逐题作答与追问、交卷后统一评估（F3）。
   - name: Offer 决策
     description: Offer 录入与 LLM 提取、保留 / 淘汰分组、同维度横向对比、前景与倾向分析（F6）。
+  - name: 投递档案
+    description: 简历版本 → 岗位 → 投递 → 面试 → 结果 → Offer 的档案与时间线（F8）。
+  - name: 真实面试复盘
+    description: 录音 / 转写 / 笔记 → 结构化问答、评分、标签、证据与改进行动（F4）。
+  - name: 改进闭环
+    description: 改进行动的状态与验证（F5）。
+  - name: 复盘词表
+    description: 知识点、失分类型与评分维度的受控词表，保证跨场可比。
 
 security: []
 
@@ -1876,6 +1892,663 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  # ==========================================================
+  # M3 1.9.0：投递档案 / 真实面试复盘 / 改进闭环（契约先行）
+  # ==========================================================
+
+  /api/job-applications:
+    x-implemented: false
+    get:
+      tags: [投递档案]
+      operationId: listJobApplications
+      summary: 投递记录分页列表
+      description: 按投递时间倒序；可按状态、岗位、简历版本与关键字筛选。
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/JobApplicationStatus'
+        - name: jobPositionId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: resumeId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: keyword
+          in: query
+          required: false
+          description: 公司名或岗位名包含匹配
+          schema:
+            type: string
+            maxLength: 128
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultJobApplicationPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [投递档案]
+      operationId: createJobApplication
+      summary: 记录一次投递
+      description: |
+        从岗位库选择岗位并记录投递；默认使用当前默认简历。
+        同一岗位允许多次投递（不同简历版本或不同时间），不做唯一约束。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateJobApplicationRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultJobApplication'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/job-applications/{applicationId}:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/ApplicationId'
+    patch:
+      tags: [投递档案]
+      operationId: updateJobApplication
+      summary: 更新投递状态 / 简历版本 / 备注
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateJobApplicationRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultJobApplication'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [投递档案]
+      operationId: deleteJobApplication
+      summary: 删除投递记录
+      description: 硬删除；存在关联面试事件时返回 409，需先处理关联数据。
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 存在关联面试事件，需先删除或解绑
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/job-applications/{applicationId}/timeline:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/ApplicationId'
+    get:
+      tags: [投递档案]
+      operationId: getJobApplicationTimeline
+      summary: 投递时间线（投递 + 面试 + 复盘 + Offer + 改进动作）
+      description: 一次返回该投递的完整链路，避免前端串联多次请求。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultJobApplicationTimeline'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/interview-events:
+    x-implemented: false
+    get:
+      tags: [真实面试复盘]
+      operationId: listInterviewEvents
+      summary: 真实面试轮次分页列表
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: applicationId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: result
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/InterviewResult'
+        - name: roundType
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/InterviewRoundType'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInterviewEventPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [真实面试复盘]
+      operationId: createInterviewEvent
+      summary: 新建真实面试轮次
+      description: |
+        `applicationId` 与 `jobPositionId` 至少提供一个，`applicationId` 优先。
+        同一投递的同一轮次只能有一条面试事件（`(applicationId, roundNo)` 唯一），重复返回 409。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInterviewEventRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInterviewEvent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 该投递的轮次已存在（40917）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/interview-events/{eventId}:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    patch:
+      tags: [真实面试复盘]
+      operationId: updateInterviewEvent
+      summary: 更新真实面试轮次（结果 / 时间 / 面试官 / 备注）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInterviewEventRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInterviewEvent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [真实面试复盘]
+      operationId: deleteInterviewEvent
+      summary: 删除真实面试轮次
+      description: 硬删除；存在关联复盘记录时返回 409，需先删除复盘。
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 存在关联复盘记录，需先删除
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/review-sessions:
+    x-implemented: false
+    get:
+      tags: [真实面试复盘]
+      operationId: listReviewSessions
+      summary: 复盘记录分页列表
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ReviewStatus'
+        - name: applicationId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultReviewSessionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [真实面试复盘]
+      operationId: createReviewSession
+      summary: 创建复盘记录（音频 / 转写 / 笔记三选一）
+      description: |
+        - `audio`、`transcript`、`notes` 三选一，不可同时为空。
+        - `applicationId` 与 `jobPositionId` 至少提供一个；服务端自动创建或复用面试轮次。
+        - 创建后返回 `status = UPLOADED`；音频走异步 ASR，随后异步分析；轮询 `/status`。
+        - 音频支持 mp3 / wav / m4a，≤100MB 或 2 小时；转写失败可改用文本重新创建。
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [roundNo, roundType]
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                  description: 面试录音（与 transcript / notes 三选一）
+                transcript:
+                  type: string
+                  maxLength: 200000
+                  description: 已有转写文本（与 audio / notes 三选一）
+                notes:
+                  type: string
+                  maxLength: 20000
+                  description: 手动笔记（与 audio / transcript 三选一）
+                applicationId:
+                  type: integer
+                  format: int64
+                  description: 投递记录 ID；与 jobPositionId 至少提供一个
+                jobPositionId:
+                  type: integer
+                  format: int64
+                  description: 岗位 ID；用于没有投递记录时的快速录入
+                roundNo:
+                  type: integer
+                  minimum: 1
+                  description: 轮次号，从 1 开始
+                roundType:
+                  $ref: '#/components/schemas/InterviewRoundType'
+                interviewerRole:
+                  type: string
+                  maxLength: 64
+                  description: 面试官角色（如技术负责人 / HRBP）
+                format:
+                  $ref: '#/components/schemas/InterviewFormat'
+                interviewTime:
+                  type: string
+                  format: date-time
+                idempotencyKey:
+                  type: string
+                  maxLength: 64
+                  description: 客户端幂等键，网络重试时避免重复创建
+      responses:
+        '200':
+          description: 创建成功，转写 / 分析进行中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultReviewSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 该投递的轮次已存在复盘记录（40917）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '413':
+          description: 音频超过 100MB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '415':
+          description: 不支持的音频格式
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/review-sessions/{reviewSessionId}:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/ReviewSessionId'
+    get:
+      tags: [真实面试复盘]
+      operationId: getReviewSession
+      summary: 复盘详情（转写、结构化分析、改进行动）
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultReviewSessionDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    patch:
+      tags: [真实面试复盘]
+      operationId: updateReviewSession
+      summary: 修正转写 / 笔记 / 面试上下文
+      description: 修正后需重新触发分析；不改变已确认的分析结果，除非重新分析。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReviewSessionRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultReviewSessionDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 复盘任务执行中（40915）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [真实面试复盘]
+      operationId: deleteReviewSession
+      summary: 删除复盘记录
+      description: 硬删除转写、分析与由该复盘生成的改进动作，并清理磁盘上的音频。
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/review-sessions/{reviewSessionId}/status:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/ReviewSessionId'
+    get:
+      tags: [真实面试复盘]
+      operationId: getReviewSessionStatus
+      summary: 轻量状态轮询（ASR / 分析）
+      description: 只返回状态、错误与重试次数，不返回转写全文与分析结果。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultReviewSessionStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/review-sessions/{reviewSessionId}/analyze:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/ReviewSessionId'
+    post:
+      tags: [真实面试复盘]
+      operationId: analyzeReviewSession
+      summary: 触发 / 重新触发复盘分析
+      description: |
+        - 转写或笔记已就绪时可用；ASR 未完成时返回 409（40915）。
+        - 支持修正转写后重新分析；重新分析覆盖原分析结果。
+      responses:
+        '200':
+          description: 已触发，分析进行中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultReviewSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 复盘任务执行中（40915）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/review-sessions/{reviewSessionId}/analysis:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/ReviewSessionId'
+    put:
+      tags: [真实面试复盘]
+      operationId: updateReviewAnalysis
+      summary: 确认 / 修正结构化分析（含接受改进行动）
+      description: |
+        - 用完整 payload 覆盖可编辑字段：问题与回答摘要、评分、标签、总结、改进行动。
+        - `confirmed = true` 表示确认完成，并据 `actions` 创建 / 更新改进行动。
+        - 分析未完成时返回 409（40916）。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewAnalysisUpdateRequest'
+      responses:
+        '200':
+          description: 保存成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultReviewSessionDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 复盘分析尚未完成，无法确认（40916）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/improvement-actions:
+    x-implemented: false
+    get:
+      tags: [改进闭环]
+      operationId: listImprovementActions
+      summary: 改进行动分页列表
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ImprovementActionStatus'
+        - name: sourceReviewId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultImprovementActionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [改进闭环]
+      operationId: createImprovementAction
+      summary: 手动新增改进行动
+      description: 复盘确认时会自动创建；此接口用于补充手动行动。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateImprovementActionRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultImprovementAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/improvement-actions/{actionId}:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/ActionId'
+    patch:
+      tags: [改进闭环]
+      operationId: updateImprovementAction
+      summary: 更新行动状态 / 验证证据
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateImprovementActionRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultImprovementAction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [改进闭环]
+      operationId: deleteImprovementAction
+      summary: 删除改进行动
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/review-taxonomy:
+    x-implemented: false
+    get:
+      tags: [复盘词表]
+      operationId: getReviewTaxonomy
+      summary: 获取知识点 / 失分类型 / 评分维度受控词表
+      description: 前端据此渲染选择器；复盘分析与洞察使用同一版本口径。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultReviewTaxonomy'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
 components:
 
   parameters:
@@ -1951,6 +2624,38 @@ components:
       name: offerId
       in: path
       required: true
+      schema:
+        type: integer
+        format: int64
+    ApplicationId:
+      name: applicationId
+      in: path
+      required: true
+      description: 投递记录 ID
+      schema:
+        type: integer
+        format: int64
+    EventId:
+      name: eventId
+      in: path
+      required: true
+      description: 真实面试轮次 ID
+      schema:
+        type: integer
+        format: int64
+    ReviewSessionId:
+      name: reviewSessionId
+      in: path
+      required: true
+      description: 真实面试复盘记录 ID
+      schema:
+        type: integer
+        format: int64
+    ActionId:
+      name: actionId
+      in: path
+      required: true
+      description: 改进行动 ID
       schema:
         type: integer
         format: int64
@@ -4227,3 +4932,864 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/OfferComparison'
+
+    # ---------- M3 1.9.0：投递档案 / 真实面试复盘 / 改进闭环 ----------
+
+    JobApplicationStatus:
+      type: string
+      description: 投递状态
+      enum: [APPLIED, INTERVIEWING, OFFERED, REJECTED, WITHDRAWN]
+
+    InterviewRoundType:
+      type: string
+      description: 真实面试轮次类型
+      enum: [HR, TECH, CROSS, DIRECTOR, FINAL, OTHER]
+
+    InterviewFormat:
+      type: string
+      description: 面试形式
+      enum: [PHONE, VIDEO, ONSITE, OTHER]
+
+    InterviewResult:
+      type: string
+      description: 面试结果
+      enum: [PASS, FAIL, PENDING]
+
+    ReviewInputType:
+      type: string
+      description: 复盘输入类型
+      enum: [AUDIO, TEXT, NOTES]
+
+    ReviewStageStatus:
+      type: string
+      description: ASR / 分析阶段状态
+      enum: [PENDING, PROCESSING, COMPLETED, FAILED, SKIPPED]
+
+    ReviewStatus:
+      type: string
+      description: 复盘整体状态（由 ASR 与分析阶段派生）
+      enum: [UPLOADED, TRANSCRIBING, ANALYZING, READY, FAILED]
+
+    ImprovementActionStatus:
+      type: string
+      description: 改进行动状态
+      enum: [TODO, IN_PROGRESS, VERIFIED, DROPPED]
+
+    JobApplicationListItem:
+      type: object
+      required: [id, jobPositionId, status, appliedAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        jobPositionId:
+          type: integer
+          format: int64
+        jobTitle:
+          type: [string, "null"]
+          example: Java 后端开发工程师
+        companyId:
+          type: [integer, "null"]
+          format: int64
+        companyName:
+          type: [string, "null"]
+          example: 字节跳动
+        resumeId:
+          type: [integer, "null"]
+          format: int64
+        resumeFileName:
+          type: [string, "null"]
+          description: 冗余展示字段
+          example: 我的简历-v3.pdf
+        channel:
+          type: [string, "null"]
+          maxLength: 64
+          description: 投递渠道（如 BOSS / 官网 / 内推）
+          example: BOSS
+        appliedAt:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/JobApplicationStatus'
+        outcome:
+          type: [string, "null"]
+          maxLength: 500
+          description: 结果备注（如简历淘汰 / 二面后无回复）
+        notes:
+          type: [string, "null"]
+          maxLength: 2000
+        interviewCount:
+          type: integer
+          minimum: 0
+          description: 关联的真实面试轮次数
+          example: 2
+        latestRoundNo:
+          type: [integer, "null"]
+          minimum: 1
+          description: 最近一轮的轮次号
+          example: 2
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateJobApplicationRequest:
+      type: object
+      required: [jobPositionId]
+      properties:
+        jobPositionId:
+          type: integer
+          format: int64
+        resumeId:
+          type: [integer, "null"]
+          format: int64
+          description: 使用的简历版本；为空时使用当前默认简历
+        channel:
+          type: [string, "null"]
+          maxLength: 64
+        appliedAt:
+          type: [string, "null"]
+          format: date-time
+          description: 投递时间；为空时取当前时间
+        notes:
+          type: [string, "null"]
+          maxLength: 2000
+
+    UpdateJobApplicationRequest:
+      type: object
+      properties:
+        resumeId:
+          type: [integer, "null"]
+          format: int64
+        channel:
+          type: [string, "null"]
+          maxLength: 64
+        appliedAt:
+          type: [string, "null"]
+          format: date-time
+        status:
+          $ref: '#/components/schemas/JobApplicationStatus'
+        outcome:
+          type: [string, "null"]
+          maxLength: 500
+        notes:
+          type: [string, "null"]
+          maxLength: 2000
+
+    InterviewEventListItem:
+      type: object
+      required: [id, applicationId, roundNo, roundType, result, interviewTime, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        applicationId:
+          type: integer
+          format: int64
+        companyId:
+          type: [integer, "null"]
+          format: int64
+        companyName:
+          type: [string, "null"]
+          example: 字节跳动
+        jobPositionId:
+          type: [integer, "null"]
+          format: int64
+        jobTitle:
+          type: [string, "null"]
+          example: Java 后端开发工程师
+        roundNo:
+          type: integer
+          minimum: 1
+          example: 2
+        roundType:
+          $ref: '#/components/schemas/InterviewRoundType'
+        interviewerRole:
+          type: [string, "null"]
+          maxLength: 64
+          example: 技术负责人
+        format:
+          oneOf:
+            - $ref: '#/components/schemas/InterviewFormat'
+            - type: 'null'
+        interviewTime:
+          type: string
+          format: date-time
+        result:
+          $ref: '#/components/schemas/InterviewResult'
+        notes:
+          type: [string, "null"]
+          maxLength: 1000
+        reviewSessionId:
+          type: [integer, "null"]
+          format: int64
+          description: 关联的复盘记录；未复盘时为 null
+        reviewStatus:
+          oneOf:
+            - $ref: '#/components/schemas/ReviewStatus'
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateInterviewEventRequest:
+      type: object
+      required: [roundNo, roundType]
+      properties:
+        applicationId:
+          type: [integer, "null"]
+          format: int64
+          description: 与 jobPositionId 至少提供一个
+        jobPositionId:
+          type: [integer, "null"]
+          format: int64
+          description: 无投递记录时使用；服务端自动创建或复用投递记录
+        roundNo:
+          type: integer
+          minimum: 1
+        roundType:
+          $ref: '#/components/schemas/InterviewRoundType'
+        interviewerRole:
+          type: [string, "null"]
+          maxLength: 64
+        format:
+          oneOf:
+            - $ref: '#/components/schemas/InterviewFormat'
+            - type: 'null'
+        interviewTime:
+          type: [string, "null"]
+          format: date-time
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/InterviewResult'
+            - type: 'null'
+        notes:
+          type: [string, "null"]
+          maxLength: 1000
+
+    UpdateInterviewEventRequest:
+      type: object
+      properties:
+        roundType:
+          $ref: '#/components/schemas/InterviewRoundType'
+        interviewerRole:
+          type: [string, "null"]
+          maxLength: 64
+        format:
+          oneOf:
+            - $ref: '#/components/schemas/InterviewFormat'
+            - type: 'null'
+        interviewTime:
+          type: [string, "null"]
+          format: date-time
+        result:
+          $ref: '#/components/schemas/InterviewResult'
+        notes:
+          type: [string, "null"]
+          maxLength: 1000
+
+    ReviewSessionListItem:
+      type: object
+      required: [id, interviewEventId, inputType, status, asrStatus, analyzeStatus, asrRetryCount, analyzeRetryCount, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        interviewEventId:
+          type: integer
+          format: int64
+        applicationId:
+          type: [integer, "null"]
+          format: int64
+        companyName:
+          type: [string, "null"]
+          example: 字节跳动
+        jobTitle:
+          type: [string, "null"]
+          example: Java 后端开发工程师
+        roundNo:
+          type: [integer, "null"]
+          minimum: 1
+          example: 2
+        roundType:
+          oneOf:
+            - $ref: '#/components/schemas/InterviewRoundType'
+            - type: 'null'
+        inputType:
+          $ref: '#/components/schemas/ReviewInputType'
+        status:
+          $ref: '#/components/schemas/ReviewStatus'
+        asrStatus:
+          $ref: '#/components/schemas/ReviewStageStatus'
+        analyzeStatus:
+          $ref: '#/components/schemas/ReviewStageStatus'
+        asrRetryCount:
+          type: integer
+          minimum: 0
+        analyzeRetryCount:
+          type: integer
+          minimum: 0
+        audioDurationSeconds:
+          type: [integer, "null"]
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ReviewTranscriptSegment:
+      type: object
+      required: [sequence, text]
+      properties:
+        sequence:
+          type: integer
+          minimum: 1
+        speaker:
+          type: [string, "null"]
+          maxLength: 32
+          example: 面试官
+        text:
+          type: string
+        startTime:
+          type: [number, "null"]
+          description: 相对音频起点的秒数
+          example: 12.5
+        endTime:
+          type: [number, "null"]
+          example: 28.0
+
+    ReviewDimensionScore:
+      type: object
+      required: [dimension]
+      properties:
+        dimension:
+          type: string
+          description: 评分维度 key（来自复盘词表）
+          example: depth
+        label:
+          type: [string, "null"]
+          example: 技术深度
+        score:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 100
+          example: 68
+
+    ReviewQuestion:
+      type: object
+      required: [questionIndex, question]
+      properties:
+        questionIndex:
+          type: integer
+          minimum: 1
+        question:
+          type: string
+        answerSummary:
+          type: [string, "null"]
+          description: 候选人回答摘要
+        score:
+          type: [integer, "null"]
+          minimum: 0
+          maximum: 100
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewDimensionScore'
+        topics:
+          type: array
+          description: 知识点标签 key 列表（受控词表）
+          items:
+            type: string
+        lossTags:
+          type: array
+          description: 失分类型 key 列表（受控词表）
+          items:
+            type: string
+        evidence:
+          type: [string, "null"]
+          description: 证据片段（转写原文）
+        feedback:
+          type: [string, "null"]
+        referenceAnswer:
+          type: [string, "null"]
+
+    ReviewTag:
+      type: object
+      required: [tag]
+      properties:
+        tag:
+          type: string
+          description: 受控词表 key
+        label:
+          type: [string, "null"]
+        confidence:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+        evidence:
+          type: [string, "null"]
+
+    ReviewSummary:
+      type: object
+      properties:
+        overall:
+          type: [string, "null"]
+        strengths:
+          type: array
+          items:
+            type: string
+        improvements:
+          type: array
+          items:
+            type: string
+        nextPreparation:
+          type: array
+          items:
+            type: string
+
+    ImprovementActionDraft:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          maxLength: 500
+        category:
+          type: [string, "null"]
+          maxLength: 64
+          description: 行动分类（如 知识点补强 / 表达结构）
+        reason:
+          type: [string, "null"]
+          maxLength: 1000
+
+    ReviewAnalysis:
+      type: object
+      required: [questions, topics, lossTags, summary, actions, promptVersion, rubricVersion, taxonomyVersion, confirmed]
+      properties:
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewQuestion'
+        topics:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewTag'
+        lossTags:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewTag'
+        summary:
+          $ref: '#/components/schemas/ReviewSummary'
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImprovementActionDraft'
+        promptVersion:
+          type: string
+          example: review-analyze-v1
+        rubricVersion:
+          type: string
+          example: interview-rubric-v1
+        taxonomyVersion:
+          type: string
+          example: taxonomy-v1
+        confirmed:
+          type: boolean
+        degraded:
+          type: boolean
+          description: true 表示 LLM 总结失败，仅返回本地可算字段
+        llmProvider:
+          type: [string, "null"]
+        llmModel:
+          type: [string, "null"]
+
+    ReviewAnalysisUpdateRequest:
+      type: object
+      required: [questions, topics, lossTags, summary, actions, confirmed]
+      properties:
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewQuestion'
+        topics:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewTag'
+        lossTags:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewTag'
+        summary:
+          $ref: '#/components/schemas/ReviewSummary'
+        actions:
+          type: array
+          description: 用户接受 / 修改后的改进行动；confirmed=true 时据此创建或更新
+          items:
+            $ref: '#/components/schemas/ImprovementActionDraft'
+        confirmed:
+          type: boolean
+
+    ReviewSessionDetail:
+      allOf:
+        - $ref: '#/components/schemas/ReviewSessionListItem'
+        - type: object
+          required: [confirmed]
+          properties:
+            transcript:
+              type: [string, "null"]
+            transcriptSegments:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReviewTranscriptSegment'
+            analysis:
+              oneOf:
+                - $ref: '#/components/schemas/ReviewAnalysis'
+                - type: 'null'
+            confirmed:
+              type: boolean
+            asrError:
+              type: [string, "null"]
+            analyzeError:
+              type: [string, "null"]
+            audioFileName:
+              type: [string, "null"]
+
+    ReviewSessionStatus:
+      type: object
+      required: [id, status, asrStatus, analyzeStatus, asrRetryCount, analyzeRetryCount, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/ReviewStatus'
+        asrStatus:
+          $ref: '#/components/schemas/ReviewStageStatus'
+        analyzeStatus:
+          $ref: '#/components/schemas/ReviewStageStatus'
+        asrRetryCount:
+          type: integer
+          minimum: 0
+        analyzeRetryCount:
+          type: integer
+          minimum: 0
+        asrError:
+          type: [string, "null"]
+        analyzeError:
+          type: [string, "null"]
+        updatedAt:
+          type: string
+          format: date-time
+
+    UpdateReviewSessionRequest:
+      type: object
+      properties:
+        transcript:
+          type: [string, "null"]
+          maxLength: 200000
+        notes:
+          type: [string, "null"]
+          maxLength: 20000
+        interviewerRole:
+          type: [string, "null"]
+          maxLength: 64
+        roundType:
+          $ref: '#/components/schemas/InterviewRoundType'
+        format:
+          oneOf:
+            - $ref: '#/components/schemas/InterviewFormat'
+            - type: 'null'
+        interviewTime:
+          type: [string, "null"]
+          format: date-time
+
+    ImprovementAction:
+      type: object
+      required: [id, action, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        sourceReviewId:
+          type: [integer, "null"]
+          format: int64
+        sourceEventId:
+          type: [integer, "null"]
+          format: int64
+        applicationId:
+          type: [integer, "null"]
+          format: int64
+        action:
+          type: string
+          maxLength: 500
+        category:
+          type: [string, "null"]
+          maxLength: 64
+        status:
+          $ref: '#/components/schemas/ImprovementActionStatus'
+        dueAt:
+          type: [string, "null"]
+          format: date-time
+        verifiedEventId:
+          type: [integer, "null"]
+          format: int64
+        evidence:
+          type: [string, "null"]
+          maxLength: 2000
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateImprovementActionRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          maxLength: 500
+        category:
+          type: [string, "null"]
+          maxLength: 64
+        dueAt:
+          type: [string, "null"]
+          format: date-time
+        sourceReviewId:
+          type: [integer, "null"]
+          format: int64
+        sourceEventId:
+          type: [integer, "null"]
+          format: int64
+
+    UpdateImprovementActionRequest:
+      type: object
+      properties:
+        action:
+          type: string
+          maxLength: 500
+        category:
+          type: [string, "null"]
+          maxLength: 64
+        status:
+          $ref: '#/components/schemas/ImprovementActionStatus'
+        dueAt:
+          type: [string, "null"]
+          format: date-time
+        verifiedEventId:
+          type: [integer, "null"]
+          format: int64
+        evidence:
+          type: [string, "null"]
+          maxLength: 2000
+
+    TaxonomyItem:
+      type: object
+      required: [key, label]
+      properties:
+        key:
+          type: string
+          example: jvm
+        label:
+          type: string
+          example: JVM
+        description:
+          type: [string, "null"]
+
+    TaxonomyDimension:
+      type: object
+      required: [key, label]
+      properties:
+        key:
+          type: string
+          example: depth
+        label:
+          type: string
+          example: 技术深度
+        description:
+          type: [string, "null"]
+        maxScore:
+          type: integer
+          minimum: 1
+          default: 100
+
+    ReviewTaxonomy:
+      type: object
+      required: [topics, lossTags, dimensions, taxonomyVersion, rubricVersion]
+      properties:
+        topics:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaxonomyItem'
+        lossTags:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaxonomyItem'
+        dimensions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaxonomyDimension'
+        taxonomyVersion:
+          type: string
+          example: taxonomy-v1
+        rubricVersion:
+          type: string
+          example: interview-rubric-v1
+        updatedAt:
+          type: string
+          format: date-time
+
+    JobApplicationTimeline:
+      type: object
+      required: [application, events, reviews, actions]
+      properties:
+        application:
+          $ref: '#/components/schemas/JobApplicationListItem'
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/InterviewEventListItem'
+        reviews:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewSessionListItem'
+        offer:
+          oneOf:
+            - $ref: '#/components/schemas/Offer'
+            - type: 'null'
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImprovementAction'
+
+    ResultJobApplication:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/JobApplicationListItem'
+
+    ResultJobApplicationPage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/JobApplicationListItem'
+
+    ResultJobApplicationTimeline:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/JobApplicationTimeline'
+
+    ResultInterviewEvent:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/InterviewEventListItem'
+
+    ResultInterviewEventPage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/InterviewEventListItem'
+
+    ResultReviewSession:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ReviewSessionListItem'
+
+    ResultReviewSessionPage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/ReviewSessionListItem'
+
+    ResultReviewSessionDetail:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ReviewSessionDetail'
+
+    ResultReviewSessionStatus:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ReviewSessionStatus'
+
+    ResultImprovementAction:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ImprovementAction'
+
+    ResultImprovementActionPage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/ImprovementAction'
+
+    ResultReviewTaxonomy:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ReviewTaxonomy'

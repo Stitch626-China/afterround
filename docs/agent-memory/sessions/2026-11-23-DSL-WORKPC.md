@@ -46,3 +46,9 @@
 - 原因：用户指出与开源/商业产品同质化严重，Agent 已能完成单次复盘；真实痛点是 15-30 场真实面试的跨场归因与改进闭环，且每场录入必须 ≤5 分钟，不能增加负担。
 - 验证：需求文档版本、迭代记录、功能优先级、数据模型、里程碑、风险与 Out of Scope 已交叉核对；本次只改需求，未改代码与契约。
 - 下一步 / 断点：按 v1.11 先改契约（applications / interview-events / reviews / improvement-actions / insights），再进入 M3-a；命名等定位确认后按 GitHub / 搜索引擎 / 应用商店 / 商标 / 域名五项检查。
+
+### 15:41 契约 1.9.0 定义 M3 采集与档案骨架
+- 改动：`contracts/openapi.yaml` 升至 **1.9.0**，新增 22 个 M3 1.9.0 端点并全部标记 `x-implemented: false`：投递档案 5（列表 / 创建 / 更新 / 删除 / 时间线）、真实面试事件 4、复盘 8（列表 / 创建 / 更新 / 删除 / 状态 / 重试分析 / 确认分析 / 详情）、改进动作 4、复盘词表 1。新增 `JobApplicationStatus` / `InterviewRoundType` / `InterviewFormat` / `InterviewResult` / `ReviewInputType` / `ReviewStageStatus` / `ReviewStatus` / `ImprovementActionStatus` 等枚举，以及投递、面试事件、复盘详情/分析/词表、改进行动、时间线等 schema；补充错误码 40915~40917。
+- 原因：用户选择两阶段契约，先定义采集与档案骨架，洞察（F5）待真实数据形状稳定后进 1.10.0，避免过早固化聚合口径。
+- 验证：`redocly lint` **0 error / 0 warning**；`ContractCoverageTest` 端点总数 64→86 并通过（新端点均为 pending，已实现集合仍 64）；`ContractSchemaTest` 通过；前端契约类型重新生成 + 生产构建通过。
+- 下一步 / 断点：按 M3-a 实现 F8 投递档案（`applications` 表 + 5 端点），完成后逐路径删除 `x-implemented: false`。
