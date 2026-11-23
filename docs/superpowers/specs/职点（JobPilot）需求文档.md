@@ -33,6 +33,7 @@
 | v1.10 | 2026-11-19 | 数据模型补齐：模拟面试题目独立成表，Offer 决策正式落表 |
 | v1.11 | 2026-11-23 | 产品重定位：从「模拟面试工具」转为「求职档案与决策系统」，聚焦真实面试复盘、跨场归因与改进闭环 |
 | v1.12 | 2026-11-23 | 档案链路规则：Offer 关联投递、被引用数据禁止删除、投递状态向前同步岗位状态 |
+| v1.13 | 2026-11-23 | JD 导入支持截图：最多 5 张、视觉识别后复用解析、只存文本 |
 
 > **状态同步（2026-11-16）**：M1 已由用户完成功能验收（服务商添加与全局默认、对话内模型切换、简历上传与分析均通过），状态字段由「M1 进行中」改为「M1 已完成并验收」。仅同步状态事实，无需求变化，版本号不变。
 
@@ -143,6 +144,34 @@
 - `applications` 状态推进时触发岗位状态向前同步：SAVED → APPLIED → INTERVIEWING → OFFERED / REJECTED；WITHDRAWN 不改岗位状态。
 - 删除守卫：简历 / 岗位 / 投递被下游引用时返回 409（复用通用「资源被引用」语义）；契约需补 409 响应。
 - 这些改动与 `applications` 建表同批落地，避免出现"契约有字段、数据库没有"的中间态。
+
+---
+
+### v1.13 · 2026-11-23 —— JD 导入支持截图
+
+**多了什么**
+
+- **JD 支持截图导入**：招聘软件 / 网站截图可以直接上传，最多 5 张，支持 PNG / JPEG / WebP，每张 ≤5MB。
+- **截图先识别再解析**：先用视觉模型把截图里的 JD 原文提取出来，再复用现有 JD 结构化解析、公司关联、异步状态机与失败重试。
+- **只存文本**：截图原图不落库，只保存提取后的文本，降低磁盘占用与隐私风险。
+- **视觉能力提示**：当前模型不支持图片时，明确提示“切换支持视觉的模型或粘贴文本”，不静默失败。
+
+**变了什么**
+
+- JD 导入从「文件 / 文本」二选一变为「文件 / 文本 / 截图」三选一。
+- `job_positions.source_type` 增加 `IMAGE`；详情页可显示来源为截图。
+- 图片按顺序识别；长截图按高度切片并保留重叠，合并后去重，避免文字被截断或重复。
+
+**砍了什么**
+
+- 不保存截图原图；不做本地 OCR 兜底；不支持视频、PDF 与截图混合批量导入。
+
+**附：技术实现要点**
+
+- 契约 `POST /api/job-positions` 增加 `images`（最多 5 个二进制，单张 ≤5MB，仅 PNG / JPEG / WebP），`sourceType` 增加 `IMAGE`；补 400 / 413 / 415。契约版本随该改动升到 `1.9.1`。
+- 视觉提取使用现有 OpenAI 兼容的图片消息能力；按图片顺序提取，长图切片 + 重叠；合并文本写入 `raw_text`，再走现有异步解析。
+- 视觉能力探测：Provider / Model 不支持 image 时返回明确业务错误；不引入 Tesseract / PaddleOCR。
+- JD 删除时只清理文本与匹配结果，没有截图文件需要清理。
 
 ---
 
@@ -469,13 +498,15 @@
 
 ### 4.3 F2 岗位库与行情分析（P1）
 
-- FR2.1 JD 导入：粘贴文本或上传文件。
+- FR2.1 JD 导入：粘贴文本、上传文件（PDF / DOCX / DOC / TXT）或上传截图（PNG / JPEG / WebP，最多 5 张）；截图先视觉提取原文，再走结构化解析。
 - FR2.2 LLM 结构化解析：岗位名 / 公司 / 城市 / 薪资区间 / 经验要求 / 学历要求 / 技能要求（分类：必备 / 加分）/ 职责摘要。
 - FR2.3 简历-JD 匹配评分（异步，状态 `match_status`）：总体匹配分（0-100）+ 分项（技能匹配 50% / 经验匹配 30% / 加分项覆盖 20%）+ 差距清单 + 针对性准备建议；权重同 FR1.6 在 prompt 中显式声明。
 - FR2.4 行情洞察：基于已导入 JD 集合统计——技能词频 Top N、薪资分布、经验要求分布、岗位方向分布。
 - FR2.5 匹配的 JD 可一键「记录投递」（联动 F8），也可发起模拟面试（可选，联动 F3）。
 - FR2.6 JD 删除：支持单条与批量删除（二次确认）；删除后行情洞察（FR2.4）按剩余 JD 实时重算。
 - FR2.7 岗位跟踪：生命周期为待跟进 / 已投递 / 面试中 / 录用 / 淘汰，可任意方向调整；每个岗位支持 200 字以内的自由备注（如一面 / 二面、简历淘汰 / 面试淘汰），列表页可快速编辑，详情页可修改，留空即清除。
+- FR2.8 截图导入：最多 5 张、单张 ≤5MB；只接受 PNG / JPEG / WebP；长截图按高度切片并保留重叠，按顺序识别后合并去重；识别为空返回 400，格式不支持返回 415，超限返回 413；**原图不落库**，只保存提取文本，`sourceType = IMAGE`。
+- FR2.9 视觉能力：当前 Provider / Model 不支持图片输入时返回明确错误，提示“切换支持视觉的模型或粘贴文本”；不引入本地 OCR 兜底。
 
 ### 4.4 F3 模拟面试（P2，可选练习）
 
@@ -768,7 +799,7 @@ interview-main/
 |---|---|
 | resumes | file_hash UNIQUE、storage_key、resume_text、analyze_status / error / retry_count |
 | resume_analyses | resume_id FK、overall_score、五维分数各自成列、strengths / suggestions / career_directions JSONB、llm_provider、llm_model |
-| job_positions | **company_id FK、status（SAVED / APPLIED / INTERVIEWING / OFFERED / REJECTED）、remark（用户备注）**、title、company、city、salary_min / max、experience、raw_text、structured JSONB |
+| job_positions | **company_id FK、status（SAVED / APPLIED / INTERVIEWING / OFFERED / REJECTED）、remark（用户备注）**、title、company、city、salary_min / max、experience、raw_text、structured JSONB、source_type（TEXT / FILE / IMAGE）、file_name、storage_key（截图模式为空） |
 | job_match_results | resume_id、job_position_id、match_status / error / retry_count、overall_score、detail JSONB、llm_provider、llm_model |
 | applications | job_position_id FK、resume_id FK、channel、applied_at、status（APPLIED / INTERVIEWING / OFFERED / REJECTED / WITHDRAWN）、outcome、notes；索引 `(job_position_id, applied_at)` |
 | interview_sessions | **仅模拟面试**：direction、resume_id、job_position_id、status（PREPARING / IN_PROGRESS / GENERATING / SUBMITTED / COMPLETED / FAILED）、evaluate_status / error / retry_count、question_count / follow_up_count / answered_count、current_provider_key、current_model |

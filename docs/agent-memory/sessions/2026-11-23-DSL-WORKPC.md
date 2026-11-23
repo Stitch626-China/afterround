@@ -58,3 +58,9 @@
 - 原因：现有 `offers` 只有 companyId/jobPositionId，同一岗位多次投递时 Offer 归属会歧义；硬删简历/岗位会断掉归因链；岗位状态与投递状态如果完全独立，会让用户重复维护。
 - 验证：需求文档版本与迭代记录、F6/F8、数据模型 `offers.application_id`、README/PROGRESS 已交叉核对；本次只改需求与记录，未改代码/契约。
 - 下一步 / 断点：M3-a 第一件事把这三条写进契约 1.9.0（Offer 的 applicationId、现有删除端点的 409、岗位状态同步说明），并与 `applications` 建表 + `offers.application_id` 同批实现，避免中间态。
+
+### 16:36 JD 截图导入需求确认（v1.13）
+- 改动：需求文档升级 v1.13，F2 新增截图导入——最多 5 张 PNG/JPEG/WebP、单张 ≤5MB；视觉模型先提取 JD 原文，再复用现有结构化解析；原图不落库，只保存提取文本；当前模型不支持视觉时明确提示“切换视觉模型或粘贴文本”，不引入本地 OCR。同步更新数据模型 `job_positions.source_type（TEXT / FILE / IMAGE）`、README、PROGRESS。
+- 原因：招聘软件/网站 JD 多以截图形式存在，粘贴文本摩擦大；截图导入符合「≤5 分钟」原则。只存文本可降低磁盘与隐私风险；视觉兜底方案先探测、不引依赖。
+- 验证：需求版本与迭代记录、F2 FR2.1/FR2.8/FR2.9、数据模型已交叉核对；本次只改需求与记录，未改代码/契约。
+- 下一步 / 断点：实现时契约升至 1.9.1，`POST /api/job-positions` 增加 `images`、`sourceType` 增加 `IMAGE`；与 M3-a 一起排期，先探测当前模型是否支持图片。
