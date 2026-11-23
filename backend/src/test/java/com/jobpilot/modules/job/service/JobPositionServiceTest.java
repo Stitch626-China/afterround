@@ -24,6 +24,7 @@ import com.jobpilot.common.llm.LlmClient;
 import com.jobpilot.infrastructure.llm.LlmCallLogger;
 import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
 import com.jobpilot.infrastructure.storage.FileStorage;
+import com.jobpilot.modules.application.mapper.JobApplicationMapper;
 import com.jobpilot.modules.company.entity.Company;
 import com.jobpilot.modules.company.mapper.CompanyMapper;
 import com.jobpilot.modules.job.dto.BatchDeleteJobPositionsRequest;
@@ -52,6 +53,8 @@ class JobPositionServiceTest {
     @Mock
     private CompanyMapper companyMapper;
     @Mock
+    private JobApplicationMapper applicationMapper;
+    @Mock
     private LlmSceneService sceneService;
     @Mock
     private ProviderClientRegistry registry;
@@ -68,7 +71,7 @@ class JobPositionServiceTest {
     }
 
     private JobPositionService service() {
-        return new JobPositionService(jobMapper, companyMapper, sceneService, registry, callLogger,
+        return new JobPositionService(jobMapper, companyMapper, applicationMapper, sceneService, registry, callLogger,
                 new JobPositionPromptFactory(), storage, executor);
     }
 
@@ -331,6 +334,7 @@ class JobPositionServiceTest {
         company.setId(5L);
         company.setName("字节跳动");
         when(companyMapper.selectById(5L)).thenReturn(company);
+        when(applicationMapper.selectCount(any())).thenReturn(0L);
 
         var detail = service().detail(1L);
         assertThat(detail.companyName()).isEqualTo("字节跳动");
@@ -345,6 +349,7 @@ class JobPositionServiceTest {
     void batchDeleteIgnoresMissingIds() {
         JobPosition job = job("COMPLETED");
         when(jobMapper.selectByIds(anyList())).thenReturn(List.of(job));
+        when(applicationMapper.selectCount(any())).thenReturn(0L);
 
         service().batchDelete(new BatchDeleteJobPositionsRequest(List.of(1L, 2L)));
 

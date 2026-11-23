@@ -18,6 +18,8 @@ import com.jobpilot.common.api.PageResult;
 import com.jobpilot.common.exception.BizException;
 import com.jobpilot.common.text.TextCleaner;
 import com.jobpilot.infrastructure.storage.FileStorage;
+import com.jobpilot.modules.application.entity.JobApplication;
+import com.jobpilot.modules.application.mapper.JobApplicationMapper;
 import com.jobpilot.modules.resume.dto.ResumeAnalysisStatusResponse;
 import com.jobpilot.modules.resume.dto.ResumeDetailResponse;
 import com.jobpilot.modules.resume.dto.ResumeListItemResponse;
@@ -47,13 +49,16 @@ public class ResumeService {
 
     private final ResumeMapper resumeMapper;
     private final ResumeAnalysisMapper analysisMapper;
+    private final JobApplicationMapper applicationMapper;
     private final FileStorage storage;
     private final ResumeAnalysisService analysisService;
 
     public ResumeService(ResumeMapper resumeMapper, ResumeAnalysisMapper analysisMapper,
-                         FileStorage storage, ResumeAnalysisService analysisService) {
+                         JobApplicationMapper applicationMapper, FileStorage storage,
+                         ResumeAnalysisService analysisService) {
         this.resumeMapper = resumeMapper;
         this.analysisMapper = analysisMapper;
+        this.applicationMapper = applicationMapper;
         this.storage = storage;
         this.analysisService = analysisService;
     }
@@ -167,6 +172,10 @@ public class ResumeService {
     /** 硬删除：清理磁盘文件 + 分析结果 + 主记录。 */
     public void delete(Long resumeId) {
         Resume resume = require(resumeId);
+        if (applicationMapper.selectCount(Wrappers.<JobApplication>lambdaQuery()
+                .eq(JobApplication::getResumeId, resumeId)) > 0) {
+            throw BizException.of(ErrorCode.RESOURCE_REFERENCED, "简历已被投递记录引用，请先删除投递");
+        }
         if (resume.getStorageKey() != null) {
             try {
                 storage.delete(resume.getStorageKey());

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.jobpilot.modules.application.controller.JobApplicationController;
 import com.jobpilot.modules.chat.controller.ChatController;
 import com.jobpilot.modules.company.controller.CompanyController;
 import com.jobpilot.modules.interview.controller.InterviewController;
@@ -89,7 +90,7 @@ class ContractCoverageTest {
                 CompanyController.class, JobPositionController.class, JobMatchController.class,
                 JobMarketController.class, ChatController.class, ResumeController.class,
                 ResumeComparisonController.class, InterviewController.class, InterviewSessionController.class,
-                OfferController.class)) {
+                OfferController.class, JobApplicationController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (Method method : controller.getDeclaredMethods()) {
                 for (Annotation annotation : method.getAnnotations()) {

@@ -10,6 +10,7 @@ public record Offer(
         Long companyId,
         String companyName,
         Long jobPositionId,
+        Long applicationId,
         String jobPositionTitle,
         Integer monthlySalary,
         Integer baseSalary,

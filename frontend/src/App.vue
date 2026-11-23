@@ -25,6 +25,7 @@ const pageTitle = computed(() => (route.meta.title as string) ?? '职点')
       <nav class="nav">
         <RouterLink to="/resumes" class="nav-item">简历中心</RouterLink>
         <RouterLink to="/jobs" class="nav-item">岗位库</RouterLink>
+        <RouterLink to="/applications" class="nav-item">投递档案</RouterLink>
         <RouterLink to="/interviews" class="nav-item">模拟面试</RouterLink>
         <RouterLink to="/offers" class="nav-item">Offer 决策</RouterLink>
         <span class="nav-item planned">面试复盘<em>M3</em></span>

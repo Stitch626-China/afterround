@@ -19,6 +19,7 @@ import {
   type OfferGroup,
 } from '@/api/offers'
 import { listCompanies, listJobPositions, type Company, type JobPositionListItem } from '@/api/jobs'
+import { listJobApplications, type JobApplicationListItem } from '@/api/applications'
 import EmptyState from '@/components/EmptyState.vue'
 import {
   emptyOfferForm,
@@ -41,6 +42,7 @@ const error = ref('')
 const notice = ref('')
 const companies = ref<Company[]>([])
 const jobs = ref<JobPositionListItem[]>([])
+const applications = ref<JobApplicationListItem[]>([])
 
 const formOpen = ref(false)
 const editingId = ref<number | null>(null)
@@ -93,12 +95,14 @@ async function load(): Promise<void> {
 
 async function loadOptions(): Promise<void> {
   try {
-    const [companyPage, jobPage] = await Promise.all([
+    const [companyPage, jobPage, applicationPage] = await Promise.all([
       listCompanies('', 100),
       listJobPositions({ page: 1, size: 100 }),
+      listJobApplications({ page: 1, size: 100 }),
     ])
     companies.value = companyPage.items
     jobs.value = jobPage.items
+    applications.value = applicationPage.items
   } catch {
     // 选项加载失败不阻断列表；保存时会提示未选择公司/岗位
   }
@@ -435,6 +439,16 @@ onMounted(() => {
               <option value="">未选择</option>
               <option v-for="item in jobs" :key="item.id" :value="String(item.id)">
                 {{ item.title }}{{ item.companyName ? ` · ${item.companyName}` : '' }}
+              </option>
+            </select>
+          </label>
+          <label>
+            <span>关联投递（可选）</span>
+            <select v-model="form.applicationId">
+              <option value="">不关联</option>
+              <option v-for="item in applications" :key="item.id" :value="String(item.id)">
+                {{ item.companyName || '公司未填' }} · {{ item.jobTitle || '岗位未填' }} ·
+                {{ item.appliedAt.slice(0, 10) }}
               </option>
             </select>
           </label>

@@ -32,6 +32,8 @@ import com.jobpilot.common.llm.LlmClient;
 import com.jobpilot.common.llm.StructuredOutputInvoker;
 import com.jobpilot.infrastructure.llm.LlmCallLogger;
 import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
+import com.jobpilot.modules.application.entity.JobApplication;
+import com.jobpilot.modules.application.mapper.JobApplicationMapper;
 import com.jobpilot.modules.company.entity.Company;
 import com.jobpilot.modules.company.mapper.CompanyMapper;
 import com.jobpilot.modules.job.entity.JobPosition;
@@ -81,17 +83,19 @@ public class OfferService {
     private final OfferMapper offerMapper;
     private final CompanyMapper companyMapper;
     private final JobPositionMapper jobMapper;
+    private final JobApplicationMapper applicationMapper;
     private final LlmSceneService sceneService;
     private final ProviderClientRegistry registry;
     private final LlmCallLogger callLogger;
     private final OfferPromptFactory prompts;
 
     public OfferService(OfferMapper offerMapper, CompanyMapper companyMapper, JobPositionMapper jobMapper,
-                        LlmSceneService sceneService, ProviderClientRegistry registry,
-                        LlmCallLogger callLogger, OfferPromptFactory prompts) {
+                        JobApplicationMapper applicationMapper, LlmSceneService sceneService,
+                        ProviderClientRegistry registry, LlmCallLogger callLogger, OfferPromptFactory prompts) {
         this.offerMapper = offerMapper;
         this.companyMapper = companyMapper;
         this.jobMapper = jobMapper;
+        this.applicationMapper = applicationMapper;
         this.sceneService = sceneService;
         this.registry = registry;
         this.callLogger = callLogger;
@@ -125,6 +129,9 @@ public class OfferService {
             throw BizException.of(ErrorCode.BAD_REQUEST, "companyId 与 jobPositionId 至少填写一个");
         }
         JobPosition job = request.jobPositionId() == null ? null : requireJob(request.jobPositionId());
+        if (request.applicationId() != null) {
+            requireApplication(request.applicationId());
+        }
         Long companyId = request.companyId();
         if (companyId == null) {
             companyId = job == null ? null : job.getCompanyId();
@@ -139,6 +146,7 @@ public class OfferService {
         entity.setUserId(1L);
         entity.setCompanyId(companyId);
         entity.setJobPositionId(request.jobPositionId());
+        entity.setApplicationId(request.applicationId());
         entity.setMonthlySalary(request.monthlySalary());
         entity.setBaseSalary(request.baseSalary());
         entity.setPerformanceRatio(request.performanceRatio());
@@ -185,6 +193,16 @@ public class OfferService {
             changed = true;
         } else if (job != null && job.getCompanyId() != null) {
             update.set(Offer::getCompanyId, job.getCompanyId());
+            changed = true;
+        }
+        if (request.applicationId() != null) {
+            if (request.applicationId().isNull()) {
+                update.set(Offer::getApplicationId, null);
+            } else {
+                Long applicationId = integerNode(request.applicationId(), Long.MAX_VALUE);
+                requireApplication(applicationId);
+                update.set(Offer::getApplicationId, applicationId);
+            }
             changed = true;
         }
         if (request.monthlySalary() != null) {
@@ -480,7 +498,7 @@ public class OfferService {
         Company company = offer.getCompanyId() == null ? null : companyMapper.selectById(offer.getCompanyId());
         JobPosition job = offer.getJobPositionId() == null ? null : jobMapper.selectById(offer.getJobPositionId());
         return new OfferDetail(offer.getId(), offer.getCompanyId(), company == null ? null : company.getName(),
-                offer.getJobPositionId(), job == null ? null : job.getTitle(),
+                offer.getJobPositionId(), offer.getApplicationId(), job == null ? null : job.getTitle(),
                 offer.getMonthlySalary(), offer.getBaseSalary(), offer.getPerformanceRatio(),
                 offer.getSocialInsuranceBase(), offer.getSocialInsuranceRatio(),
                 offer.getHousingFundBase(), offer.getHousingFundRatio(), offer.getTwoDayWeekend(),
@@ -491,12 +509,32 @@ public class OfferService {
 
     private com.jobpilot.modules.offer.dto.Offer toOffer(Offer offer, String companyName, String jobTitle) {
         return new com.jobpilot.modules.offer.dto.Offer(offer.getId(), offer.getCompanyId(), companyName,
-                offer.getJobPositionId(), jobTitle, offer.getMonthlySalary(), offer.getBaseSalary(),
-                offer.getPerformanceRatio(), offer.getSocialInsuranceBase(), offer.getSocialInsuranceRatio(),
-                offer.getHousingFundBase(), offer.getHousingFundRatio(), offer.getTwoDayWeekend(),
-                offer.getWorkHours(), strings(offer.getBenefits()), strings(offer.getAllowances()),
-                offer.getAnnualBonus(), offer.getQuarterlyBonus(), offer.getRemark(), offer.getOfferGroup(),
-                offer.getCreatedAt(), offer.getUpdatedAt());
+                offer.getJobPositionId(), offer.getApplicationId(), jobTitle, offer.getMonthlySalary(),
+                offer.getBaseSalary(), offer.getPerformanceRatio(), offer.getSocialInsuranceBase(),
+                offer.getSocialInsuranceRatio(), offer.getHousingFundBase(), offer.getHousingFundRatio(),
+                offer.getTwoDayWeekend(), offer.getWorkHours(), strings(offer.getBenefits()),
+                strings(offer.getAllowances()), offer.getAnnualBonus(), offer.getQuarterlyBonus(),
+                offer.getRemark(), offer.getOfferGroup(), offer.getCreatedAt(), offer.getUpdatedAt());
+    }
+
+    /** 投递时间线用：按 applicationId 取关联 Offer（最多一条，重复关联时取最新）。 */
+    public com.jobpilot.modules.offer.dto.Offer findByApplicationId(Long applicationId) {
+        Offer offer = offerMapper.selectOne(Wrappers.<Offer>lambdaQuery()
+                .eq(Offer::getApplicationId, applicationId)
+                .orderByDesc(Offer::getId).last("limit 1"));
+        if (offer == null) {
+            return null;
+        }
+        Company company = offer.getCompanyId() == null ? null : companyMapper.selectById(offer.getCompanyId());
+        JobPosition job = offer.getJobPositionId() == null ? null : jobMapper.selectById(offer.getJobPositionId());
+        return toOffer(offer, company == null ? null : company.getName(), job == null ? null : job.getTitle());
+    }
+
+    private void requireApplication(Long applicationId) {
+        JobApplication application = applicationMapper.selectById(applicationId);
+        if (application == null) {
+            throw BizException.of(ErrorCode.NOT_FOUND, "投递记录不存在: " + applicationId);
+        }
     }
 
     private OfferAnalysis analysis(String json) {

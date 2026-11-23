@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 public record UpdateOfferRequest(
         JsonNode companyId,
         JsonNode jobPositionId,
+        JsonNode applicationId,
         JsonNode monthlySalary,
         JsonNode baseSalary,
         JsonNode performanceRatio,

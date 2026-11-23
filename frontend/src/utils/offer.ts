@@ -15,6 +15,8 @@ export type WeekendChoice = 'UNSET' | 'YES' | 'NO'
 export interface OfferFormState {
   companyId: string
   jobPositionId: string
+  /** 关联投递记录（可选，用于同一岗位多次投递时区分）。 */
+  applicationId: string
   /** 数字输入框 v-model 会返回 number，这里兼容两种类型。 */
   monthlySalary: string | number
   baseSalary: string | number
@@ -37,6 +39,7 @@ export function emptyOfferForm(): OfferFormState {
   return {
     companyId: '',
     jobPositionId: '',
+    applicationId: '',
     monthlySalary: '',
     baseSalary: '',
     performanceRatio: '',
@@ -59,6 +62,7 @@ export function offerToForm(offer: Offer | OfferDetail): OfferFormState {
   return {
     companyId: text(offer.companyId),
     jobPositionId: text(offer.jobPositionId),
+    applicationId: text(offer.applicationId),
     monthlySalary: text(offer.monthlySalary),
     baseSalary: text(offer.baseSalary),
     performanceRatio: text(offer.performanceRatio),
@@ -111,6 +115,7 @@ export function formToPayload(form: OfferFormState): CreateOfferRequest {
   return {
     companyId: intOrNull(form.companyId),
     jobPositionId: intOrNull(form.jobPositionId),
+    applicationId: intOrNull(form.applicationId),
     monthlySalary: intOrNull(form.monthlySalary),
     baseSalary: intOrNull(form.baseSalary),
     performanceRatio: numberOrNull(form.performanceRatio),

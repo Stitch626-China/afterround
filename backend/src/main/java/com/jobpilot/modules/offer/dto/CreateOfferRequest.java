@@ -17,6 +17,7 @@ import jakarta.validation.constraints.Size;
 public record CreateOfferRequest(
         Long companyId,
         Long jobPositionId,
+        Long applicationId,
         @Min(0) @Max(10000000) Integer monthlySalary,
         @Min(0) @Max(10000000) Integer baseSalary,
         @DecimalMin("0") @DecimalMax("100") BigDecimal performanceRatio,

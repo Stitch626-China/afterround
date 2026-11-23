@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 职点（JobPilot）API
-  version: 1.9.1
+  version: 1.9.2
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -34,11 +34,11 @@ info:
     M2 第一批与第二批（F3 / F6）已全部实现，后端 `ContractCoverageTest` 对「契约端点 = 实际控制器端点」做双向全等校验。
     后续里程碑新增路径可先用路径级 `x-implemented: false` 标记「已定义、待实现」，
     实现完成后删除标记即自动纳入双向全等校验，无需维护例外清单。
-    M3 1.9.0 的投递档案、真实面试复盘与改进动作接口当前均为 `x-implemented: false`。
+    M3 1.9.0 的投递档案接口已实现（F8）；真实面试复盘与改进动作接口仍为 `x-implemented: false`。
 
     ## 错误码补充（M2）
     - `40906` 公司名称已存在（`companies.name` UNIQUE）
-    - `40905` 公司仍被岗位引用，禁止删除（先解除岗位关联；复用通用「资源被引用」码）
+    - `40905` 资源仍被引用，禁止删除（公司被岗位引用、简历 / 岗位被投递引用；先解除关联）
     - `40907` 简历分析未完成，无法参与对比（F7 依赖两份 COMPLETED 的分析结果）
     - `40908` JD 解析 / 匹配任务执行中，请等待完成
     - `40910` 简历分析任务执行中（FR1.5）
@@ -715,7 +715,7 @@ paths:
       tags: [简历]
       operationId: deleteResume
       summary: 删除简历
-      description: 硬删除，级联删除分析结果与岗位匹配结果，同时清理磁盘上的原始文件。
+      description: 硬删除，级联删除分析结果与岗位匹配结果，同时清理磁盘上的原始文件；被投递记录引用时返回 **409**（40905），需先删除投递。
       responses:
         '200':
           description: 删除成功
@@ -725,6 +725,12 @@ paths:
                 $ref: '#/components/schemas/ResultVoid'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: 简历已被投递记录引用（40905）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -1087,7 +1093,7 @@ paths:
       tags: [岗位库]
       operationId: batchDeleteJobPositions
       summary: 批量删除岗位
-      description: 硬删除，同时级联删除岗位匹配结果；行情洞察按剩余 JD 实时重算（FR2.6）。
+      description: 硬删除，同时级联删除岗位匹配结果；行情洞察按剩余 JD 实时重算（FR2.6）。任一岗位被投递记录引用时整批返回 **409**（40905），不做部分删除。
       requestBody:
         required: true
         content:
@@ -1157,7 +1163,7 @@ paths:
       tags: [岗位库]
       operationId: deleteJobPosition
       summary: 删除岗位
-      description: 硬删除，级联删除该岗位的匹配结果；行情洞察按剩余 JD 实时重算（FR2.6）。
+      description: 硬删除，级联删除该岗位的匹配结果；行情洞察按剩余 JD 实时重算（FR2.6）。被投递记录引用时返回 **409**（40905）。
       responses:
         '200':
           description: 删除成功
@@ -1167,6 +1173,12 @@ paths:
                 $ref: '#/components/schemas/ResultVoid'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: 岗位已被投递记录引用（40905）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -1907,7 +1919,6 @@ paths:
   # ==========================================================
 
   /api/job-applications:
-    x-implemented: false
     get:
       tags: [投递档案]
       operationId: listJobApplications
@@ -1980,7 +1991,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/job-applications/{applicationId}:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/ApplicationId'
     patch:
@@ -2030,7 +2040,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/job-applications/{applicationId}/timeline:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/ApplicationId'
     get:
@@ -4559,6 +4568,10 @@ components:
         jobPositionId:
           type: [integer, "null"]
           format: int64
+        applicationId:
+          type: [integer, "null"]
+          format: int64
+          description: 关联的投递记录（同一岗位多次投递时用于区分）
         jobPositionTitle:
           type: [string, "null"]
           example: Java 后端开发工程师
@@ -4651,12 +4664,15 @@ components:
       type: object
       description: |
         `companyId` 与 `jobPositionId` 至少填一个；仅填 jobPositionId 时自动带出所属公司。
-        其余字段均为可选，缺失的对比维度统一显示「未填写」。
+        `applicationId` 可选，提供时必须存在；其余字段均为可选，缺失的对比维度统一显示「未填写」。
       properties:
         companyId:
           type: [integer, "null"]
           format: int64
         jobPositionId:
+          type: [integer, "null"]
+          format: int64
+        applicationId:
           type: [integer, "null"]
           format: int64
         monthlySalary:
@@ -4720,6 +4736,9 @@ components:
           type: [integer, "null"]
           format: int64
         jobPositionId:
+          type: [integer, "null"]
+          format: int64
+        applicationId:
           type: [integer, "null"]
           format: int64
         monthlySalary:

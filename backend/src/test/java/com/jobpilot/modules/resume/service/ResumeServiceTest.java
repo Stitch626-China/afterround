@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.jobpilot.common.api.ErrorCode;
 import com.jobpilot.common.exception.BizException;
 import com.jobpilot.infrastructure.storage.FileStorage;
+import com.jobpilot.modules.application.mapper.JobApplicationMapper;
 import com.jobpilot.modules.resume.entity.Resume;
 import com.jobpilot.modules.resume.mapper.ResumeAnalysisMapper;
 import com.jobpilot.modules.resume.mapper.ResumeMapper;
@@ -24,6 +25,7 @@ class ResumeServiceTest {
     void fileDeleteFailureKeepsDatabaseRecord() {
         ResumeMapper resumeMapper = mock(ResumeMapper.class);
         ResumeAnalysisMapper analysisMapper = mock(ResumeAnalysisMapper.class);
+        JobApplicationMapper applicationMapper = mock(JobApplicationMapper.class);
         FileStorage storage = mock(FileStorage.class);
         ResumeAnalysisService analysisService = mock(ResumeAnalysisService.class);
 
@@ -31,9 +33,11 @@ class ResumeServiceTest {
         resume.setId(1L);
         resume.setStorageKey("resumes/a.pdf");
         when(resumeMapper.selectById(1L)).thenReturn(resume);
+        when(applicationMapper.selectCount(any())).thenReturn(0L);
         doThrow(new IllegalStateException("disk error")).when(storage).delete("resumes/a.pdf");
 
-        ResumeService service = new ResumeService(resumeMapper, analysisMapper, storage, analysisService);
+        ResumeService service = new ResumeService(resumeMapper, analysisMapper, applicationMapper,
+                storage, analysisService);
 
         assertThatThrownBy(() -> service.delete(1L))
                 .isInstanceOfSatisfying(BizException.class,

@@ -14,6 +14,10 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import com.jobpilot.modules.application.dto.CreateJobApplicationRequest;
+import com.jobpilot.modules.application.dto.JobApplicationListItemResponse;
+import com.jobpilot.modules.application.dto.JobApplicationTimelineResponse;
+import com.jobpilot.modules.application.dto.UpdateJobApplicationRequest;
 import com.jobpilot.modules.chat.dto.ChatMessageResponse;
 import com.jobpilot.modules.chat.dto.ChatSessionResponse;
 import com.jobpilot.modules.chat.dto.ChatStreamEvent;
@@ -116,7 +120,9 @@ class ContractSchemaTest {
             AnswerInterviewQuestionRequest.class, InterviewEvaluationCategory.class, InterviewEvaluation.class,
             Offer.class, OfferDetail.class, CreateOfferRequest.class, UpdateOfferRequest.class,
             OfferExtraction.class, AnalyzeOfferRequest.class, OfferComparisonColumn.class,
-            OfferComparisonRow.class, OfferComparison.class, OfferAnalysis.class);
+            OfferComparisonRow.class, OfferComparison.class, OfferAnalysis.class,
+            JobApplicationListItemResponse.class, CreateJobApplicationRequest.class,
+            UpdateJobApplicationRequest.class, JobApplicationTimelineResponse.class);
 
     @Test
     @SuppressWarnings("unchecked")

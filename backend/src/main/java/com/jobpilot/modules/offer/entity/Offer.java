@@ -20,6 +20,7 @@ public class Offer {
     private Long userId;
     private Long companyId;
     private Long jobPositionId;
+    private Long applicationId;
     private Integer monthlySalary;
     private Integer baseSalary;
     private BigDecimal performanceRatio;

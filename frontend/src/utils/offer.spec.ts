@@ -15,6 +15,7 @@ const offer: OfferDetail = {
   companyId: 2,
   companyName: '字节跳动',
   jobPositionId: 3,
+  applicationId: null,
   jobPositionTitle: 'Java 后端',
   monthlySalary: 30000,
   baseSalary: 24000,

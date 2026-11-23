@@ -76,3 +76,9 @@
 - 原因：JD 多为招聘软件截图，按 v1.13 规则补齐截图导入；同步契约、迁移、后端、前端，避免中间态。
 - 验证：`redocly lint` 0 error / 0 warning；`JobPositionServiceTest` 14 tests、`ContractCoverageTest` / `ContractSchemaTest` 通过；Vitest 19、前端生产构建通过；真实接口用本地渲染 JD 截图导入成功（HTTP 200、`sourceType=IMAGE`、`storage_key`/`file_name` 为空、OCR 原文准确、结构化出「高级 Java 后端工程师 / 字节跳动 / 上海 / 20-35K」；`llm_call_logs` 记 `JD_OCR` 1122 tokens / 2654ms），验证岗位已通过 DELETE 接口清理。
 - 下一步 / 断点：M3-a（F8 投递档案）：契约补 Offer `applicationId` 与删除 409，Flyway `applications` + `offers.application_id`，实现 5 端点与状态向前同步、删除守卫。
+
+### 17:40 M3-a 投递档案实现完成（契约 1.9.2）
+- 改动：契约升至 **1.9.2**（Offer / CreateOfferRequest / UpdateOfferRequest 加 `applicationId`；简历与岗位删除补 409/40905；移除投递档案路径 `x-implemented: false`，已实现 69/86）；Flyway `V7__applications.sql`（`applications` + 3 索引 + `offers.application_id ON DELETE SET NULL`）；后端新增 `modules/application`（entity / mapper / 5 端点 controller / service）与 `@MapperScan`，状态向前同步岗位、WITHDRAWN 不改、简历/岗位被引用 40905、Offer 校验并映射 applicationId；前端新增 `/applications` 页面与导航，Offer 表单支持「关联投递（可选）」。
+- 原因：v1.12 链路规则要求投递作为归因链起点，Offer 必须能定位到具体投递；删除保护避免断链。
+- 验证：`redocly lint` 0/0；`JobApplicationServiceTest` 6、契约与全量后端测试通过（行覆盖 88.43%，JaCoCo 门禁通过）；Vitest 19、前端构建通过；真实接口验证：创建投递（APPLIED）→ 岗位同步 APPLIED → 改 OFFERED → 岗位同步 OFFERED → 降回 APPLIED 岗位仍 OFFERED → 创建关联 Offer → 时间线返回 Offer → 删除岗位 409 → 删除投递后 Offer `application_id` 置空 → 清理 Offer/岗位均 200；Flyway V7 在验收库执行成功。
+- 下一步 / 断点：M3-b 真实面试复盘——补 `interview_events` / `review_*` / `improvement_actions` 迁移与 ASR 适配层，实现 17 个待实现端点。

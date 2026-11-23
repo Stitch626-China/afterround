@@ -7,10 +7,11 @@
 
 - 产品：职点（JobPilot），个人求职档案与决策系统（真实面试复盘 → 跨场归因 → 改进闭环 → Offer 决策）
 - 形态：个人自用版，免登录、单用户，本地 Docker Compose
-- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.13** 已确认；契约 **1.9.1**（1.9.0 定义 M3 骨架待实现 + JD 截图导入已实现）
+- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.13** 已确认；契约 **1.9.2**（M3-a 投递档案已实现，17 个复盘/改进行动端点待实现）
 
 ## 当前状态
 
+- **M3-a 投递档案已实现（2026-11-23，DSL-WORKPC）**：契约升至 **1.9.2**（Offer / CreateOfferRequest / UpdateOfferRequest 增加 `applicationId`；简历与岗位删除补 409 说明；移除投递档案路径的 `x-implemented: false`，已实现 69 / 86）；Flyway `V7__applications.sql`（`applications` 表 + 三索引 + `offers.application_id ON DELETE SET NULL`）；后端新增 `JobApplicationController` / `JobApplicationService`（列表筛选、创建、PATCH 更新、硬删除、时间线），状态向前同步岗位（只升不降、WITHDRAWN 不改），简历 / 岗位被引用时 40905，Offer 创建/更新校验并映射 applicationId；前端新增 `/applications` 页面与导航、Offer 表单支持关联投递。验证：`JobApplicationServiceTest` 6 tests、契约全量测试、后端全量测试（行覆盖 88.43%）、Vitest 19、前端构建通过；真实接口验证「创建投递 → APPLIED 同步岗位 → 改 OFFERED 同步 → 降回 APPLIED 岗位仍 OFFERED → Offer 关联 → 时间线可见 → 删除岗位 409 → 删除投递后 Offer 解绑 → 清理成功」。
 - **JD 截图导入已实现（2026-11-23，DSL-WORKPC）**：契约升至 **1.9.1**（`POST /api/job-positions` 新增 `images`，`sourceType` 增 `IMAGE`，redocly 0/0）；Flyway `V6__job_position_source_image.sql` 重建 `ck_job_positions_source_type`；后端 `importJd(file, text, images)` 三选一、最多 5 张、PNG/JPEG/WebP、单张 ≤5MB，长截图按 3000px 切片保留 300px 重叠（JDK 无法解码时整图送入），视觉 OCR 后按行合并去重，原图不落库、`sourceType=IMAGE`，失败返回 400 提示切换视觉模型或粘贴文本，`JD_OCR` 落 `llm_call_logs`；前端岗位库新增「截图」Tab（多选、缩略图、移除、5 张/5MB 校验、失败保留）。验证：`JobPositionServiceTest` 14 tests、契约测试、Vitest 19、前端构建全过；真实接口用本地渲染 JD 截图导入成功（`sourceType=IMAGE`、无原图、结构化出标题/公司/薪资/技能，`JD_OCR` 1122 tokens / 2.65s）。
 - **JD 截图导入规则 v1.13（2026-11-23，DSL-WORKPC）**：JD 导入新增截图模式，最多 5 张 PNG/JPEG/WebP、单张 ≤5MB；视觉模型提取原文后复用现有结构化解析；原图不落库，只存文本；模型不支持视觉时明确提示切换模型或粘贴文本，不引入本地 OCR。**视觉探测已通过**：全局默认 `deepseek / deepseek-flash` 成功识别测试图（`OFFER_EXTRACT`，775 tokens / 8.7s），截图导入可直接复用全局默认。
 - **档案链路规则 v1.12（2026-11-23，DSL-WORKPC）**：Offer 增加可空 `applicationId`；被投递引用的简历 / 岗位禁止删除（409）；投递状态向前同步岗位状态（只升不降，WITHDRAWN 不改岗位状态）。这些改动与 `applications` 建表同批落地，避免“契约有字段、数据库没有”的中间态。
@@ -55,7 +56,7 @@
 
 ## 下一步
 
-1. **M3 实施（下一步）**：契约 1.9.0 已定义（22 个待实现端点），先做 M3-a（F8 投递档案与归因链），再 M3-b（F4 真实面试复盘）、M3-c（F5 跨场归因与改进闭环）、M3-d（收口）；M3 1.10.0 洞察契约在真实数据形状稳定后追加。
+1. **M3-b 真实面试复盘（下一步）**：契约已定义 17 个待实现端点（面试事件 4 / 复盘 8 / 改进动作 4 / 词表 1）；先补 `interview_events`、`review_sessions`、`review_analyses`、`improvement_actions` 迁移与 ASR 适配层（音频上传、流式存储、独立线程池、长转写分段），再逐路径删除 `x-implemented: false`。M3-c 跨场归因与 1.10.0 洞察契约随后。
 2. **M2 用户验收（暂停，可继续）**：验收环境（5433 + 8080 + 5173）仍在运行；M2 两批功能已实现并修复验收问题。F3 模拟面试后续只保留为可选练习。
 3. **命名与公开仓库准备**：候选名必须通过 GitHub（仓库名/Star/功能）、搜索引擎、App Store / 应用市场、中国商标网、域名五项检查，并附同名项目的功能与未做功能清单；同时补 LICENSE、差异化 README 与 5 分钟演示。
 4. **M2 收口（已完成）**：两批 38 端点、前端页面、Vitest 19 / Playwright 11 与真实链路联调全部通过。

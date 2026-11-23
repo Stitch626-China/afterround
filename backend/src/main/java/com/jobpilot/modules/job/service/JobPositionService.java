@@ -37,6 +37,8 @@ import com.jobpilot.common.text.TextCleaner;
 import com.jobpilot.infrastructure.llm.LlmCallLogger;
 import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
 import com.jobpilot.infrastructure.storage.FileStorage;
+import com.jobpilot.modules.application.entity.JobApplication;
+import com.jobpilot.modules.application.mapper.JobApplicationMapper;
 import com.jobpilot.modules.company.entity.Company;
 import com.jobpilot.modules.company.mapper.CompanyMapper;
 import com.jobpilot.modules.job.ai.AiJobPositionParse;
@@ -83,6 +85,7 @@ public class JobPositionService {
 
     private final JobPositionMapper jobMapper;
     private final CompanyMapper companyMapper;
+    private final JobApplicationMapper applicationMapper;
     private final LlmSceneService sceneService;
     private final ProviderClientRegistry registry;
     private final LlmCallLogger callLogger;
@@ -91,12 +94,14 @@ public class JobPositionService {
     private final ThreadPoolTaskExecutor executor;
 
     public JobPositionService(JobPositionMapper jobMapper, CompanyMapper companyMapper,
+                              JobApplicationMapper applicationMapper,
                               LlmSceneService sceneService, ProviderClientRegistry registry,
                               LlmCallLogger callLogger, JobPositionPromptFactory prompts,
                               FileStorage storage,
                               @Qualifier("jobpilotTaskExecutor") ThreadPoolTaskExecutor executor) {
         this.jobMapper = jobMapper;
         this.companyMapper = companyMapper;
+        this.applicationMapper = applicationMapper;
         this.sceneService = sceneService;
         this.registry = registry;
         this.callLogger = callLogger;
@@ -359,16 +364,18 @@ public class JobPositionService {
         return toListItem(entity, companyName(entity.getCompanyId()));
     }
 
-    /** 硬删除 + 磁盘文件清理；匹配结果由数据库外键级联删除。 */
+    /** 硬删除 + 磁盘文件清理；匹配结果由数据库外键级联删除；被投递引用时 409。 */
     public void delete(Long jobPositionId) {
         JobPosition entity = require(jobPositionId);
+        requireNotApplied(List.of(jobPositionId));
         deleteFile(entity);
         jobMapper.deleteById(jobPositionId);
     }
 
-    /** 批量删除：不存在的 id 忽略，单条文件清理失败不阻断（避免无法删除的僵局）。 */
+    /** 批量删除：不存在的 id 忽略，单条文件清理失败不阻断（避免无法删除的僵局）；任一被投递引用则整批 409。 */
     public void batchDelete(BatchDeleteJobPositionsRequest request) {
         List<Long> ids = request.ids().stream().distinct().toList();
+        requireNotApplied(ids);
         List<JobPosition> entities = jobMapper.selectByIds(ids);
         entities.forEach(this::deleteFile);
         if (!entities.isEmpty()) {
@@ -554,6 +561,17 @@ public class JobPositionService {
                 .set(JobPosition::getParseStatus, "PENDING")
                 .set(JobPosition::getParseError, truncate(error))
                 .set(JobPosition::getUpdatedAt, OffsetDateTime.now()));
+    }
+
+    /** 被投递档案引用的岗位禁止删除（40905），避免断掉归因链。 */
+    private void requireNotApplied(List<Long> jobPositionIds) {
+        if (jobPositionIds.isEmpty()) {
+            return;
+        }
+        if (applicationMapper.selectCount(Wrappers.<JobApplication>lambdaQuery()
+                .in(JobApplication::getJobPositionId, jobPositionIds)) > 0) {
+            throw BizException.of(ErrorCode.RESOURCE_REFERENCED, "岗位已被投递记录引用，请先删除投递");
+        }
     }
 
     private void deleteFile(JobPosition job) {
