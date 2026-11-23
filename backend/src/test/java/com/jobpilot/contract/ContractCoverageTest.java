@@ -59,8 +59,8 @@ class ContractCoverageTest {
         expectedImplemented.removeAll(pending);
 
         // 契约端点总数：契约扩缩时提醒同步本断言
-        // 1.9.0 新增 22 个 M3 采集/档案端点（x-implemented: false），总数 64 -> 86
-        assertThat(all).hasSize(86);
+        // 1.9.0 新增 22 个 M3 采集/档案端点；1.9.5 新增 1 个 ASR 重试端点，总数 86 -> 87
+        assertThat(all).hasSize(87);
         // 实现不得出现契约外端点
         assertThat(all).containsAll(actual);
         // 已实现端点必须与契约中「未标记待实现」的部分双向一致；

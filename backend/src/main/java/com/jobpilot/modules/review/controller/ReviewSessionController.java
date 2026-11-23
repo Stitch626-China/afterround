@@ -92,6 +92,11 @@ public class ReviewSessionController {
         return Result.ok(reviewService.analyze(reviewSessionId));
     }
 
+    @PostMapping("/{reviewSessionId}/transcribe")
+    public Result<ReviewSessionListItemResponse> transcribe(@PathVariable Long reviewSessionId) {
+        return Result.ok(reviewService.transcribe(reviewSessionId));
+    }
+
     @PutMapping("/{reviewSessionId}/analysis")
     public Result<ReviewSessionDetailResponse> updateAnalysis(
             @PathVariable Long reviewSessionId,

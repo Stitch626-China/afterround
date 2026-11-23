@@ -22,9 +22,10 @@ spring:
 
   servlet:
     multipart:
-      # FR1.1：单文件 ≤ 5MB；FR2.8：截图最多 5 张，整体上限放宽到 30MB
-      max-file-size: 5MB
-      max-request-size: 30MB
+      # FR1.1：单文件 ≤ 5MB；FR2.8：截图最多 5 张，整体上限放宽到 30MB；
+      # FR4.1：面试音频 ≤ 100MB，request 留出 multipart 边界余量
+      max-file-size: 100MB
+      max-request-size: 120MB
 
   jackson:
     default-property-inclusion: always
@@ -61,6 +62,17 @@ app:
     core-pool-size: ${ASYNC_CORE_POOL_SIZE:2}
     max-pool-size: ${ASYNC_MAX_POOL_SIZE:4}
     queue-capacity: ${ASYNC_QUEUE_CAPACITY:20}
+    # ASR 长任务独立线程池（FR4.8），避免堵住普通异步任务
+    asr-core-pool-size: ${ASYNC_ASR_CORE_POOL_SIZE:1}
+    asr-max-pool-size: ${ASYNC_ASR_MAX_POOL_SIZE:2}
+    asr-queue-capacity: ${ASYNC_ASR_QUEUE_CAPACITY:5}
+  asr:
+    # OpenAI 兼容 /audio/transcriptions；base-url 需包含 /v1；未配置时音频复盘返回可操作提示
+    base-url: ${ASR_BASE_URL:}
+    api-key: ${ASR_API_KEY:}
+    model: ${ASR_MODEL:whisper-1}
+    language: ${ASR_LANGUAGE:zh}
+    timeout-seconds: ${ASR_TIMEOUT_SECONDS:600}
   llm:
     # 首次启动且库内无 Provider 时导入一次（FRX.1），日常请在模型设置页维护
     bootstrap:

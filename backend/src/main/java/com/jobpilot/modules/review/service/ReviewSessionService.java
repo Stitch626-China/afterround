@@ -22,8 +22,10 @@ import com.jobpilot.common.llm.ChatMessage;
 import com.jobpilot.common.llm.ChatResult;
 import com.jobpilot.common.llm.LlmClient;
 import com.jobpilot.common.llm.StructuredOutputInvoker;
+import com.jobpilot.infrastructure.asr.AsrClient;
 import com.jobpilot.infrastructure.llm.LlmCallLogger;
 import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
+import com.jobpilot.infrastructure.storage.FileStorage;
 import com.jobpilot.modules.application.entity.JobApplication;
 import com.jobpilot.modules.application.mapper.JobApplicationMapper;
 import com.jobpilot.modules.company.entity.Company;
@@ -76,6 +78,8 @@ public class ReviewSessionService {
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private static final int MAX_RETRIES = 3;
+    private static final long MAX_AUDIO_BYTES = 100L * 1024 * 1024;
+    private static final Set<String> AUDIO_TYPES = Set.of("mp3", "wav", "m4a");
     private static final Set<String> ROUND_TYPES = Set.of("HR", "TECH", "CROSS", "DIRECTOR", "FINAL", "OTHER");
     private static final Set<String> FORMATS = Set.of("PHONE", "VIDEO", "ONSITE", "OTHER");
 
@@ -92,7 +96,10 @@ public class ReviewSessionService {
     private final ProviderClientRegistry registry;
     private final LlmCallLogger callLogger;
     private final ReviewPromptFactory prompts;
+    private final AsrClient asrClient;
+    private final FileStorage storage;
     private final ThreadPoolTaskExecutor executor;
+    private final ThreadPoolTaskExecutor asrExecutor;
 
     public ReviewSessionService(ReviewSessionMapper sessionMapper, ReviewAnalysisMapper analysisMapper,
                                 InterviewEventMapper eventMapper, InterviewEventService eventService,
@@ -100,8 +107,9 @@ public class ReviewSessionService {
                                 JobPositionMapper jobMapper, CompanyMapper companyMapper,
                                 LlmGlobalSettingMapper globalMapper, LlmSceneService sceneService,
                                 ProviderClientRegistry registry, LlmCallLogger callLogger,
-                                ReviewPromptFactory prompts,
-                                @Qualifier("jobpilotTaskExecutor") ThreadPoolTaskExecutor executor) {
+                                ReviewPromptFactory prompts, AsrClient asrClient, FileStorage storage,
+                                @Qualifier("jobpilotTaskExecutor") ThreadPoolTaskExecutor executor,
+                                @Qualifier("asrTaskExecutor") ThreadPoolTaskExecutor asrExecutor) {
         this.sessionMapper = sessionMapper;
         this.analysisMapper = analysisMapper;
         this.eventMapper = eventMapper;
@@ -115,26 +123,30 @@ public class ReviewSessionService {
         this.registry = registry;
         this.callLogger = callLogger;
         this.prompts = prompts;
+        this.asrClient = asrClient;
+        this.storage = storage;
         this.executor = executor;
+        this.asrExecutor = asrExecutor;
     }
 
     /**
-     * 创建复盘：音频、转写、笔记三选一（B2 暂只开放后两者）。
+     * 创建复盘：音频、转写、笔记三选一（音频与另两者互斥）。
      * 仅给岗位时由面试事件服务复用或自动创建轮次；同一轮次只允许一条复盘（40917）。
      */
     public ReviewSessionListItemResponse create(MultipartFile audio, String transcript, String notes,
                                                 Long applicationId, Long jobPositionId, Integer roundNo,
                                                 String roundType, String interviewerRole, String format,
                                                 OffsetDateTime interviewTime, String idempotencyKey) {
-        if (audio != null && !audio.isEmpty()) {
-            throw BizException.of(ErrorCode.BAD_REQUEST,
-                    "音频转写暂未开放，请先粘贴转写文本或手动笔记；音频入口将在下一个版本启用");
-        }
+        boolean hasAudio = audio != null && !audio.isEmpty();
         String transcriptText = text(transcript, 200000);
         String noteText = text(notes, 20000);
-        if (transcriptText == null && noteText == null) {
+        if (hasAudio && (transcriptText != null || noteText != null)) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "audio 与 transcript / notes 只能三选一");
+        }
+        if (!hasAudio && transcriptText == null && noteText == null) {
             throw BizException.of(ErrorCode.BAD_REQUEST, "audio / transcript / notes 至少提供一个");
         }
+        String audioExt = hasAudio ? audioExtension(audio) : null;
         String key = text(idempotencyKey, 64);
         if (key != null) {
             ReviewSession existing = sessionMapper.selectOne(Wrappers.<ReviewSession>lambdaQuery()
@@ -150,14 +162,22 @@ public class ReviewSessionService {
         if (reviews != null && reviews > 0) {
             throw BizException.of(ErrorCode.REVIEW_ROUND_EXISTS, "该轮面试已存在复盘记录");
         }
+        String storageKey = null;
+        if (hasAudio) {
+            storageKey = "reviews/" + java.util.UUID.randomUUID() + "." + audioExt;
+            saveAudio(storageKey, audio);
+        }
         OffsetDateTime now = OffsetDateTime.now();
         ReviewSession entity = new ReviewSession();
         entity.setUserId(1L);
         entity.setEventId(event.getId());
-        entity.setInputType(transcriptText != null ? "TEXT" : "NOTES");
+        entity.setInputType(hasAudio ? "AUDIO" : transcriptText != null ? "TEXT" : "NOTES");
+        entity.setAudioStorageKey(storageKey);
+        entity.setAudioFileName(hasAudio ? text(audio.getOriginalFilename(), 255) : null);
+        entity.setAudioSize(hasAudio ? audio.getSize() : null);
         entity.setTranscript(transcriptText);
         entity.setNotes(noteText);
-        entity.setAsrStatus("SKIPPED");
+        entity.setAsrStatus(hasAudio ? "PENDING" : "SKIPPED");
         entity.setAnalyzeStatus("PENDING");
         entity.setStatus("UPLOADED");
         entity.setAsrRetryCount(0);
@@ -169,6 +189,9 @@ public class ReviewSessionService {
         try {
             sessionMapper.insert(entity);
         } catch (DuplicateKeyException ex) {
+            if (storageKey != null) {
+                deleteAudioQuietly(storageKey);
+            }
             if (key != null) {
                 ReviewSession existing = sessionMapper.selectOne(Wrappers.<ReviewSession>lambdaQuery()
                         .eq(ReviewSession::getIdempotencyKey, key));
@@ -178,7 +201,9 @@ public class ReviewSessionService {
             }
             throw BizException.of(ErrorCode.REVIEW_ROUND_EXISTS, "该轮面试已存在复盘记录");
         }
-        if (hasDefaultModel()) {
+        if (hasAudio) {
+            submitTranscription(entity.getId());
+        } else if (hasDefaultModel()) {
             try {
                 startAnalysis(entity.getId());
             } catch (RuntimeException ex) {
@@ -260,9 +285,12 @@ public class ReviewSessionService {
         return detail(reviewSessionId);
     }
 
-    /** 硬删除复盘：分析与由该复盘生成的改进行动由外键级联清理；音频在 B3 补充删除。 */
+    /** 硬删除复盘：分析与由该复盘生成的改进行动由外键级联清理，同时删除磁盘音频。 */
     public void delete(Long reviewSessionId) {
-        require(reviewSessionId);
+        ReviewSession session = require(reviewSessionId);
+        if (!blank(session.getAudioStorageKey())) {
+            deleteAudioQuietly(session.getAudioStorageKey());
+        }
         sessionMapper.deleteById(reviewSessionId);
     }
 
@@ -280,13 +308,46 @@ public class ReviewSessionService {
             throw BizException.of(ErrorCode.REVIEW_TASK_IN_PROGRESS);
         }
         if ("AUDIO".equals(session.getInputType()) && !"COMPLETED".equals(session.getAsrStatus())) {
-            throw BizException.of(ErrorCode.REVIEW_TASK_IN_PROGRESS, "转写尚未完成，请稍后再试");
+            String message = "FAILED".equals(session.getAsrStatus())
+                    ? "转写失败，请先重试转写或补充转写文本" : "转写尚未完成，请稍后再试";
+            throw BizException.of(ErrorCode.REVIEW_TASK_IN_PROGRESS, message);
         }
         if (blank(session.getTranscript()) && blank(session.getNotes())) {
             throw BizException.of(ErrorCode.BAD_REQUEST, "缺少可分析的转写文本或笔记");
         }
         requireDefaultModel();
         startAnalysis(reviewSessionId);
+        return toItems(List.of(require(reviewSessionId))).get(0);
+    }
+
+    /** 手动重试转写（FR4.8）：仅音频复盘且转写未完成时可用；转写完成后不再允许重复转写。 */
+    public ReviewSessionListItemResponse transcribe(Long reviewSessionId) {
+        ReviewSession session = require(reviewSessionId);
+        if (!"AUDIO".equals(session.getInputType()) || blank(session.getAudioStorageKey())) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "仅音频复盘支持重新转写");
+        }
+        if ("PROCESSING".equals(session.getAsrStatus()) || "PROCESSING".equals(session.getAnalyzeStatus())) {
+            throw BizException.of(ErrorCode.REVIEW_TASK_IN_PROGRESS);
+        }
+        if ("COMPLETED".equals(session.getAsrStatus())) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "转写已完成，如需重新分析请调用 /analyze");
+        }
+        if (!asrClient.configured()) {
+            throw BizException.of(ErrorCode.BAD_REQUEST,
+                    "未配置语音转写服务：请在 .env 设置 ASR_BASE_URL / ASR_API_KEY，或补充转写文本");
+        }
+        int updated = sessionMapper.update(null, Wrappers.<ReviewSession>lambdaUpdate()
+                .eq(ReviewSession::getId, reviewSessionId)
+                .ne(ReviewSession::getAsrStatus, "PROCESSING")
+                .set(ReviewSession::getAsrStatus, "PROCESSING")
+                .set(ReviewSession::getAsrRetryCount, 0)
+                .set(ReviewSession::getAsrError, null)
+                .set(ReviewSession::getStatus, "TRANSCRIBING")
+                .set(ReviewSession::getUpdatedAt, OffsetDateTime.now()));
+        if (updated == 0) {
+            throw BizException.of(ErrorCode.REVIEW_TASK_IN_PROGRESS);
+        }
+        submitAsrTask(reviewSessionId);
         return toItems(List.of(require(reviewSessionId))).get(0);
     }
 
@@ -368,6 +429,159 @@ public class ReviewSessionService {
                     .set(ReviewSession::getUpdatedAt, OffsetDateTime.now()));
             throw BizException.of(ErrorCode.INTERNAL_ERROR, "分析任务队列已满，请稍后重试");
         }
+    }
+
+    /** 提交 ASR 任务：置转写中并投递到独立线程池；队列满时回退为待转写并记录错误。 */
+    private void submitTranscription(Long reviewSessionId) {
+        int updated = sessionMapper.update(null, Wrappers.<ReviewSession>lambdaUpdate()
+                .eq(ReviewSession::getId, reviewSessionId)
+                .ne(ReviewSession::getAsrStatus, "PROCESSING")
+                .set(ReviewSession::getAsrStatus, "PROCESSING")
+                .set(ReviewSession::getAsrRetryCount, 0)
+                .set(ReviewSession::getAsrError, null)
+                .set(ReviewSession::getStatus, "TRANSCRIBING")
+                .set(ReviewSession::getUpdatedAt, OffsetDateTime.now()));
+        if (updated == 0) {
+            return;
+        }
+        submitAsrTask(reviewSessionId);
+    }
+
+    private void submitAsrTask(Long reviewSessionId) {
+        Map<String, String> context = MDC.getCopyOfContextMap();
+        try {
+            asrExecutor.execute(() -> {
+                if (context != null) {
+                    MDC.setContextMap(context);
+                }
+                try {
+                    asrWorker(reviewSessionId);
+                } finally {
+                    MDC.clear();
+                }
+            });
+        } catch (RuntimeException ex) {
+            sessionMapper.update(null, Wrappers.<ReviewSession>lambdaUpdate()
+                    .eq(ReviewSession::getId, reviewSessionId)
+                    .set(ReviewSession::getAsrStatus, "PENDING")
+                    .set(ReviewSession::getStatus, "UPLOADED")
+                    .set(ReviewSession::getAsrError, "转写任务队列已满，请稍后重试")
+                    .set(ReviewSession::getUpdatedAt, OffsetDateTime.now()));
+            log.warn("转写任务入队失败 reviewSessionId={}", reviewSessionId, ex);
+        }
+    }
+
+    /** ASR worker：首次 + 最多 3 次重试；成功后写回转写并自动触发分析。 */
+    private void asrWorker(Long reviewSessionId) {
+        ReviewSession session = sessionMapper.selectById(reviewSessionId);
+        if (session == null || !"PROCESSING".equals(session.getAsrStatus())
+                || blank(session.getAudioStorageKey())) {
+            return;
+        }
+        byte[] audio;
+        try {
+            audio = storage.load(session.getAudioStorageKey());
+        } catch (Exception ex) {
+            finishAsr(reviewSessionId, "音频读取失败，请重新创建复盘或补充转写文本", 0);
+            return;
+        }
+        String contentType = audioContentType(session.getAudioStorageKey());
+        for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            if (sessionMapper.selectById(reviewSessionId) == null) {
+                log.info("复盘 {} 已删除，终止转写", reviewSessionId);
+                return;
+            }
+            try {
+                String transcript = asrClient.transcribe(session.getAudioFileName(), contentType, audio);
+                sessionMapper.update(null, Wrappers.<ReviewSession>lambdaUpdate()
+                        .eq(ReviewSession::getId, reviewSessionId)
+                        .set(ReviewSession::getTranscript, text(transcript, 200000))
+                        .set(ReviewSession::getAsrStatus, "COMPLETED")
+                        .set(ReviewSession::getAsrError, null)
+                        .set(ReviewSession::getAsrRetryCount, attempt)
+                        .set(ReviewSession::getStatus, "UPLOADED")
+                        .set(ReviewSession::getUpdatedAt, OffsetDateTime.now()));
+                log.info("复盘转写完成 reviewSessionId={} 第 {} 次", reviewSessionId, attempt + 1);
+                if (hasDefaultModel()) {
+                    try {
+                        startAnalysis(reviewSessionId);
+                    } catch (RuntimeException ex) {
+                        log.warn("转写完成后自动分析失败 reviewSessionId={}: {}", reviewSessionId, ex.getMessage());
+                    }
+                }
+                return;
+            } catch (Exception ex) {
+                int retries = Math.min(attempt + 1, MAX_RETRIES);
+                if (attempt == MAX_RETRIES) {
+                    finishAsr(reviewSessionId, truncate(ex.getMessage(), 400), retries);
+                } else {
+                    sessionMapper.update(null, Wrappers.<ReviewSession>lambdaUpdate()
+                            .eq(ReviewSession::getId, reviewSessionId)
+                            .set(ReviewSession::getAsrRetryCount, retries)
+                            .set(ReviewSession::getAsrError, truncate(ex.getMessage(), 500))
+                            .set(ReviewSession::getUpdatedAt, OffsetDateTime.now()));
+                }
+                log.warn("复盘转写失败 reviewSessionId={} 第 {} 次: {}", reviewSessionId, attempt + 1,
+                        ex.getMessage());
+            }
+        }
+    }
+
+    private void finishAsr(Long reviewSessionId, String error, int retryCount) {
+        sessionMapper.update(null, Wrappers.<ReviewSession>lambdaUpdate()
+                .eq(ReviewSession::getId, reviewSessionId)
+                .set(ReviewSession::getAsrStatus, "FAILED")
+                .set(ReviewSession::getStatus, "FAILED")
+                .set(ReviewSession::getAsrError, "转写失败：" + (error == null ? "未知错误" : error)
+                        + "；可重试转写或改用文本")
+                .set(ReviewSession::getAsrRetryCount, retryCount)
+                .set(ReviewSession::getUpdatedAt, OffsetDateTime.now()));
+    }
+
+    /** 校验扩展名与大小并落盘；不支持的类型返回 415，超过 100MB 返回 413。 */
+    private String audioExtension(MultipartFile audio) {
+        if (!asrClient.configured()) {
+            throw BizException.of(ErrorCode.BAD_REQUEST,
+                    "未配置语音转写服务：请在 .env 设置 ASR_BASE_URL / ASR_API_KEY，或改用转写文本 / 手动笔记");
+        }
+        String name = audio.getOriginalFilename();
+        int dot = name == null ? -1 : name.lastIndexOf('.');
+        String ext = dot < 0 ? "" : name.substring(dot + 1).toLowerCase(java.util.Locale.ROOT);
+        if (!AUDIO_TYPES.contains(ext)) {
+            throw BizException.of(ErrorCode.UNSUPPORTED_MEDIA_TYPE, "音频仅支持 mp3 / wav / m4a");
+        }
+        if (audio.getSize() > MAX_AUDIO_BYTES) {
+            throw BizException.of(ErrorCode.PAYLOAD_TOO_LARGE, "音频不能超过 100MB");
+        }
+        return ext;
+    }
+
+    private void saveAudio(String storageKey, MultipartFile audio) {
+        try {
+            storage.save(storageKey, audio.getBytes());
+        } catch (Exception ex) {
+            log.warn("音频保存失败 key={}", storageKey, ex);
+            throw BizException.of(ErrorCode.INTERNAL_ERROR, "音频保存失败，请稍后重试");
+        }
+    }
+
+    private void deleteAudioQuietly(String storageKey) {
+        try {
+            storage.delete(storageKey);
+        } catch (Exception ex) {
+            log.warn("音频删除失败 key={}: {}", storageKey, ex.getMessage());
+        }
+    }
+
+    private static String audioContentType(String storageKey) {
+        String lower = storageKey == null ? "" : storageKey.toLowerCase(java.util.Locale.ROOT);
+        if (lower.endsWith(".wav")) {
+            return "audio/wav";
+        }
+        if (lower.endsWith(".m4a")) {
+            return "audio/mp4";
+        }
+        return "audio/mpeg";
     }
 
     /** 异步 worker：首次 + 最多 3 次重试；成功保存分析并置 READY。 */

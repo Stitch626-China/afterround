@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -21,8 +23,10 @@ import com.jobpilot.common.api.ErrorCode;
 import com.jobpilot.common.exception.BizException;
 import com.jobpilot.common.llm.ChatResult;
 import com.jobpilot.common.llm.LlmClient;
+import com.jobpilot.infrastructure.asr.AsrClient;
 import com.jobpilot.infrastructure.llm.LlmCallLogger;
 import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
+import com.jobpilot.infrastructure.storage.FileStorage;
 import com.jobpilot.modules.application.entity.JobApplication;
 import com.jobpilot.modules.application.mapper.JobApplicationMapper;
 import com.jobpilot.modules.company.entity.Company;
@@ -87,7 +91,13 @@ class ReviewSessionServiceTest {
     @Mock
     private ReviewPromptFactory prompts;
     @Mock
+    private AsrClient asrClient;
+    @Mock
+    private FileStorage storage;
+    @Mock
     private ThreadPoolTaskExecutor executor;
+    @Mock
+    private ThreadPoolTaskExecutor asrExecutor;
     @Mock
     private LlmClient client;
 
@@ -100,7 +110,7 @@ class ReviewSessionServiceTest {
     private ReviewSessionService service() {
         return new ReviewSessionService(sessionMapper, analysisMapper, eventMapper, eventService, actionService,
                 applicationMapper, jobMapper, companyMapper, globalMapper, sceneService, registry, callLogger,
-                prompts, executor);
+                prompts, asrClient, storage, executor, asrExecutor);
     }
 
     private static ReviewSession session(long id, long eventId) {
@@ -163,6 +173,105 @@ class ReviewSessionServiceTest {
                 ErrorCode.BAD_REQUEST);
         assertCode(() -> service().create(null, "  ", null, 7L, null, 1, "TECH", null, null, null, null),
                 ErrorCode.BAD_REQUEST);
+    }
+
+    @Test
+    void createRejectsUnsupportedAudioType() {
+        when(asrClient.configured()).thenReturn(true);
+        org.springframework.mock.web.MockMultipartFile audio =
+                new org.springframework.mock.web.MockMultipartFile("audio", "a.mp4", "video/mp4", new byte[]{1});
+        assertCode(() -> service().create(audio, null, null, 7L, null, 1, "TECH", null, null, null, null),
+                ErrorCode.UNSUPPORTED_MEDIA_TYPE);
+    }
+
+    @Test
+    void createAudioStoresFileAndTranscribes() {
+        when(asrClient.configured()).thenReturn(true);
+        org.springframework.mock.web.MockMultipartFile audio =
+                new org.springframework.mock.web.MockMultipartFile("audio", "a.mp3", "audio/mpeg",
+                        new byte[]{1, 2});
+        when(eventService.ensureEvent(eq(7L), isNull(), eq(1), eq("TECH"), isNull(), isNull(), isNull()))
+                .thenReturn(event(20L, 7L));
+        when(sessionMapper.selectCount(any())).thenReturn(0L);
+        when(sessionMapper.insert(any(ReviewSession.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, ReviewSession.class).setId(30L);
+            return 1;
+        });
+        ReviewSession audioSession = session(30L, 20L);
+        audioSession.setInputType("AUDIO");
+        audioSession.setAsrStatus("PROCESSING");
+        audioSession.setStatus("TRANSCRIBING");
+        audioSession.setAudioStorageKey("reviews/x.mp3");
+        audioSession.setAudioFileName("a.mp3");
+        when(sessionMapper.selectById(30L)).thenReturn(audioSession);
+        when(sessionMapper.update(any(), any())).thenReturn(1);
+        when(storage.load("reviews/x.mp3")).thenReturn(new byte[]{1, 2});
+        when(asrClient.transcribe(eq("a.mp3"), eq("audio/mpeg"), any(byte[].class))).thenReturn("转写文本");
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(asrExecutor).execute(any(Runnable.class));
+        stubLookups();
+
+        var response = service().create(audio, null, null, 7L, null, 1, "TECH", null, null, null, null);
+
+        assertThat(response.inputType()).isEqualTo("AUDIO");
+        verify(storage).save(startsWith("reviews/"), any(byte[].class));
+        verify(asrClient).transcribe(eq("a.mp3"), eq("audio/mpeg"), any(byte[].class));
+    }
+
+    @Test
+    void transcribeRetriesFailedAudioSession() {
+        ReviewSession audioSession = session(30L, 20L);
+        audioSession.setInputType("AUDIO");
+        audioSession.setAsrStatus("FAILED");
+        audioSession.setStatus("FAILED");
+        audioSession.setAudioStorageKey("reviews/y.wav");
+        audioSession.setAudioFileName("b.wav");
+        when(sessionMapper.selectById(30L)).thenReturn(audioSession);
+        when(asrClient.configured()).thenReturn(true);
+        when(sessionMapper.update(any(), any())).thenAnswer(invocation -> {
+            audioSession.setAsrStatus("PROCESSING");
+            return 1;
+        });
+        when(storage.load("reviews/y.wav")).thenReturn(new byte[]{1});
+        when(asrClient.transcribe(eq("b.wav"), eq("audio/wav"), any(byte[].class))).thenReturn("重试成功");
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(asrExecutor).execute(any(Runnable.class));
+        stubLookups();
+
+        service().transcribe(30L);
+
+        verify(asrClient).transcribe(eq("b.wav"), eq("audio/wav"), any(byte[].class));
+    }
+
+    @Test
+    void transcribeRejectsNonAudioAndFinished() {
+        ReviewSession text = session(30L, 20L);
+        when(sessionMapper.selectById(30L)).thenReturn(text);
+        assertCode(() -> service().transcribe(30L), ErrorCode.BAD_REQUEST);
+
+        ReviewSession done = session(30L, 20L);
+        done.setInputType("AUDIO");
+        done.setAsrStatus("COMPLETED");
+        done.setAudioStorageKey("reviews/z.m4a");
+        when(sessionMapper.selectById(31L)).thenReturn(done);
+        assertCode(() -> service().transcribe(31L), ErrorCode.BAD_REQUEST);
+    }
+
+    @Test
+    void deleteRemovesAudioFile() {
+        ReviewSession audioSession = session(30L, 20L);
+        audioSession.setAudioStorageKey("reviews/z.m4a");
+        when(sessionMapper.selectById(30L)).thenReturn(audioSession);
+        when(sessionMapper.deleteById(30L)).thenReturn(1);
+
+        service().delete(30L);
+
+        verify(storage).delete("reviews/z.m4a");
+        verify(sessionMapper).deleteById(30L);
     }
 
     @Test

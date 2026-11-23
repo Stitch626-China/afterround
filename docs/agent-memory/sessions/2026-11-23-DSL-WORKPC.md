@@ -94,3 +94,9 @@
 - 原因：F4 的核心链路是「低摩擦录入 → AI 结构化 → 确认 → 改进行动」；先完成文本/笔记路径可在不引入 ASR 依赖的前提下打通完整闭环，B3 只补音频输入层，不返工业务逻辑。
 - 验证：`redocly lint` **0 error / 0 warning**；`ReviewSessionServiceTest` 10 + `ImprovementActionServiceTest` 5 + 契约双测试通过；后端全量 **166 tests 全绿、JaCoCo 门禁通过**；真实接口验证：「建临时公司/JD → 建复盘（仅给岗位，自动创建投递 3 与事件 2）→ 自动分析 READY（6 题 + 9 知识点 + 4 失分类型 + 3 行动，`REVIEW_ANALYZE` 成功）→ PUT 确认生成 2 条行动 → 行动 PATCH 置 VERIFIED + 证据 → 投递时间线含事件/复盘/行动 → 重跑分析（confirm 重置 false，行动状态保留 TODO/VERIFIED）→ 存在复盘时删事件 409/40905 → 删复盘后行动与 `review_analyses` 级联清零 → 删事件/投递/岗位/公司均 200 → 库内临时数据清零」。
 - 下一步 / 断点：B3 音频上传（mp3/wav/m4a ≤100MB）+ `AsrClient` OpenAI 兼容适配 + `FileStorage` 流式写入 + 独立 ASR 线程池 + 转写状态机与重试；未配置 ASR 环境变量时返回明确提示并允许改用文本。
+
+### 18:17 M3-b B3 音频转写实现完成（契约 1.9.5）
+- 改动：契约升至 **1.9.5**，新增 `POST /api/review-sessions/{reviewSessionId}/transcribe`（87 端点全部实现）；新增 `infrastructure/asr`——`AsrClient` 接口、`OpenAiCompatibleAsrClient`（`POST {baseUrl}/audio/transcriptions`，multipart、Bearer、JSON `text` 解析）、`AsrProperties`（`ASR_BASE_URL` / `ASR_API_KEY` / `ASR_MODEL` / `ASR_LANGUAGE` / `ASR_TIMEOUT_SECONDS`）；`AsyncConfig` 新增独立 `asrTaskExecutor`；multipart 上限 100MB / 120MB；`ReviewSessionService` 支持 mp3 / wav / m4a ≤100MB、`reviews/{uuid}.{ext}` 落盘、ASR 状态机（PENDING → PROCESSING → COMPLETED / FAILED，≤3 次重试、错误可读）、转写成功后自动分析、失败保留音频可 `/transcribe` 重试、删除复盘同时删磁盘音频；未配置 ASR 时在入库前返回 400，不产生任务与文件。
+- 原因：FR4.1 / FR4.8 要求音频优先录入且失败可手动重试；ASR 是长任务，必须与简历 / JD / 匹配的异步队列隔离，避免一段长录音阻塞其它任务。
+- 验证：`redocly lint` **0 error / 0 warning**；`ReviewSessionServiceTest` 15 + `OpenAiCompatibleAsrClientTest` 3 + 契约双测试通过；后端全量 **174 tests 全绿、JaCoCo 门禁通过**；真实链路（本地假 ASR 3001 + 真后端 + 真 LLM）：「未配置 ASR → 400 明确提示；配置后上传音频 → TRANSCRIBING → 假 ASR 转写 → 真 LLM 分析 → READY（转写文本正确、2 题分析）；假 ASR 故障 → FAILED / retry=3 / 错误含上游信息；恢复后 `/transcribe` → READY；删除两条复盘后磁盘音频目录清零、事件/投递/岗位/公司全部清理、库内临时数据为 0」。
+- 下一步 / 断点：B4 前端复盘列表 / 详情 / 改进看板（含音频上传、状态轮询、分析确认与行动状态流转）+ 构建与 Vitest/E2E。

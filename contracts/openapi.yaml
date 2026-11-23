@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 职点（JobPilot）API
-  version: 1.9.4
+  version: 1.9.5
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -27,7 +27,8 @@ info:
     - **M2 第二批**：模拟面试（F3）、Offer 决策（F6）。
     - **M3 1.9.0（契约先行）**：投递档案（F8）、真实面试档案与复盘（F4）、改进动作（F5 闭环）。
       1.9.1 完成 JD 截图导入；1.9.2 完成投递档案与 Offer 归因链；1.9.3 完成真实面试轮次；
-      1.9.4 完成复盘会话、结构化分析、受控词表与改进动作（M3 1.9.0 端点全部实现）。
+      1.9.4 完成复盘会话、结构化分析、受控词表与改进动作（M3 1.9.0 端点全部实现）；
+      1.9.5 补充音频转写重试端点（`/review-sessions/{id}/transcribe`），落实 FR4.8 的 ASR 手动重试。
     - **M3 1.10.0（后续）**：跨场洞察（F5）在真实数据形状稳定后追加，避免过早固化聚合口径。
     - 场景枚举 `LlmScene` 一次性定义全部 7 个场景（含 M2 未落地的预留项），避免后续扩展改动枚举。
       JD 结构化解析与简历对比总结未列入枚举，使用全局默认，不参与场景级绑定。
@@ -36,8 +37,8 @@ info:
     M2 第一批与第二批（F3 / F6）已全部实现，后端 `ContractCoverageTest` 对「契约端点 = 实际控制器端点」做双向全等校验。
     后续里程碑新增路径可先用路径级 `x-implemented: false` 标记「已定义、待实现」，
     实现完成后删除标记即自动纳入双向全等校验，无需维护例外清单。
-    M3 1.9.0 契约的全部端点已实现（1.9.3 真实面试轮次、1.9.4 复盘 / 分析 / 词表 / 改进动作），
-    当前 86 个端点均纳入双向全等校验，无待实现标记。
+    M3 1.9.0 契约的全部端点已实现（1.9.3 真实面试轮次、1.9.4 复盘 / 分析 / 词表 / 改进动作、1.9.5 ASR 重试），
+    当前 87 个端点均纳入双向全等校验，无待实现标记。
 
     ## 错误码补充（M2）
     - `40906` 公司名称已存在（`companies.name` UNIQUE）
@@ -2401,6 +2402,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResultReviewSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 复盘任务执行中（40915）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/review-sessions/{reviewSessionId}/transcribe:
+    parameters:
+      - $ref: '#/components/parameters/ReviewSessionId'
+    post:
+      tags: [真实面试复盘]
+      operationId: transcribeReviewSession
+      summary: 重试语音转写（ASR 失败后）
+      description: |
+        - 仅音频复盘可用；转写已完成返回 400，ASR / 分析执行中返回 409（40915）。
+        - 成功后自动进入分析；未配置 ASR 或音频文件缺失时返回 400。
+      responses:
+        '200':
+          description: 已重新触发，转写进行中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultReviewSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
