@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 职点（JobPilot）API
-  version: 1.9.5
+  version: 1.10.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -2589,6 +2589,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResultReviewTaxonomy'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/insights:
+    x-implemented: false
+    get:
+      tags: [跨场洞察]
+      operationId: getInsights
+      summary: 跨场归因与改进闭环统计（FR5.5 ~ FR5.9 / FR8.4）
+      description: |
+        - 只聚合已确认的复盘分析（`review_sessions.confirmed = true`），保证跨场可比；未确认的分析不计入。
+        - `days` 为统计窗口（默认 90 天）；可按公司 / 岗位缩小范围。趋势对比为当前窗口与紧邻的前一个等长窗口。
+        - 样本量 N < 5 时仍返回原始统计，但 `sample.sufficient = false`，前端只提示「样本不足」，不输出因果结论。
+        - 纯本地聚合，不调用 LLM、不引入 RAG；所有比例在分母为 0 时返回 null。
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 7
+            maximum: 365
+            default: 90
+        - name: companyId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: jobPositionId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInsightsOverview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -5700,6 +5744,359 @@ components:
           type: string
           format: date-time
 
+    InsightSample:
+      type: object
+      required: [applications, interviews, reviews, confirmedReviews, offers, minimum, sufficient]
+      properties:
+        applications:
+          type: integer
+          minimum: 0
+        interviews:
+          type: integer
+          minimum: 0
+        reviews:
+          type: integer
+          minimum: 0
+        confirmedReviews:
+          type: integer
+          minimum: 0
+        offers:
+          type: integer
+          minimum: 0
+        minimum:
+          type: integer
+          minimum: 1
+          example: 5
+        sufficient:
+          type: boolean
+          description: confirmedReviews >= minimum；false 时前端只展示原始统计与「样本不足」
+
+    InsightSummary:
+      type: object
+      required: [content, basedOn]
+      properties:
+        content:
+          type: string
+        basedOn:
+          type: string
+          enum: [LOCAL_AGGREGATION]
+          description: 本地规则总结，不调用 LLM
+
+    InsightTopicOutcome:
+      type: object
+      required: [topic, label, interviewCount, passCount, failCount, pendingCount, failRate, sufficient]
+      properties:
+        topic:
+          type: string
+          example: jvm
+        label:
+          type: string
+          example: JVM
+        interviewCount:
+          type: integer
+          minimum: 0
+        passCount:
+          type: integer
+          minimum: 0
+        failCount:
+          type: integer
+          minimum: 0
+        pendingCount:
+          type: integer
+          minimum: 0
+        failRate:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+        sufficient:
+          type: boolean
+
+    InsightTagCount:
+      type: object
+      required: [tag, label, count]
+      properties:
+        tag:
+          type: string
+        label:
+          type: string
+        count:
+          type: integer
+          minimum: 0
+        lastSeenAt:
+          type: [string, "null"]
+          format: date-time
+
+    InsightRoundPassRate:
+      type: object
+      required: [roundType, label, total, passCount, failCount, pendingCount, passRate, sufficient]
+      properties:
+        roundType:
+          $ref: '#/components/schemas/InterviewRoundType'
+        label:
+          type: string
+          example: 技术面
+        total:
+          type: integer
+          minimum: 0
+        passCount:
+          type: integer
+          minimum: 0
+        failCount:
+          type: integer
+          minimum: 0
+        pendingCount:
+          type: integer
+          minimum: 0
+        passRate:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+        sufficient:
+          type: boolean
+
+    InsightCompanyProfile:
+      type: object
+      required: [companyId, companyName, interviewCount, passCount, failCount, pendingCount, topTopics, commonLossTags, sufficient]
+      properties:
+        companyId:
+          type: integer
+          format: int64
+        companyName:
+          type: string
+        interviewCount:
+          type: integer
+          minimum: 0
+        passCount:
+          type: integer
+          minimum: 0
+        failCount:
+          type: integer
+          minimum: 0
+        pendingCount:
+          type: integer
+          minimum: 0
+        topTopics:
+          type: array
+          items:
+            $ref: '#/components/schemas/InsightTagCount'
+        commonLossTags:
+          type: array
+          items:
+            $ref: '#/components/schemas/InsightTagCount'
+        sufficient:
+          type: boolean
+        lastInterviewAt:
+          type: [string, "null"]
+          format: date-time
+
+    InsightQuestion:
+      type: object
+      required: [question, askedCount]
+      properties:
+        question:
+          type: string
+        askedCount:
+          type: integer
+          minimum: 1
+        lastAskedAt:
+          type: [string, "null"]
+          format: date-time
+
+    InsightFunnel:
+      type: object
+      required: [applications, interviews, offers, rejected, withdrawn, interviewRate, offerRate]
+      properties:
+        applications:
+          type: integer
+          minimum: 0
+        interviews:
+          type: integer
+          minimum: 0
+          description: 至少有一场面试的投递数
+        offers:
+          type: integer
+          minimum: 0
+          description: 关联 Offer 的投递数
+        rejected:
+          type: integer
+          minimum: 0
+        withdrawn:
+          type: integer
+          minimum: 0
+        interviewRate:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+        offerRate:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+
+    InsightResumeFunnel:
+      type: object
+      required: [applications, interviews, offers, passed, rejected, interviewRate, passRate, sufficient]
+      properties:
+        resumeId:
+          type: [integer, "null"]
+          format: int64
+        fileName:
+          type: [string, "null"]
+        applications:
+          type: integer
+          minimum: 0
+        interviews:
+          type: integer
+          minimum: 0
+        offers:
+          type: integer
+          minimum: 0
+        passed:
+          type: integer
+          minimum: 0
+        rejected:
+          type: integer
+          minimum: 0
+        interviewRate:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+        passRate:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+        sufficient:
+          type: boolean
+
+    InsightStaleAction:
+      type: object
+      required: [id, action, status, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        action:
+          type: string
+        status:
+          $ref: '#/components/schemas/ImprovementActionStatus'
+        createdAt:
+          type: string
+          format: date-time
+
+    InsightImprovements:
+      type: object
+      required: [total, todo, inProgress, verified, dropped, verificationRate, staleActions]
+      properties:
+        total:
+          type: integer
+          minimum: 0
+        todo:
+          type: integer
+          minimum: 0
+        inProgress:
+          type: integer
+          minimum: 0
+        verified:
+          type: integer
+          minimum: 0
+        dropped:
+          type: integer
+          minimum: 0
+        verificationRate:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+        staleActions:
+          type: array
+          items:
+            $ref: '#/components/schemas/InsightStaleAction'
+
+    InsightLossTagDelta:
+      type: object
+      required: [tag, label, currentCount, previousCount, delta]
+      properties:
+        tag:
+          type: string
+        label:
+          type: string
+        currentCount:
+          type: integer
+          minimum: 0
+        previousCount:
+          type: integer
+          minimum: 0
+        delta:
+          type: integer
+
+    InsightTrend:
+      type: object
+      required: [windowDays, currentReviews, previousReviews, sufficient, lossTagDeltas, passRateDelta]
+      properties:
+        windowDays:
+          type: integer
+          minimum: 1
+        currentReviews:
+          type: integer
+          minimum: 0
+        previousReviews:
+          type: integer
+          minimum: 0
+        sufficient:
+          type: boolean
+          description: 当前与上一窗口的已确认复盘均 ≥ 5
+        lossTagDeltas:
+          type: array
+          items:
+            $ref: '#/components/schemas/InsightLossTagDelta'
+        passRateDelta:
+          type: [number, "null"]
+          minimum: -1
+          maximum: 1
+
+    InsightsOverview:
+      type: object
+      required: [sample, summary, topics, lossTags, roundPassRates, companyProfiles, topQuestions, funnel, resumeFunnel, improvements, trend, taxonomyVersion, generatedAt]
+      properties:
+        sample:
+          $ref: '#/components/schemas/InsightSample'
+        summary:
+          $ref: '#/components/schemas/InsightSummary'
+        topics:
+          type: array
+          items:
+            $ref: '#/components/schemas/InsightTopicOutcome'
+        lossTags:
+          type: array
+          items:
+            $ref: '#/components/schemas/InsightTagCount'
+        roundPassRates:
+          type: array
+          items:
+            $ref: '#/components/schemas/InsightRoundPassRate'
+        companyProfiles:
+          type: array
+          items:
+            $ref: '#/components/schemas/InsightCompanyProfile'
+        topQuestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/InsightQuestion'
+        funnel:
+          $ref: '#/components/schemas/InsightFunnel'
+        resumeFunnel:
+          type: array
+          items:
+            $ref: '#/components/schemas/InsightResumeFunnel'
+        improvements:
+          $ref: '#/components/schemas/InsightImprovements'
+        trend:
+          $ref: '#/components/schemas/InsightTrend'
+        taxonomyVersion:
+          type: string
+          example: taxonomy-v1
+        generatedAt:
+          type: string
+          format: date-time
+
     JobApplicationTimeline:
       type: object
       required: [application, events, reviews, actions]
@@ -5846,3 +6243,11 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/ReviewTaxonomy'
+
+    ResultInsightsOverview:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/InsightsOverview'

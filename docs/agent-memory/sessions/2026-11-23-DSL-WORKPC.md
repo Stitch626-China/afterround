@@ -113,4 +113,11 @@
 - 验证：`redocly lint contracts/openapi.yaml` **0 error / 0 warning**（1.9.5，87 端点）；后端 `mvn test` **174 tests 全绿、JaCoCo 全部门禁通过**（JDK 21）；前端 `npm run build`（含契约类型生成 + `vue-tsc`）通过、Vitest **23 tests 全过**、Playwright **14 E2E 全过**（沙箱对 Edge 系统缓存写入报 restricted 导致退出码 1，测试结果为 14 passed）。真实接口冒烟（验收库 5433 + 真后端 + 全局默认 `deepseek/deepseek-flash`）：「建公司 → JD 文本导入异步解析 COMPLETED → 建投递 APPLIED → 建文本复盘 ANALYZING → 轮询 READY（2 题 / 3 知识点 / 3 行动，模型 deepseek-flash）→ PUT 确认 → 生成行动 TODO → PATCH VERIFIED + 证据 → 投递时间线含 1 事件 / 1 复盘 / 1 行动 → 删除复盘 / 事件 / 投递 / 岗位 / 公司全部 200」；只读 SELECT（带 WHERE）复核临时 ID 在 companies / job_positions / applications / review_sessions / review_analyses / improvement_actions **全部 0 行**；后端进程已停止。
 - 下一步 / 断点：M3-c 跨场归因与改进闭环——契约 1.10.0（知识点 × 结果、失分类型频次、轮次通过率、公司 / 岗位画像、高频问题、转化漏斗、改进验证率，N<5 样本不足保护）+ 聚合实现 + 前端洞察页；随后 M3-d 收口（命名五项检查需用户最终确认、LICENSE、公开仓库与演示准备）。
 
+### 20:21 契约 1.10.0 定义跨场洞察（待实现）
+- 改动：`contracts/openapi.yaml` 升至 **1.10.0**，新增 `GET /api/insights`（路径级 `x-implemented: false`）与 17 个 schema（Sample / Summary / TopicOutcome / TagCount / RoundPassRate / CompanyProfile / Question / Funnel / ResumeFunnel / StaleAction / Improvements / LossTagDelta / Trend / Overview + Result）；参数 `days`（7~365，默认 90）/ `companyId` / `jobPositionId`；聚合口径明确「只使用已确认复盘、N<5 标记 sufficient=false、比例为 0 分母时 null、趋势为当前窗口 vs 前一个等长窗口、纯本地聚合不调用 LLM」；`ContractCoverageTest` 总数 87→88（新增端点仍 pending）。
+- 原因：F5 是 M3 核心；先冻结聚合字段与样本保护口径，避免后端实现后反复改契约，也便于前端类型一次生成。
+- 验证：`redocly lint` **0 error / 0 warning**；`ContractCoverageTest` / `ContractSchemaTest` 通过（88 端点，1 个待实现，实际已实现 87）。
+- 下一步 / 断点：实现 `modules/insights`（mapper 原生 JSONB 聚合 + service 计算比例/趋势/本地总结 + controller），移除 `x-implemented: false` 后补 DTO 字段对齐测试。
+
+
 
