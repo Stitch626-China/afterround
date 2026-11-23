@@ -53,6 +53,9 @@ public enum ErrorCode {
     /** Offer 保留组最多 4 个（F6）。 */
     OFFER_KEEP_LIMIT(40914, "保留组最多 4 个 Offer", HttpStatus.CONFLICT),
 
+    /** 同一投递的轮次已存在面试事件或复盘（M3 F4/F5，契约 40917）。 */
+    REVIEW_ROUND_EXISTS(40917, "该投递的面试轮次已存在", HttpStatus.CONFLICT),
+
     PAYLOAD_TOO_LARGE(41301, "文件超过大小限制", HttpStatus.PAYLOAD_TOO_LARGE),
 
     UNSUPPORTED_MEDIA_TYPE(41501, "不支持的文件类型", HttpStatus.UNSUPPORTED_MEDIA_TYPE),

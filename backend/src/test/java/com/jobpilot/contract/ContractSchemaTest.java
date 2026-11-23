@@ -85,6 +85,9 @@ import com.jobpilot.modules.resume.dto.ResumeListItemResponse;
 import com.jobpilot.modules.resume.dto.ResumeUploadResponse;
 import com.jobpilot.modules.resume.dto.SuggestionItemResponse;
 import com.jobpilot.modules.resume.dto.UpdateSalaryRequest;
+import com.jobpilot.modules.review.dto.CreateInterviewEventRequest;
+import com.jobpilot.modules.review.dto.InterviewEventListItemResponse;
+import com.jobpilot.modules.review.dto.UpdateInterviewEventRequest;
 import org.junit.jupiter.api.Test;
 import org.yaml.snakeyaml.Yaml;
 
@@ -122,7 +125,9 @@ class ContractSchemaTest {
             OfferExtraction.class, AnalyzeOfferRequest.class, OfferComparisonColumn.class,
             OfferComparisonRow.class, OfferComparison.class, OfferAnalysis.class,
             JobApplicationListItemResponse.class, CreateJobApplicationRequest.class,
-            UpdateJobApplicationRequest.class, JobApplicationTimelineResponse.class);
+            UpdateJobApplicationRequest.class, JobApplicationTimelineResponse.class,
+            InterviewEventListItemResponse.class, CreateInterviewEventRequest.class,
+            UpdateInterviewEventRequest.class);
 
     @Test
     @SuppressWarnings("unchecked")

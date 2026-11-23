@@ -27,6 +27,7 @@ import com.jobpilot.modules.job.mapper.JobPositionMapper;
 import com.jobpilot.modules.offer.service.OfferService;
 import com.jobpilot.modules.resume.entity.Resume;
 import com.jobpilot.modules.resume.mapper.ResumeMapper;
+import com.jobpilot.modules.review.service.InterviewEventService;
 import org.springframework.stereotype.Service;
 
 /**
@@ -45,15 +46,17 @@ public class JobApplicationService {
     private final CompanyMapper companyMapper;
     private final ResumeMapper resumeMapper;
     private final OfferService offerService;
+    private final InterviewEventService eventService;
 
     public JobApplicationService(JobApplicationMapper applicationMapper, JobPositionMapper jobMapper,
                                  CompanyMapper companyMapper, ResumeMapper resumeMapper,
-                                 OfferService offerService) {
+                                 OfferService offerService, InterviewEventService eventService) {
         this.applicationMapper = applicationMapper;
         this.jobMapper = jobMapper;
         this.companyMapper = companyMapper;
         this.resumeMapper = resumeMapper;
         this.offerService = offerService;
+        this.eventService = eventService;
     }
 
     public PageResult<JobApplicationListItemResponse> page(Integer page, Integer size, String status,
@@ -128,17 +131,21 @@ public class JobApplicationService {
         return toItems(List.of(entity)).get(0);
     }
 
-    /** 硬删除；Offer 通过外键置空 application_id，保留 Offer 数据。 */
+    /** 硬删除；存在面试事件时 409，Offer 通过外键置空 application_id，保留 Offer 数据。 */
     public void delete(Long applicationId) {
         require(applicationId);
+        if (eventService.existsByApplication(applicationId)) {
+            throw BizException.of(ErrorCode.RESOURCE_REFERENCED, "存在面试事件，请先删除面试事件与复盘");
+        }
         applicationMapper.deleteById(applicationId);
     }
 
-    /** 时间线：面试 / 复盘 / 改进动作随 M3-b / M3-c 接入，当前返回空数组。 */
+    /** 时间线：面试轮次按轮次升序；复盘与改进动作随 M3-b B2 / B3 接入，当前返回空数组。 */
     public JobApplicationTimelineResponse timeline(Long applicationId) {
         JobApplication entity = require(applicationId);
         return new JobApplicationTimelineResponse(toItems(List.of(entity)).get(0),
-                List.of(), List.of(), offerService.findByApplicationId(applicationId), List.of());
+                eventService.listByApplication(applicationId), List.of(),
+                offerService.findByApplicationId(applicationId), List.of());
     }
 
     /** 状态向前同步：SAVED < APPLIED < INTERVIEWING < OFFERED/REJECTED；WITHDRAWN 不改岗位。 */
@@ -181,16 +188,20 @@ public class JobApplicationService {
         Map<Long, Resume> resumes = lookup(applications.stream()
                         .map(JobApplication::getResumeId).filter(java.util.Objects::nonNull).distinct().toList(),
                 resumeMapper::selectByIds, Resume::getId);
+        Map<Long, InterviewEventService.InterviewStats> stats = eventService.stats(applications.stream()
+                .map(JobApplication::getId).toList());
         return applications.stream().map(application -> {
             JobPosition job = jobs.get(application.getJobPositionId());
             Company company = job == null || job.getCompanyId() == null ? null : companies.get(job.getCompanyId());
             Resume resume = application.getResumeId() == null ? null : resumes.get(application.getResumeId());
+            InterviewEventService.InterviewStats eventStats = stats.get(application.getId());
             return new JobApplicationListItemResponse(application.getId(), application.getJobPositionId(),
                     job == null ? null : job.getTitle(), job == null ? null : job.getCompanyId(),
                     company == null ? null : company.getName(), application.getResumeId(),
                     resume == null ? null : resume.getFileName(), application.getChannel(),
                     application.getAppliedAt(), application.getStatus(), application.getOutcome(),
-                    application.getNotes(), 0, null,
+                    application.getNotes(), eventStats == null ? 0 : eventStats.count(),
+                    eventStats == null ? null : eventStats.latestRoundNo(),
                     application.getCreatedAt(), application.getUpdatedAt());
         }).toList();
     }

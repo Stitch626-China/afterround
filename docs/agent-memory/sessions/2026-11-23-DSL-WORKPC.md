@@ -82,3 +82,9 @@
 - 原因：v1.12 链路规则要求投递作为归因链起点，Offer 必须能定位到具体投递；删除保护避免断链。
 - 验证：`redocly lint` 0/0；`JobApplicationServiceTest` 6、契约与全量后端测试通过（行覆盖 88.43%，JaCoCo 门禁通过）；Vitest 19、前端构建通过；真实接口验证：创建投递（APPLIED）→ 岗位同步 APPLIED → 改 OFFERED → 岗位同步 OFFERED → 降回 APPLIED 岗位仍 OFFERED → 创建关联 Offer → 时间线返回 Offer → 删除岗位 409 → 删除投递后 Offer `application_id` 置空 → 清理 Offer/岗位均 200；Flyway V7 在验收库执行成功。
 - 下一步 / 断点：M3-b 真实面试复盘——补 `interview_events` / `review_*` / `improvement_actions` 迁移与 ASR 适配层，实现 17 个待实现端点。
+
+### 17:56 M3-b B1 真实面试轮次实现完成（契约 1.9.3）
+- 改动：契约升至 **1.9.3**，移除 `/api/interview-events`（GET/POST）与 `/api/interview-events/{eventId}`（PATCH/DELETE）的 `x-implemented: false`（已实现 73/86，剩 13 个复盘/改进行动端点）；新增 Flyway `V8__m3_reviews.sql`，一次建立 `interview_events` / `review_sessions` / `review_analyses` / `improvement_actions` 四表（轮次唯一、状态 CHECK、复盘唯一、级联删除分析、动作来源置空、索引）；后端新增 `modules/review`——`InterviewEvent` / `ReviewSession` 实体与 mapper、`InterviewEventController` 4 端点、`InterviewEventService`（applicationId 优先；仅给岗位时复用最近投递，无投递则自动创建为 INTERVIEWING 并向前同步岗位；重复轮次 40917；存在复盘禁止删除 40905；批量补公司/岗位/复盘状态）；`JobApplicationService` 注入事件服务：删除投递前检查面试事件、列表补 `interviewCount`/`latestRoundNo`、时间线按轮次升序返回事件；`ErrorCode` 新增 40917；`@MapperScan` 增加 review.mapper；契约/字段对齐测试与 `JobApplicationServiceTest` 同步。
+- 原因：M3-b 按 B1→B5 顺序推进；面试事件是复盘与跨场归因的锚点，必须先有稳定归因链（applications → interview_events），后续复盘/行动/洞察才有挂载点。
+- 验证：`redocly lint` **0 error / 0 warning**；新增 `InterviewEventServiceTest` 8 tests，`JobApplicationServiceTest` 7 tests，契约双测试通过；后端全量 **151 tests 全绿、JaCoCo 门禁通过**；真实接口验证（隔离库 5433，Flyway V8 自动执行成功）：「建临时公司 → JD 文本导入并异步解析到公司 3/岗位 5 → 建投递 2 → 仅给岗位建事件自动复用投递 2 → 列表/投递统计(1/1)/时间线均正确 → 重复轮次 409/40917 → PATCH 全字段更新成功 → 删投递 409/40905 → 删事件/投递/岗位/公司均 200 → 库内临时数据清零」；只读查询确认 `flyway_schema_history` version=8 success、`interview_events`/`job_positions`/`companies` 临时记录为 0。
+- 下一步 / 断点：B2 复盘会话（文本/笔记）8 端点 + 分析 + 词表 + 改进动作 4 端点；B2 完成后解锁契约剩余 13 个路径。

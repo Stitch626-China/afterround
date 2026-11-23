@@ -27,6 +27,8 @@ import com.jobpilot.modules.job.mapper.JobPositionMapper;
 import com.jobpilot.modules.offer.service.OfferService;
 import com.jobpilot.modules.resume.entity.Resume;
 import com.jobpilot.modules.resume.mapper.ResumeMapper;
+import com.jobpilot.modules.review.dto.InterviewEventListItemResponse;
+import com.jobpilot.modules.review.service.InterviewEventService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +51,8 @@ class JobApplicationServiceTest {
     private ResumeMapper resumeMapper;
     @Mock
     private OfferService offerService;
+    @Mock
+    private InterviewEventService eventService;
 
     @BeforeAll
     static void initLambdaCache() {
@@ -56,7 +60,8 @@ class JobApplicationServiceTest {
     }
 
     private JobApplicationService service() {
-        return new JobApplicationService(applicationMapper, jobMapper, companyMapper, resumeMapper, offerService);
+        return new JobApplicationService(applicationMapper, jobMapper, companyMapper, resumeMapper, offerService,
+                eventService);
     }
 
     private static JobPosition job(String status) {
@@ -74,6 +79,11 @@ class JobApplicationServiceTest {
         application.setJobPositionId(1L);
         application.setStatus(status);
         return application;
+    }
+
+    private static InterviewEventListItemResponse event() {
+        return new InterviewEventListItemResponse(9L, 5L, 2L, "字节跳动", 1L, "Java 后端", 1, "TECH",
+                "技术负责人", "VIDEO", java.time.OffsetDateTime.now(), "PENDING", null, null, null, null, null);
     }
 
     @Test
@@ -155,16 +165,27 @@ class JobApplicationServiceTest {
         when(applicationMapper.selectById(5L)).thenReturn(application);
         when(jobMapper.selectByIds(anyList())).thenReturn(List.of(job("APPLIED")));
         when(companyMapper.selectByIds(anyList())).thenReturn(List.of());
+        when(eventService.listByApplication(5L)).thenReturn(List.of(event()));
 
         var timeline = service().timeline(5L);
         assertThat(timeline.application().id()).isEqualTo(5L);
-        assertThat(timeline.events()).isEmpty();
+        assertThat(timeline.events()).hasSize(1);
+        assertThat(timeline.events().get(0).roundNo()).isEqualTo(1);
         assertThat(timeline.reviews()).isEmpty();
         assertThat(timeline.actions()).isEmpty();
         assertThat(timeline.offer()).isNull();
 
         service().delete(5L);
         verify(applicationMapper).deleteById(5L);
+    }
+
+    @Test
+    void deleteRejectedWhenInterviewEventsExist() {
+        when(applicationMapper.selectById(5L)).thenReturn(application("INTERVIEWING"));
+        when(eventService.existsByApplication(5L)).thenReturn(true);
+
+        assertCode(() -> service().delete(5L), ErrorCode.RESOURCE_REFERENCED);
+        verify(applicationMapper, never()).deleteById(5L);
     }
 
     @Test
@@ -185,12 +206,16 @@ class JobApplicationServiceTest {
         company.setId(2L);
         company.setName("字节跳动");
         when(companyMapper.selectByIds(anyList())).thenReturn(List.of(company));
+        when(eventService.stats(anyList())).thenReturn(java.util.Map.of(5L,
+                new InterviewEventService.InterviewStats(2, 3)));
 
         var result = service().page(1, 20, "APPLIED", 1L, null, "字节");
 
         assertThat(result.total()).isEqualTo(1);
         assertThat(result.items()).hasSize(1);
         assertThat(result.items().get(0).companyName()).isEqualTo("字节跳动");
+        assertThat(result.items().get(0).interviewCount()).isEqualTo(2);
+        assertThat(result.items().get(0).latestRoundNo()).isEqualTo(3);
     }
 
     private static void assertCode(Runnable action, ErrorCode expected) {
