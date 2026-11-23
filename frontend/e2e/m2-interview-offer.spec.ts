@@ -308,6 +308,9 @@ test('Offer 决策：对比矩阵、新增、文本提取与分析', async ({ pa
   await page.route('**/api/companies?*', (route) =>
     route.fulfill(ok({ items: [{ id: 1, name: '字节跳动', tags: [], jobPositionCount: 1 }], total: 1, page: 1, size: 100 })),
   )
+  await page.route(/\/api\/job-applications\?/, (route) =>
+    route.fulfill(ok({ items: [], total: 0, page: 1, size: 100 })),
+  )
   await page.route(/\/api\/job-positions\?/, (route) =>
     route.fulfill(
       ok({

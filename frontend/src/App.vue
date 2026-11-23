@@ -26,9 +26,10 @@ const pageTitle = computed(() => (route.meta.title as string) ?? '职点')
         <RouterLink to="/resumes" class="nav-item">简历中心</RouterLink>
         <RouterLink to="/jobs" class="nav-item">岗位库</RouterLink>
         <RouterLink to="/applications" class="nav-item">投递档案</RouterLink>
+        <RouterLink to="/reviews" class="nav-item">面试复盘</RouterLink>
+        <RouterLink to="/improvements" class="nav-item">改进看板</RouterLink>
         <RouterLink to="/interviews" class="nav-item">模拟面试</RouterLink>
         <RouterLink to="/offers" class="nav-item">Offer 决策</RouterLink>
-        <span class="nav-item planned">面试复盘<em>M3</em></span>
         <span class="nav-item planned">求职洞察<em>M3</em></span>
       </nav>
 
@@ -54,7 +55,7 @@ const pageTitle = computed(() => (route.meta.title as string) ?? '职点')
         </button>
         <div class="sidebar-foot">
           <span class="dot" />
-          M2 · 个人自用版
+          M3 · 个人自用版
         </div>
       </div>
     </aside>

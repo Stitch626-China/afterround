@@ -1,0 +1,178 @@
+/**
+ * 真实面试复盘接口（F4 / F5）：复盘会话、转写、结构化分析与改进动作。
+ * 类型来自 contracts/openapi.yaml 生成的 schema，禁止手写数据结构。
+ */
+import type { components } from './schema'
+import { del, get, patch, post, postForm, put } from './http'
+
+export type ReviewSessionListItem = components['schemas']['ReviewSessionListItem']
+export type ReviewSessionDetail = components['schemas']['ReviewSessionDetail']
+export type ReviewSessionStatus = components['schemas']['ReviewSessionStatus']
+export type ReviewStatus = components['schemas']['ReviewStatus']
+export type ReviewStageStatus = components['schemas']['ReviewStageStatus']
+export type ReviewInputType = components['schemas']['ReviewInputType']
+export type ReviewAnalysis = components['schemas']['ReviewAnalysis']
+export type ReviewQuestion = components['schemas']['ReviewQuestion']
+export type ReviewTag = components['schemas']['ReviewTag']
+export type ReviewSummary = components['schemas']['ReviewSummary']
+export type ImprovementActionDraft = components['schemas']['ImprovementActionDraft']
+export type ReviewAnalysisUpdateRequest = components['schemas']['ReviewAnalysisUpdateRequest']
+export type UpdateReviewSessionRequest = components['schemas']['UpdateReviewSessionRequest']
+export type ImprovementAction = components['schemas']['ImprovementAction']
+export type ImprovementActionStatus = components['schemas']['ImprovementActionStatus']
+export type CreateImprovementActionRequest = components['schemas']['CreateImprovementActionRequest']
+export type UpdateImprovementActionRequest = components['schemas']['UpdateImprovementActionRequest']
+export type ReviewTaxonomy = components['schemas']['ReviewTaxonomy']
+export type InterviewRoundType = components['schemas']['InterviewRoundType']
+export type InterviewFormat = components['schemas']['InterviewFormat']
+
+export type ReviewSessionPage = NonNullable<
+  components['schemas']['ResultReviewSessionPage']['data']
+> & {
+  items: ReviewSessionListItem[]
+}
+
+export type ImprovementActionPage = NonNullable<
+  components['schemas']['ResultImprovementActionPage']['data']
+> & {
+  items: ImprovementAction[]
+}
+
+export interface ReviewFilters {
+  page?: number
+  size?: number
+  status?: ReviewStatus | ''
+  applicationId?: number
+}
+
+export interface ImprovementActionFilters {
+  page?: number
+  size?: number
+  status?: ImprovementActionStatus | ''
+  sourceReviewId?: number
+}
+
+export interface CreateReviewInput {
+  audio?: File | null
+  transcript?: string
+  notes?: string
+  applicationId?: number | null
+  jobPositionId?: number | null
+  roundNo: number
+  roundType: InterviewRoundType
+  interviewerRole?: string
+  format?: InterviewFormat | null
+  interviewTime?: string | null
+  idempotencyKey?: string
+}
+
+function query(params: Record<string, string | number | null | undefined>): string {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      search.set(key, String(value))
+    }
+  })
+  const text = search.toString()
+  return text ? `?${text}` : ''
+}
+
+export function listReviewSessions(filters: ReviewFilters = {}): Promise<ReviewSessionPage> {
+  return get<ReviewSessionPage>(`/review-sessions${query({ ...filters })}`)
+}
+
+/** 创建复盘：音频与文本 / 笔记互斥；multipart 由浏览器自动设置 boundary。 */
+export function createReviewSession(input: CreateReviewInput): Promise<ReviewSessionListItem> {
+  const form = new FormData()
+  if (input.audio) {
+    form.append('audio', input.audio)
+  }
+  if (input.transcript) {
+    form.append('transcript', input.transcript)
+  }
+  if (input.notes) {
+    form.append('notes', input.notes)
+  }
+  if (input.applicationId) {
+    form.append('applicationId', String(input.applicationId))
+  }
+  if (input.jobPositionId) {
+    form.append('jobPositionId', String(input.jobPositionId))
+  }
+  form.append('roundNo', String(input.roundNo))
+  form.append('roundType', input.roundType)
+  if (input.interviewerRole) {
+    form.append('interviewerRole', input.interviewerRole)
+  }
+  if (input.format) {
+    form.append('format', input.format)
+  }
+  if (input.interviewTime) {
+    form.append('interviewTime', input.interviewTime)
+  }
+  if (input.idempotencyKey) {
+    form.append('idempotencyKey', input.idempotencyKey)
+  }
+  return postForm<ReviewSessionListItem>('/review-sessions', form)
+}
+
+export function getReviewSession(id: number): Promise<ReviewSessionDetail> {
+  return get<ReviewSessionDetail>(`/review-sessions/${id}`)
+}
+
+export function updateReviewSession(
+  id: number,
+  payload: UpdateReviewSessionRequest,
+): Promise<ReviewSessionDetail> {
+  return patch<ReviewSessionDetail>(`/review-sessions/${id}`, payload)
+}
+
+export function deleteReviewSession(id: number): Promise<void> {
+  return del<void>(`/review-sessions/${id}`)
+}
+
+export function getReviewSessionStatus(id: number): Promise<ReviewSessionStatus> {
+  return get<ReviewSessionStatus>(`/review-sessions/${id}/status`)
+}
+
+export function analyzeReviewSession(id: number): Promise<ReviewSessionListItem> {
+  return post<ReviewSessionListItem>(`/review-sessions/${id}/analyze`)
+}
+
+export function transcribeReviewSession(id: number): Promise<ReviewSessionListItem> {
+  return post<ReviewSessionListItem>(`/review-sessions/${id}/transcribe`)
+}
+
+export function updateReviewAnalysis(
+  id: number,
+  payload: ReviewAnalysisUpdateRequest,
+): Promise<ReviewSessionDetail> {
+  return put<ReviewSessionDetail>(`/review-sessions/${id}/analysis`, payload)
+}
+
+export function listImprovementActions(
+  filters: ImprovementActionFilters = {},
+): Promise<ImprovementActionPage> {
+  return get<ImprovementActionPage>(`/improvement-actions${query({ ...filters })}`)
+}
+
+export function createImprovementAction(
+  payload: CreateImprovementActionRequest,
+): Promise<ImprovementAction> {
+  return post<ImprovementAction>('/improvement-actions', payload)
+}
+
+export function updateImprovementAction(
+  id: number,
+  payload: UpdateImprovementActionRequest,
+): Promise<ImprovementAction> {
+  return patch<ImprovementAction>(`/improvement-actions/${id}`, payload)
+}
+
+export function deleteImprovementAction(id: number): Promise<void> {
+  return del<void>(`/improvement-actions/${id}`)
+}
+
+export function getReviewTaxonomy(): Promise<ReviewTaxonomy> {
+  return get<ReviewTaxonomy>('/review-taxonomy')
+}

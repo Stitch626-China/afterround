@@ -43,6 +43,24 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '投递档案' },
   },
   {
+    path: '/reviews',
+    name: 'reviews',
+    component: () => import('@/views/ReviewListView.vue'),
+    meta: { title: '面试复盘' },
+  },
+  {
+    path: '/reviews/:id',
+    name: 'review-detail',
+    component: () => import('@/views/ReviewDetailView.vue'),
+    meta: { title: '复盘详情' },
+  },
+  {
+    path: '/improvements',
+    name: 'improvements',
+    component: () => import('@/views/ImprovementBoardView.vue'),
+    meta: { title: '改进看板' },
+  },
+  {
     path: '/interviews',
     name: 'interviews',
     component: () => import('@/views/InterviewListView.vue'),

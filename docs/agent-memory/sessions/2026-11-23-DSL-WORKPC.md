@@ -100,3 +100,10 @@
 - 原因：FR4.1 / FR4.8 要求音频优先录入且失败可手动重试；ASR 是长任务，必须与简历 / JD / 匹配的异步队列隔离，避免一段长录音阻塞其它任务。
 - 验证：`redocly lint` **0 error / 0 warning**；`ReviewSessionServiceTest` 15 + `OpenAiCompatibleAsrClientTest` 3 + 契约双测试通过；后端全量 **174 tests 全绿、JaCoCo 门禁通过**；真实链路（本地假 ASR 3001 + 真后端 + 真 LLM）：「未配置 ASR → 400 明确提示；配置后上传音频 → TRANSCRIBING → 假 ASR 转写 → 真 LLM 分析 → READY（转写文本正确、2 题分析）；假 ASR 故障 → FAILED / retry=3 / 错误含上游信息；恢复后 `/transcribe` → READY；删除两条复盘后磁盘音频目录清零、事件/投递/岗位/公司全部清理、库内临时数据为 0」。
 - 下一步 / 断点：B4 前端复盘列表 / 详情 / 改进看板（含音频上传、状态轮询、分析确认与行动状态流转）+ 构建与 Vitest/E2E。
+
+### 19:55 M3-b B4 前端复盘页面实现完成
+- 改动：新增 `api/reviews.ts`（复盘 / 转写 / 分析 / 改进行动 / 词表全部接口，类型由契约生成）与纯函数 `utils/review.ts`（枚举文案、状态色调、`isProcessing`、`parseTagList`、`buildAnalysisPayload`）；`api/http.ts` 支持 FormData（不再强制 JSON 头）并新增 `postForm`；新增页面 `ReviewListView`（投递选择、轮次自动 +1、录音 / 文本 / 笔记三种输入、处理中 3 秒轮询、重试转写 / 重新分析 / 二次确认删除、失败保留输入）、`ReviewDetailView`（转写修正、轻量状态轮询、分析问题 / 标签 / 总结展示、总结与行动修正、确认生成行动、来源行动列表）、`ImprovementBoardView`（状态筛选、状态流转、验证证据、新增 / 删除）；路由新增 `/reviews`、`/reviews/:id`、`/improvements`；一级导航加入「面试复盘 / 改进看板」（求职洞察保留 M3 占位）；投递时间线展示复盘条目与状态并可跳转；补充 Offer E2E 缺失的 `job-applications` mock，保持「接口全 mock」自包含。
+- 原因：B1~B3 后端能力已就绪，B4 必须让用户能完成「录音/文本/笔记 → 分析 → 确认行动 → 看板推进」的完整闭环，否则 M3-b 无法验收。
+- 验证：`npm run build`（含契约类型重新生成 + `vue-tsc`）通过；Vitest **23 tests 全过**（新增 `utils/review.spec.ts` 4 个：标签清洗、状态判定、确认 payload 重编号/去空/行动 ≤3、文案）；Playwright **14 E2E 全过**（新增 `e2e/reviews.spec.ts` 3 个：列表文本创建与删除、详情修正并确认行动、看板状态流转 / 证据 / 新增；既有 11 个回归；沙箱对 Edge 系统缓存写入报 restricted 导致退出码 1，测试结果为 14 passed）。
+- 下一步 / 断点：B5 全量测试（后端 JaCoCo + 契约 lint + 前端 build / Vitest / E2E）+ 真实接口回归 + README / PROGRESS 收口 + commit push；随后 M3-c 跨场归因（契约 1.10.0）。
+

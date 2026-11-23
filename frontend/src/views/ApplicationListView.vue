@@ -17,6 +17,7 @@ import {
 import { listJobPositions, type JobPositionListItem } from '@/api/jobs'
 import { listResumes, type ResumeListItem } from '@/api/resumes'
 import EmptyState from '@/components/EmptyState.vue'
+import { REVIEW_STATUS_TEXT } from '@/utils/review'
 
 const items = ref<JobApplicationListItem[]>([])
 const jobs = ref<JobPositionListItem[]>([])
@@ -199,6 +200,10 @@ function formatTime(value: string): string {
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
 
+function statusText(status: string): string {
+  return REVIEW_STATUS_TEXT[status] ?? status
+}
+
 function salary(value: number | null | undefined): string {
   return value == null ? '薪资未填' : `${Math.round(value / 1000)}K`
 }
@@ -330,9 +335,16 @@ onMounted(() => {
             </div>
             <p v-else class="timeline-empty">暂无关联 Offer；可在 Offer 决策中关联这条投递。</p>
             <p class="timeline-empty">
-              面试轮次 {{ timeline.events.length }} 条、复盘 {{ timeline.reviews.length }} 份、改进行动
-              {{ timeline.actions.length }} 条（M3-b / M3-c 接入后可在此查看）。
+              面试轮次 {{ timeline.events.length }} 条、改进行动 {{ timeline.actions.length }} 条。
             </p>
+            <ul v-if="timeline.reviews.length" class="timeline-reviews">
+              <li v-for="review in timeline.reviews" :key="review.id">
+                <RouterLink :to="`/reviews/${review.id}`" class="link">
+                  第 {{ review.roundNo }} 轮复盘 · {{ statusText(review.status) }} →
+                </RouterLink>
+              </li>
+            </ul>
+            <RouterLink v-else to="/reviews" class="link">还没有复盘，去创建 →</RouterLink>
           </div>
         </li>
       </ul>
@@ -585,6 +597,15 @@ onMounted(() => {
   gap: var(--space-2);
   font-size: 12px;
   color: var(--text-2);
+}
+
+.timeline-reviews {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: 12px;
 }
 
 .pager {

@@ -38,11 +38,12 @@ export const BASE_URL = '/api'
  * @param path 形如 '/resumes'、'/resumes/1'（不含 /api 前缀）
  */
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const isForm = typeof FormData !== 'undefined' && init.body instanceof FormData
   let response: Response
   try {
     response = await fetch(`${BASE_URL}${path}`, {
       headers: {
-        'Content-Type': 'application/json',
+        ...(isForm ? {} : { 'Content-Type': 'application/json' }),
         ...(init.headers ?? {}),
       },
       ...init,
@@ -108,4 +109,9 @@ export function patch<T>(path: string, body?: unknown): Promise<T> {
 /** 便捷方法：DELETE */
 export function del<T>(path: string): Promise<T> {
   return request<T>(path, { method: 'DELETE' })
+}
+
+/** 便捷方法：POST multipart（浏览器自动设置 boundary，不能手动指定 Content-Type）。 */
+export function postForm<T>(path: string, form: FormData): Promise<T> {
+  return request<T>(path, { method: 'POST', body: form })
 }
