@@ -10,19 +10,19 @@ const routes: RouteRecordRaw[] = [
     path: '/resumes',
     name: 'resumes',
     component: () => import('@/views/ResumeListView.vue'),
-    meta: { title: '简历中心' },
+    meta: { title: '简历中心', ownTitle: true },
   },
   {
     path: '/resumes/compare',
     name: 'resume-compare',
     component: () => import('@/views/ComparisonView.vue'),
-    meta: { title: '简历对比' },
+    meta: { title: '简历对比', ownTitle: true },
   },
   {
     path: '/resumes/:id/report',
     name: 'resume-report',
     component: () => import('@/views/ResumeReportView.vue'),
-    meta: { title: '分析报告' },
+    meta: { title: '分析报告', ownTitle: true },
   },
   {
     path: '/jobs',
@@ -88,7 +88,7 @@ const routes: RouteRecordRaw[] = [
     path: '/chat',
     name: 'chat',
     component: () => import('@/views/ChatView.vue'),
-    meta: { title: '模型对话（能力验证）' },
+    meta: { title: '模型对话（能力验证）', ownTitle: true },
   },
 ]
 
