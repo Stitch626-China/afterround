@@ -43,3 +43,9 @@
 - 原因：原名「职点 / JobPilot」与同领域产品重名，用户确认改用「面后（AfterRound）」。
 - 验证：`npm run lint:contract` 通过（契约 valid，0 error / 0 warning）；`npm run build` 通过（含 `openapi-typescript` 重新生成类型与 `vue-tsc`）；Grep 复核剩余旧名均为类名、历史记录或不可改的 Flyway 迁移注释。
 - 下一步 / 断点：提交推送 → GitHub 仓库改名 → 更新 remote 与描述。
+
+### 09:50 事件
+- 改动：提交 `3b4ecc4`（展示层与需求文档 v1.14）已推送；GitHub 仓库 `Stitch626-China/jobpilot` 改名为 `Stitch626-China/afterround`，仓库描述更新为「面后 AfterRound - AI 求职辅助平台：真实面试复盘、跨场归因与改进闭环」；本地 `origin` 同步为新地址。
+- 原因：展示层改名后同步仓库名，避免对外地址仍显示旧名。
+- 验证：`gh repo view` 返回 `name=afterround`、`visibility=PRIVATE`、描述已更新；`git ls-remote origin refs/heads/main` 返回 `3b4ecc4`，与本地提交一致；旧地址由 GitHub 自动重定向。
+- 下一步 / 断点：无；工作区干净。
