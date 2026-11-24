@@ -479,16 +479,18 @@ onBeforeUnmount(() => {
       <div v-if="error" class="banner danger">{{ error }}</div>
       <div v-else-if="notice" class="banner success">{{ notice }}</div>
 
-      <div v-if="selected.length" class="bulk">
-        <span>已选 {{ selected.length }} 个岗位</span>
-        <div class="bulk-actions">
-          <template v-if="batchConfirm">
-            <button type="button" class="link danger" @click="removeSelected">确认删除</button>
-            <button type="button" class="link" @click="batchConfirm = false">取消</button>
-          </template>
-          <button v-else type="button" class="link danger" @click="batchConfirm = true">批量删除</button>
+      <Transition name="bulk">
+        <div v-if="selected.length" class="bulk" role="status" aria-live="polite">
+          <span>已选 {{ selected.length }} 个岗位</span>
+          <div class="bulk-actions">
+            <template v-if="batchConfirm">
+              <button type="button" class="link danger" @click="removeSelected">确认删除</button>
+              <button type="button" class="link" @click="batchConfirm = false">取消</button>
+            </template>
+            <button v-else type="button" class="link danger" @click="batchConfirm = true">批量删除</button>
+          </div>
         </div>
-      </div>
+      </Transition>
 
       <section v-if="loading" class="skeleton">
         <div class="skeleton-row" />
@@ -816,14 +818,41 @@ onBeforeUnmount(() => {
 }
 
 .bulk {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-5);
+  z-index: 30;
+  transform: translateX(-50%);
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: var(--space-4);
+  max-width: calc(100vw - var(--space-6));
   padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  background: var(--primary-soft);
-  color: var(--primary);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-hover);
+  color: var(--text);
   font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.bulk-enter-active,
+.bulk-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.bulk-enter-from,
+.bulk-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(10px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bulk-enter-active,
+  .bulk-leave-active {
+    transition: none;
+  }
 }
 
 .bulk-actions {
