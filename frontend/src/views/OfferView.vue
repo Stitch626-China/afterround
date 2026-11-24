@@ -371,7 +371,9 @@ onMounted(() => {
       <p class="lead">
         记录多个 Offer 的薪资、五险一金与福利，保留组最多 4 个参与同维度对比；前景分析默认只基于你提供的资料。
       </p>
-      <button type="button" class="btn primary" @click="openCreate">新增 Offer</button>
+      <button type="button" class="btn" :class="formOpen ? 'ghost' : 'primary'" @click="openCreate">
+        新增 Offer
+      </button>
     </header>
 
     <nav class="tabs">
@@ -559,7 +561,7 @@ onMounted(() => {
             <div class="offer-main">
               <div class="row-title-line">
                 <strong class="row-title">{{ jobLabel(item) }}</strong>
-                <span class="badge" :class="item.group === 'KEEP' ? 'success' : 'muted'">
+                <span class="status" :class="item.group === 'KEEP' ? 'success' : 'muted'">
                   {{ groupText(item.group) }}
                 </span>
               </div>
@@ -617,7 +619,7 @@ onMounted(() => {
 
                 <template v-if="detail?.analysis">
                   <div class="analysis-head">
-                    <span class="badge" :class="TENDENCY_TONE[detail.analysis.tendency]">
+                    <span class="tag" :class="TENDENCY_TONE[detail.analysis.tendency]">
                       {{ TENDENCY_TEXT[detail.analysis.tendency] ?? detail.analysis.tendency }}
                     </span>
                     <span class="hint">
@@ -705,49 +707,13 @@ onMounted(() => {
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-}
-
-.page-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-3);
+  gap: var(--space-5);
 }
 
 .lead {
   margin: 0;
+  max-width: 680px;
   color: var(--text-2);
-  font-size: 13.5px;
-}
-
-.btn {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  border: 1px solid transparent;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.btn.primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn.ghost {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text-2);
-}
-
-.btn.ghost:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .tabs {
@@ -781,35 +747,17 @@ onMounted(() => {
   background: var(--primary);
 }
 
-.banner {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  font-size: 12.5px;
-}
-
-.banner.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid var(--danger);
-}
-
-.banner.success {
-  color: var(--success);
-  background: var(--success-soft);
-  border: 1px solid var(--success);
-}
-
 .hint {
   margin: 0;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .form-card {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-4);
+  padding: var(--space-5);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
@@ -823,16 +771,17 @@ onMounted(() => {
 }
 
 .form-head h3 {
-  font-size: 14.5px;
+  font-size: var(--fs-h2);
+  font-weight: 600;
 }
 
+/* 提取区是一段浅底工具带，不再画第二层虚线卡片 */
 .extract {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3);
   background: var(--surface-muted);
-  border: 1px dashed var(--border-strong);
   border-radius: var(--radius-btn);
 }
 
@@ -841,7 +790,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: baseline;
   gap: var(--space-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .extract textarea {
@@ -853,7 +802,7 @@ onMounted(() => {
   background: var(--surface);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .extract-actions {
@@ -880,19 +829,32 @@ onMounted(() => {
 }
 
 .form-grid span {
-  font-size: 12px;
   color: var(--text-3);
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.04em;
 }
 
 .form-grid input,
-.form-grid select {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+.form-grid select,
+.filters select {
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
+}
+
+.form-grid input:focus-visible,
+.form-grid select:focus-visible,
+.filters select:focus-visible,
+.extract textarea:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
 .form-actions {
@@ -907,27 +869,8 @@ onMounted(() => {
   gap: var(--space-3);
 }
 
-.filters select {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
-  background: var(--surface);
-  color: var(--text);
-  font-family: var(--font-sans);
-  font-size: 12.5px;
-}
-
-.skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
 .skeleton-row {
   height: 84px;
-  border-radius: var(--radius-card);
-  border: 1px solid var(--border);
-  background: var(--surface);
 }
 
 .list {
@@ -936,7 +879,10 @@ onMounted(() => {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 .offer-row {
@@ -944,14 +890,17 @@ onMounted(() => {
   grid-template-columns: 1fr auto;
   align-items: start;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--dur-1) var(--ease);
+}
+
+.offer-row:last-child {
+  border-bottom: none;
 }
 
 .offer-row:hover {
-  border-color: var(--border-strong);
+  background: var(--surface-muted);
 }
 
 .offer-main {
@@ -973,7 +922,7 @@ onMounted(() => {
 .row-salary {
   margin: 3px 0 0;
   color: var(--text);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .row-meta {
@@ -996,30 +945,19 @@ onMounted(() => {
   max-width: 360px;
 }
 
-.link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 12.5px;
-}
-
-.link.danger {
-  color: var(--danger);
-}
-
 .link.warning {
   color: var(--warning);
 }
 
+/* 分析区是行内展开的浅底带，不画第二层卡片 */
 .analysis {
   grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-3);
+  margin-top: var(--space-2);
+  padding: var(--space-4);
   background: var(--surface-muted);
-  border: 1px solid var(--border);
   border-radius: var(--radius-btn);
 }
 
@@ -1035,7 +973,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 
@@ -1054,57 +992,23 @@ onMounted(() => {
 
 .analysis-grid h4 {
   margin: 0 0 var(--space-1);
-  font-size: 12.5px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .analysis-grid ul {
   margin: 0;
   padding-left: 18px;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   line-height: 1.8;
 }
 
 .prospect {
   margin: 0;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   line-height: 1.8;
-}
-
-.badge {
-  padding: 1px 8px;
-  border-radius: var(--radius-tag);
-  font-size: 11.5px;
-  white-space: nowrap;
-}
-
-.badge.success {
-  color: var(--success);
-  background: var(--success-soft);
-}
-
-.badge.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-}
-
-.badge.warning {
-  color: var(--warning);
-  background: var(--warning-soft);
-}
-
-.badge.muted {
-  color: var(--text-3);
-  background: var(--surface-muted);
-}
-
-.pager {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12.5px;
-  color: var(--text-3);
 }
 
 .pager-actions {
@@ -1116,7 +1020,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-5);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
@@ -1126,12 +1030,12 @@ onMounted(() => {
 .compare table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .compare th,
 .compare td {
-  padding: var(--space-2) var(--space-3);
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
@@ -1143,17 +1047,23 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+.compare thead th strong {
+  font-weight: 600;
+}
+
 .compare thead th span {
   display: block;
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   font-weight: 400;
 }
 
 .compare .dim {
   width: 130px;
   color: var(--text-3);
-  font-weight: 400;
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.06em;
   white-space: nowrap;
 }
 

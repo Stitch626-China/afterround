@@ -291,7 +291,7 @@ onBeforeUnmount(() => {
         <p class="meta">{{ refs() }}</p>
       </div>
       <div class="head-status">
-        <span class="badge" :class="SESSION_STATUS_TONE[status]">
+        <span class="status" :class="SESSION_STATUS_TONE[status]">
           {{ SESSION_STATUS_TEXT[status] ?? status }}
         </span>
         <span v-if="detail?.currentProviderKey" class="model-label">
@@ -345,14 +345,14 @@ onBeforeUnmount(() => {
     <template v-else-if="status === 'IN_PROGRESS' || status === 'GENERATING'">
       <div class="progress-line">
         <span class="numeric">{{ progressText(detail?.answeredCount ?? 0, questions.length) }}</span>
-        <span v-if="status === 'GENERATING'" class="badge warning">正在生成追问…</span>
+        <span v-if="status === 'GENERATING'" class="tag warning">正在生成追问…</span>
       </div>
 
       <section v-if="current" class="question-card">
         <div class="q-head">
-          <span class="badge primary">第 {{ current.questionIndex }} 题</span>
-          <span class="badge muted">{{ QUESTION_TYPE_TEXT[current.type] ?? current.type }}</span>
-          <span class="badge" :class="difficultyTone(current.difficulty)">
+          <span class="tag">第 {{ current.questionIndex }} 题</span>
+          <span class="tag">{{ QUESTION_TYPE_TEXT[current.type] ?? current.type }}</span>
+          <span class="tag" :class="difficultyTone(current.difficulty)">
             {{ DIFFICULTY_TEXT[current.difficulty] ?? current.difficulty }}
           </span>
           <span v-if="current.topicSummary" class="topic">{{ current.topicSummary }}</span>
@@ -407,7 +407,7 @@ onBeforeUnmount(() => {
           <li v-for="item in answered" :key="item.questionIndex">
             <div class="answered-head">
               <span>第 {{ item.questionIndex }} 题 · {{ QUESTION_TYPE_TEXT[item.type] ?? item.type }}</span>
-              <span class="badge" :class="questionStatusTone(item)">{{ questionStatusText(item) }}</span>
+              <span class="status" :class="questionStatusTone(item)">{{ questionStatusText(item) }}</span>
             </div>
             <p class="answered-q">{{ item.content }}</p>
             <p v-if="item.answer" class="answered-a">回答：{{ item.answer }}</p>
@@ -429,7 +429,7 @@ onBeforeUnmount(() => {
           <button
             v-else
             type="button"
-            class="btn primary"
+            class="btn ghost"
             :disabled="!canSubmit || actionBusy"
             @click="submitConfirm = true"
           >
@@ -460,7 +460,7 @@ onBeforeUnmount(() => {
 
     <section v-if="report" class="report">
       <div class="score-head">
-        <div class="score-big numeric" :class="scoreTone(report.overallScore)">
+        <div class="score-big num-hero" :class="scoreTone(report.overallScore)">
           {{ report.overallScore ?? '—' }}
         </div>
         <div class="score-summary">
@@ -509,7 +509,7 @@ onBeforeUnmount(() => {
         <article v-for="item in questions" :key="item.questionIndex" class="review-item">
           <div class="review-head">
             <span>第 {{ item.questionIndex }} 题 · {{ QUESTION_TYPE_TEXT[item.type] ?? item.type }}</span>
-            <span class="badge" :class="questionStatusTone(item)">{{ questionStatusText(item) }}</span>
+            <span class="status" :class="questionStatusTone(item)">{{ questionStatusText(item) }}</span>
             <strong v-if="item.score != null" class="numeric">{{ item.score }} 分</strong>
           </div>
           <p class="review-q">{{ item.content }}</p>
@@ -528,8 +528,7 @@ onBeforeUnmount(() => {
 .room {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  max-width: 920px;
+  gap: var(--space-5);
 }
 
 .room-head {
@@ -544,7 +543,7 @@ onBeforeUnmount(() => {
   border: none;
   background: none;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .back:hover {
@@ -553,13 +552,13 @@ onBeforeUnmount(() => {
 
 .room-head h2 {
   margin-top: var(--space-2);
-  font-size: 17px;
+  font-size: var(--fs-h1);
 }
 
 .meta {
   margin: 2px 0 0;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .head-status {
@@ -571,7 +570,7 @@ onBeforeUnmount(() => {
 
 .model-label {
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
 }
 
 .model-switch {
@@ -586,42 +585,32 @@ onBeforeUnmount(() => {
 }
 
 .model-title {
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 
 .model-switch select {
-  padding: 5px var(--space-3);
-  border: 1px solid var(--border);
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--fs-sm);
+}
+
+.model-switch select:focus-visible,
+.answer-box:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
 .hint {
   margin: 0;
   color: var(--text-3);
-  font-size: 12px;
-}
-
-.banner {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  font-size: 12.5px;
-}
-
-.banner.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid var(--danger);
-}
-
-.banner.success {
-  color: var(--success);
-  background: var(--success-soft);
-  border: 1px solid var(--success);
+  font-size: var(--fs-sm);
 }
 
 .state-card {
@@ -631,15 +620,17 @@ onBeforeUnmount(() => {
   padding: var(--space-5);
   background: var(--surface);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
   border-radius: var(--radius-card);
 }
 
 .state-card.danger {
-  border-color: var(--danger);
+  border-left-color: var(--danger);
 }
 
 .state-card h3 {
-  font-size: 14.5px;
+  font-size: var(--fs-h2);
+  font-weight: 600;
 }
 
 .state-card p {
@@ -653,7 +644,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: var(--space-3);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .question-card {
@@ -664,7 +655,6 @@ onBeforeUnmount(() => {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-rest);
 }
 
 .q-head {
@@ -681,7 +671,7 @@ onBeforeUnmount(() => {
 
 .q-content {
   margin: 0;
-  font-size: 14.5px;
+  font-size: var(--fs-h2);
   line-height: 1.7;
 }
 
@@ -704,52 +694,6 @@ onBeforeUnmount(() => {
   gap: var(--space-3);
 }
 
-.btn {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  border: 1px solid transparent;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.btn.primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn.danger {
-  background: var(--danger);
-  color: #fff;
-}
-
-.btn.ghost {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text-2);
-}
-
-.btn.ghost:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 12.5px;
-}
-
-.link.danger {
-  color: var(--danger);
-}
-
 .answered {
   display: flex;
   flex-direction: column;
@@ -762,21 +706,26 @@ onBeforeUnmount(() => {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 .answered-list li {
   padding: var(--space-3) var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
+  border-top: 1px solid var(--border);
+}
+
+.answered-list li:first-child {
+  border-top: none;
 }
 
 .answered-head {
   display: flex;
   justify-content: space-between;
   gap: var(--space-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 
@@ -788,7 +737,7 @@ onBeforeUnmount(() => {
 .answered-a {
   margin: var(--space-1) 0 0;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   white-space: pre-wrap;
 }
 
@@ -802,7 +751,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .submit-actions {
@@ -826,12 +775,6 @@ onBeforeUnmount(() => {
   gap: var(--space-5);
 }
 
-.score-big {
-  font-size: 44px;
-  font-weight: 600;
-  line-height: 1;
-}
-
 .score-big.high {
   color: var(--score-high);
 }
@@ -845,7 +788,8 @@ onBeforeUnmount(() => {
 }
 
 .score-summary h3 {
-  font-size: 15px;
+  font-size: var(--fs-h2);
+  font-weight: 600;
 }
 
 .score-summary p {
@@ -863,27 +807,27 @@ onBeforeUnmount(() => {
 .cat-head {
   display: flex;
   justify-content: space-between;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 
 .cat-head strong {
   color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .track {
   height: 6px;
   margin-top: 4px;
-  border-radius: 3px;
+  border-radius: 999px;
   background: var(--surface-muted);
-  border: 1px solid var(--border);
   overflow: hidden;
 }
 
 .fill {
   height: 100%;
-  border-radius: 2px;
-  transition: width 0.3s ease;
+  border-radius: 999px;
+  transition: width 0.3s var(--ease);
 }
 
 .fill.high {
@@ -908,27 +852,30 @@ onBeforeUnmount(() => {
 .review h4 {
   margin: 0 0 var(--space-2);
   font-size: 13.5px;
+  font-weight: 600;
 }
 
 .two-col ul {
   margin: 0;
   padding-left: 18px;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   line-height: 1.8;
 }
 
 .review {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
 }
 
+/* 逐题点评用墨线分隔，不再套小卡片 */
 .review-item {
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface-muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border);
+}
+
+.review-item:first-of-type {
+  border-top: none;
 }
 
 .review-head {
@@ -936,7 +883,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 
@@ -952,7 +899,7 @@ onBeforeUnmount(() => {
 .review-key,
 .review-skip {
   margin: var(--space-1) 0 0;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
   white-space: pre-wrap;
 }
@@ -963,38 +910,6 @@ onBeforeUnmount(() => {
 
 .review-skip {
   color: var(--warning);
-}
-
-.badge {
-  padding: 1px 8px;
-  border-radius: var(--radius-tag);
-  font-size: 11.5px;
-  white-space: nowrap;
-}
-
-.badge.success {
-  color: var(--success);
-  background: var(--success-soft);
-}
-
-.badge.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-}
-
-.badge.primary {
-  color: var(--primary);
-  background: var(--primary-soft);
-}
-
-.badge.warning {
-  color: var(--warning);
-  background: var(--warning-soft);
-}
-
-.badge.muted {
-  color: var(--text-3);
-  background: var(--surface-muted);
 }
 
 @media (max-width: 760px) {

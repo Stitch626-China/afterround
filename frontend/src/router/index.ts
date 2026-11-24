@@ -34,7 +34,7 @@ const routes: RouteRecordRaw[] = [
     path: '/jobs/:id',
     name: 'job-detail',
     component: () => import('@/views/JobDetailView.vue'),
-    meta: { title: '岗位详情' },
+    meta: { title: '岗位详情', ownTitle: true },
   },
   {
     path: '/applications',
@@ -52,7 +52,7 @@ const routes: RouteRecordRaw[] = [
     path: '/reviews/:id',
     name: 'review-detail',
     component: () => import('@/views/ReviewDetailView.vue'),
-    meta: { title: '复盘详情' },
+    meta: { title: '复盘详情', ownTitle: true },
   },
   {
     path: '/improvements',
@@ -76,7 +76,7 @@ const routes: RouteRecordRaw[] = [
     path: '/interviews/:id',
     name: 'interview-room',
     component: () => import('@/views/InterviewRoomView.vue'),
-    meta: { title: '模拟面试' },
+    meta: { title: '模拟面试', ownTitle: true },
   },
   {
     path: '/offers',

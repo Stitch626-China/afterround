@@ -186,11 +186,11 @@ watch(() => props.saving, (now, before) => {
           <p class="direction-reason">{{ item.matchReason }}</p>
           <div v-if="item.skillGaps?.length" class="tag-group">
             <span class="tag-label">技能差距</span>
-            <span v-for="gap in item.skillGaps" :key="gap" class="tag gap">{{ gap }}</span>
+            <span v-for="gap in item.skillGaps" :key="gap" class="tag warning">{{ gap }}</span>
           </div>
           <div v-if="item.interviewFocus?.length" class="tag-group">
             <span class="tag-label">面试重点</span>
-            <span v-for="focus in item.interviewFocus" :key="focus" class="tag focus">{{ focus }}</span>
+            <span v-for="focus in item.interviewFocus" :key="focus" class="tag primary">{{ focus }}</span>
           </div>
         </article>
       </div>
@@ -410,22 +410,6 @@ watch(() => props.saving, (now, before) => {
   font-size: var(--fs-overline);
   font-weight: 500;
   letter-spacing: 0.06em;
-}
-
-.tag {
-  padding: 1px 7px;
-  border-radius: var(--radius-tag);
-  font-size: 11.5px;
-}
-
-.tag.gap {
-  color: var(--warning);
-  background: var(--warning-soft);
-}
-
-.tag.focus {
-  color: var(--primary);
-  background: var(--primary-soft);
 }
 
 .muted {

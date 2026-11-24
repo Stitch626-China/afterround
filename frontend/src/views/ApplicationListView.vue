@@ -220,7 +220,7 @@ onMounted(() => {
       <p class="lead">
         一次投递 = 岗位 + 简历版本；状态向前同步岗位，投递时间线串起后续面试与 Offer。
       </p>
-      <button type="button" class="btn primary" @click="formOpen = !formOpen">
+      <button type="button" class="btn" :class="formOpen ? 'ghost' : 'primary'" @click="formOpen = !formOpen">
         {{ formOpen ? '收起' : '记录投递' }}
       </button>
     </header>
@@ -296,10 +296,10 @@ onMounted(() => {
           <div class="row-main">
             <div class="row-title-line">
               <strong class="row-title">{{ item.jobTitle || '未命名岗位' }}</strong>
-              <span class="badge" :class="STATUS_TONE[item.status]">
+              <span class="status" :class="STATUS_TONE[item.status]">
                 {{ STATUS_TEXT[item.status] ?? item.status }}
               </span>
-              <span v-if="item.interviewCount" class="badge muted">{{ item.interviewCount }} 轮面试</span>
+              <span v-if="item.interviewCount" class="tag">{{ item.interviewCount }} 轮面试</span>
             </div>
             <p class="row-meta">{{ meta(item) }}</p>
             <p v-if="item.outcome" class="row-outcome">结果：{{ item.outcome }}</p>
@@ -362,52 +362,20 @@ onMounted(() => {
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-}
-
-.page-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .lead {
   margin: 0;
+  max-width: 680px;
   color: var(--text-2);
-  font-size: 13px;
-  max-width: 720px;
-}
-
-.btn {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
-  background: var(--surface);
-  color: var(--text-2);
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.btn.primary {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn.ghost {
-  background: var(--surface);
-}
-
-.btn:disabled {
-  opacity: 0.55;
 }
 
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-5);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
@@ -424,7 +392,9 @@ onMounted(() => {
   flex-direction: column;
   gap: 4px;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.04em;
 }
 
 .form select,
@@ -433,17 +403,31 @@ onMounted(() => {
 .filters select,
 .filters input,
 .row-actions select {
-  padding: var(--space-2) var(--space-3);
+  height: 34px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 
 .form textarea {
+  height: auto;
+  padding: var(--space-2) var(--space-3);
   resize: vertical;
+}
+
+.form select:focus-visible,
+.form input:focus-visible,
+.form textarea:focus-visible,
+.filters select:focus-visible,
+.filters input:focus-visible,
+.row-actions select:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
 .actions {
@@ -457,41 +441,16 @@ onMounted(() => {
   gap: var(--space-2);
 }
 
-.banner {
-  padding: var(--space-3);
-  border-radius: var(--radius-btn);
-  font-size: 13px;
-}
-
-.banner.danger {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.banner.success {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.skeleton-row {
-  height: 64px;
-  border-radius: var(--radius-card);
-  background: var(--surface-muted);
-}
-
 .list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 .row {
@@ -499,10 +458,17 @@ onMounted(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--dur-1) var(--ease);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row:hover {
+  background: var(--surface-muted);
 }
 
 .row-main {
@@ -518,7 +484,8 @@ onMounted(() => {
 }
 
 .row-title {
-  font-size: 14px;
+  font-size: 13.5px;
+  font-weight: 500;
 }
 
 .row-meta,
@@ -528,52 +495,11 @@ onMounted(() => {
   font-size: 12px;
 }
 
-.badge {
-  padding: 1px 6px;
-  border-radius: var(--radius-tag);
-  font-size: 11px;
-  background: var(--surface-muted);
-  color: var(--text-3);
-}
-
-.badge.primary {
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.badge.success {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.badge.warning {
-  background: var(--warning-soft);
-  color: var(--warning);
-}
-
-.badge.danger {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
 .row-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
-}
-
-.link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.link.danger {
-  color: var(--danger);
+  gap: var(--space-3);
 }
 
 .timeline {
@@ -582,7 +508,7 @@ onMounted(() => {
   flex-direction: column;
   gap: 6px;
   padding-top: var(--space-3);
-  border-top: 1px dashed var(--border);
+  border-top: 1px solid var(--border);
 }
 
 .timeline-line,
@@ -614,6 +540,6 @@ onMounted(() => {
   justify-content: center;
   gap: var(--space-3);
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 </style>

@@ -84,9 +84,9 @@ onBeforeUnmount(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  background: var(--surface);
   border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-hover);
+  box-shadow: var(--shadow-float);
 }
 
 .drawer-head {
@@ -97,16 +97,23 @@ onBeforeUnmount(() => {
 }
 
 .drawer-head h2 {
-  font-size: 15px;
+  font-size: var(--fs-h2);
+  font-weight: 600;
 }
 
 .close {
-  padding: 4px 10px;
-  border: 1px solid var(--border);
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
+}
+
+.close:hover {
+  background: var(--surface-muted);
+  color: var(--text);
 }
 
 .tabs {
@@ -149,12 +156,12 @@ onBeforeUnmount(() => {
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.16s ease;
+  transition: opacity var(--dur-2) var(--ease);
 }
 
 .fade-enter-active .drawer,
 .fade-leave-active .drawer {
-  transition: transform 0.18s ease;
+  transition: transform var(--dur-2) var(--ease);
 }
 
 .fade-enter-from,

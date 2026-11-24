@@ -305,7 +305,9 @@ onBeforeUnmount(() => {
   <div class="page">
     <button type="button" class="back" @click="back">← 返回岗位库</button>
 
-    <div v-if="loading" class="skeleton" />
+    <section v-if="loading" class="skeleton">
+      <div class="skeleton-row tall" />
+    </section>
     <div v-else-if="!job" class="banner danger">{{ error || '岗位不存在' }}</div>
 
     <template v-else>
@@ -317,11 +319,11 @@ onBeforeUnmount(() => {
           </p>
         </div>
         <div class="badges">
-          <span class="badge" :class="PARSE_TONE[job.parseStatus]">
+          <span class="status" :class="PARSE_TONE[job.parseStatus]">
             {{ PARSE_TEXT[job.parseStatus] ?? job.parseStatus }}
           </span>
-          <span class="badge muted">{{ STATUS_TEXT[job.status] ?? job.status }}</span>
-          <span v-if="job.llmProvider" class="badge muted">{{ job.llmProvider }} · {{ job.llmModel }}</span>
+          <span class="status muted">{{ STATUS_TEXT[job.status] ?? job.status }}</span>
+          <span v-if="job.llmProvider" class="tag">{{ job.llmProvider }} · {{ job.llmModel }}</span>
         </div>
       </header>
 
@@ -402,7 +404,7 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="form-actions">
-            <button type="button" class="btn primary" :disabled="saving" @click="save">
+            <button type="button" class="btn ghost" :disabled="saving" @click="save">
               {{ saving ? '保存中…' : '保存修改' }}
             </button>
             <button
@@ -428,7 +430,7 @@ onBeforeUnmount(() => {
         </section>
 
         <section class="card">
-          <h3>简历匹配</h3>
+          <h3 class="card-title">简历匹配</h3>
           <p class="hint">基于简历原文与 JD 结构做三项评分，总分由本地按 50 / 30 / 20 加权。</p>
 
           <div class="match-form">
@@ -449,7 +451,7 @@ onBeforeUnmount(() => {
           <div v-if="currentMatch" class="match-result">
             <div class="match-head">
               <strong>匹配结果</strong>
-              <span class="badge" :class="MATCH_TONE[currentMatch.status]">
+              <span class="status" :class="MATCH_TONE[currentMatch.status]">
                 {{ MATCH_TEXT[currentMatch.status] ?? currentMatch.status }}
               </span>
             </div>
@@ -514,7 +516,7 @@ onBeforeUnmount(() => {
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .back {
@@ -523,92 +525,34 @@ onBeforeUnmount(() => {
   border: none;
   background: none;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .back:hover {
   color: var(--text);
 }
 
-.page-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-
 .title {
-  font-size: 18px;
+  font-size: var(--fs-h1);
 }
 
 .meta {
   margin: 4px 0 0;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .badges {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.badge {
-  padding: 1px 8px;
-  border-radius: var(--radius-tag);
-  font-size: 11.5px;
-  white-space: nowrap;
-}
-
-.badge.success {
-  color: var(--success);
-  background: var(--success-soft);
-}
-
-.badge.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-}
-
-.badge.primary {
-  color: var(--primary);
-  background: var(--primary-soft);
-}
-
-.badge.muted {
-  color: var(--text-3);
-  background: var(--surface-muted);
-}
-
-.banner {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  font-size: 12.5px;
-}
-
-.banner.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid var(--danger);
-}
-
-.banner.success {
-  color: var(--success);
-  background: var(--success-soft);
-  border: 1px solid var(--success);
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .banner.info {
-  color: var(--primary);
+  border-left-color: var(--primary);
   background: var(--primary-soft);
-  border: 1px solid var(--primary);
-}
-
-.banner.split {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-3);
+  color: var(--primary);
 }
 
 .columns {
@@ -618,20 +562,9 @@ onBeforeUnmount(() => {
   align-items: start;
 }
 
-.card {
-  padding: var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-}
-
-.card h3 {
-  font-size: 14px;
-}
-
 .hint {
   margin: 4px 0 var(--space-3);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 
@@ -645,7 +578,9 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.04em;
   color: var(--text-3);
 }
 
@@ -657,17 +592,29 @@ onBeforeUnmount(() => {
 .form-grid select,
 .form-grid textarea,
 .match-form select {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .form-grid textarea {
+  height: auto;
+  padding: var(--space-2) var(--space-3);
   resize: vertical;
+}
+
+.form-grid input:focus-visible,
+.form-grid select:focus-visible,
+.form-grid textarea:focus-visible,
+.match-form select:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
 .form-actions {
@@ -675,48 +622,6 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: var(--space-3);
   margin-top: var(--space-4);
-}
-
-.btn {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  border: 1px solid transparent;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.btn.primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn.ghost {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text-2);
-}
-
-.btn.ghost:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 12.5px;
-  text-align: left;
-}
-
-.link.danger {
-  color: var(--danger);
 }
 
 .raw {
@@ -769,13 +674,11 @@ onBeforeUnmount(() => {
 
 .match-score {
   margin: var(--space-3) 0 var(--space-2);
-  font-size: 34px;
-  font-weight: 600;
   line-height: 1;
 }
 
 .match-score small {
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 400;
   color: var(--text-3);
 }
@@ -783,7 +686,7 @@ onBeforeUnmount(() => {
 .bars {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 12px;
 }
 
 .columns-inner {
@@ -835,11 +738,8 @@ onBeforeUnmount(() => {
   margin-top: var(--space-2);
 }
 
-.skeleton {
+.skeleton-row.tall {
   height: 280px;
-  border-radius: var(--radius-card);
-  border: 1px solid var(--border);
-  background: var(--surface);
 }
 
 @media (max-width: 980px) {

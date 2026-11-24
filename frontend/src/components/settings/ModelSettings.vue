@@ -459,7 +459,7 @@ onMounted(load)
 
     <!-- 新增 / 编辑服务商 -->
     <form v-if="showForm" class="card form" @submit.prevent="saveProvider">
-      <h3>{{ editingKey ? '编辑服务商' : '新增服务商' }}</h3>
+      <h3 class="card-title">{{ editingKey ? '编辑服务商' : '新增服务商' }}</h3>
       <label>
         <span>标识（创建后不可改）</span>
         <input v-model="providerForm.providerKey" :disabled="!!editingKey" placeholder="corp-gateway" required />
@@ -518,7 +518,7 @@ onMounted(load)
 
       <p class="provider-meta">{{ provider.baseUrl }} · {{ provider.apiKeyMasked || '密钥未回显' }}</p>
 
-      <p v-if="tests[provider.providerKey]" class="test-result" :class="tests[provider.providerKey]!.success ? 'ok' : 'bad'">
+      <p v-if="tests[provider.providerKey]" class="status" :class="tests[provider.providerKey]!.success ? 'success' : 'danger'">
         {{ tests[provider.providerKey]!.success ? '连通正常' : '连接失败' }}
         · {{ tests[provider.providerKey]!.latencyMs }}ms
         <template v-if="tests[provider.providerKey]!.upstreamModel">
@@ -549,7 +549,7 @@ onMounted(load)
               <button type="button" class="link" @click="editingModelKey = ''">取消</button>
             </template>
             <template v-else>
-              <button type="button" class="link" :disabled="busy || isGlobal(provider, model)" @click="setGlobal(provider, model)">
+              <button v-if="!isGlobal(provider, model)" type="button" class="link" :disabled="busy" @click="setGlobal(provider, model)">
                 设为默认
               </button>
               <button type="button" class="link" :disabled="busy" @click="beginEditModel(provider, model)">
@@ -675,75 +675,28 @@ onMounted(load)
   flex-wrap: wrap;
 }
 
-.btn {
-  padding: 6px 12px;
-  border-radius: var(--radius-btn);
-  border: 1px solid transparent;
-  font-size: 12.5px;
-}
-
-.btn.primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn.ghost {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text-2);
-}
-
-.banner {
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-btn);
-  font-size: 12.5px;
-}
-
-.banner.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid var(--danger);
-}
-
-.banner.success {
-  color: var(--success);
-  background: var(--success-soft);
-  border: 1px solid var(--success);
-}
-
-.card {
-  padding: var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
-}
-
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
 }
 
-.form h3 {
-  font-size: 13.5px;
-}
-
 .form label {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
 input {
-  padding: 6px 10px;
+  height: 34px;
+  padding: 0 10px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 
 input:focus-visible {
@@ -758,9 +711,10 @@ input:focus-visible {
 
 .provider-head {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-start;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
 }
 
 .provider-title {
@@ -784,36 +738,6 @@ input:focus-visible {
   flex-wrap: wrap;
 }
 
-.link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 12px;
-}
-
-.link.danger {
-  color: var(--danger);
-}
-
-.link:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.test-result {
-  margin: 0 0 var(--space-3);
-  font-size: 12px;
-}
-
-.test-result.ok {
-  color: var(--success);
-}
-
-.test-result.bad {
-  color: var(--danger);
-}
-
 .models {
   list-style: none;
   margin: 0;
@@ -824,9 +748,10 @@ input:focus-visible {
 
 .model {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   padding: var(--space-2) 0;
   border-top: 1px solid var(--border);
 }
@@ -835,24 +760,8 @@ input:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   flex-wrap: wrap;
-}
-
-.tag {
-  padding: 0 6px;
-  border-radius: var(--radius-tag);
-  font-size: 10.5px;
-}
-
-.tag.primary {
-  color: var(--primary);
-  background: var(--primary-soft);
-}
-
-.tag.muted {
-  color: var(--text-3);
-  background: var(--surface-muted);
 }
 
 .model-form {
@@ -878,8 +787,8 @@ input:focus-visible {
 .upstream-panel {
   margin-top: var(--space-3);
   padding: var(--space-3);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-btn);
+  background: var(--surface-muted);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -887,7 +796,7 @@ input:focus-visible {
 
 .upstream-head {
   margin: 0;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -901,7 +810,7 @@ input:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   cursor: pointer;
 }
 
@@ -913,22 +822,17 @@ input:focus-visible {
 
 .inline-input {
   width: 140px;
-  padding: 2px 8px;
+  height: 28px;
+  padding: 0 8px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
-  font-size: 12.5px;
-}
-
-.muted {
-  margin: 0;
-  color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .small {
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   margin-top: var(--space-2);
 }
 </style>

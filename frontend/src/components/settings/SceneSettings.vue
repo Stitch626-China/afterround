@@ -108,7 +108,10 @@ onMounted(load)
       还没有可用的 Provider，请先在「模型服务」中添加服务商与模型。
     </div>
 
-    <div v-if="loading" class="skeleton" />
+    <div v-if="loading" class="skeleton">
+      <div class="skeleton-row" />
+      <div class="skeleton-row" />
+    </div>
 
     <ul v-else class="list">
       <li v-for="scene in scenes" :key="scene.scene" class="row">
@@ -117,7 +120,7 @@ onMounted(load)
             <strong>{{ scene.label }}</strong>
             <span class="scene-key">{{ scene.scene }}</span>
           </div>
-          <span class="badge" :class="scene.inherited ? 'muted' : 'primary'">
+          <span class="status" :class="scene.inherited ? '' : 'primary'">
             {{ scene.inherited ? '继承全局' : '已绑定' }}
           </span>
         </div>
@@ -182,57 +185,23 @@ onMounted(load)
   gap: var(--space-3);
 }
 
-.lead {
-  margin: 0;
-  color: var(--text-3);
-  font-size: 12.5px;
-}
-
-.banner {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  font-size: 12.5px;
-}
-
-.banner.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid var(--danger);
-}
-
-.banner.success {
-  color: var(--success);
-  background: var(--success-soft);
-  border: 1px solid var(--success);
-}
-
-.banner.warning {
-  color: var(--warning);
-  background: var(--warning-soft);
-  border: 1px solid var(--warning);
-}
-
-.skeleton {
-  height: 240px;
-  border-radius: var(--radius-card);
-  border: 1px solid var(--border);
-  background: var(--surface);
-}
-
 .list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 .row {
-  padding: var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--surface);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.row:first-child {
+  border-top: none;
 }
 
 .row-head {
@@ -243,34 +212,19 @@ onMounted(load)
 }
 
 .row-head strong {
-  font-size: 13px;
+  font-size: var(--fs-body);
+  font-weight: 500;
 }
 
 .scene-key {
   margin-left: var(--space-2);
   color: var(--text-3);
-  font-size: 11px;
-}
-
-.badge {
-  padding: 1px 8px;
-  border-radius: var(--radius-tag);
-  font-size: 11.5px;
-}
-
-.badge.muted {
-  color: var(--text-3);
-  background: var(--surface-muted);
-}
-
-.badge.primary {
-  color: var(--primary);
-  background: var(--primary-soft);
+  font-size: var(--fs-overline);
 }
 
 .effective {
   margin: 3px 0 0;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-2);
 }
 
@@ -288,54 +242,19 @@ onMounted(load)
 }
 
 .editor select {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .editor-actions {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-}
-
-.btn {
-  padding: 5px 12px;
-  border-radius: var(--radius-btn);
-  border: 1px solid transparent;
-  font-size: 12.5px;
-}
-
-.btn.primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn.ghost {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text-2);
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 12.5px;
-}
-
-.link:disabled {
-  color: var(--text-3);
-  cursor: not-allowed;
 }
 </style>

@@ -177,7 +177,7 @@ onMounted(load)
         </section>
 
         <section class="card">
-          <h3>五维变化</h3>
+          <h3 class="card-title">五维变化</h3>
           <p class="hint">浅色为基准，深色为对比；右侧为差值。</p>
           <div class="dims">
             <div v-for="item in result.dimensionDeltas" :key="item.key" class="dim">
@@ -200,7 +200,7 @@ onMounted(load)
 
         <section class="changes">
           <article class="card">
-            <h3>优势变化</h3>
+            <h3 class="card-title">优势变化</h3>
             <h4 class="up">新增</h4>
             <ul v-if="result.strengthsAdded?.length" class="plain">
               <li v-for="item in result.strengthsAdded ?? []" :key="item.quote">
@@ -216,7 +216,7 @@ onMounted(load)
           </article>
 
           <article class="card">
-            <h3>短板变化</h3>
+            <h3 class="card-title">短板变化</h3>
             <h4 class="down">新增短板</h4>
             <ul v-if="result.weaknessesAdded?.length" class="plain">
               <li v-for="item in result.weaknessesAdded ?? []" :key="item.quote">
@@ -232,22 +232,22 @@ onMounted(load)
           </article>
 
           <article class="card">
-            <h3>岗位方向变化</h3>
+            <h3 class="card-title">岗位方向变化</h3>
             <h4 class="up">新增方向</h4>
             <p v-if="result.directionsAdded?.length" class="chips">
-              <span v-for="direction in result.directionsAdded ?? []" :key="direction" class="chip">{{ direction }}</span>
+              <span v-for="direction in result.directionsAdded ?? []" :key="direction" class="tag primary">{{ direction }}</span>
             </p>
             <p v-else class="hint">没有新增方向</p>
             <h4 class="down">不再推荐</h4>
             <p v-if="result.directionsRemoved?.length" class="chips">
-              <span v-for="direction in result.directionsRemoved ?? []" :key="direction" class="chip muted">{{ direction }}</span>
+              <span v-for="direction in result.directionsRemoved ?? []" :key="direction" class="tag">{{ direction }}</span>
             </p>
             <p v-else class="hint">没有移除的方向</p>
           </article>
         </section>
 
         <section class="card summary">
-          <h3>改动点评</h3>
+          <h3 class="card-title">改动点评</h3>
           <p v-if="result.summary.degraded" class="banner warning">
             模型点评生成失败{{ result.summary.degradeReason ? `：${result.summary.degradeReason}` : '' }}；本地对比结果仍然有效。
           </p>
@@ -265,7 +265,7 @@ onMounted(load)
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .back {
@@ -274,7 +274,7 @@ onMounted(load)
   border: none;
   background: none;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .back:hover {
@@ -282,46 +282,24 @@ onMounted(load)
 }
 
 h2 {
-  font-size: 18px;
+  font-size: var(--fs-h1);
 }
 
 .lead {
   margin: 4px 0 0;
+  max-width: 680px;
   color: var(--text-2);
-  font-size: 13.5px;
 }
 
-.banner {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  font-size: 12.5px;
-}
-
-.banner.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid var(--danger);
-}
-
-.banner.warning {
-  margin: 0;
-  color: var(--warning);
-  background: var(--warning-soft);
-  border: 1px solid var(--warning);
-}
-
-.skeleton {
+.skeleton-row.tall {
   height: 140px;
-  border-radius: var(--radius-card);
-  border: 1px solid var(--border);
-  background: var(--surface);
 }
 
 .picker {
   display: flex;
   align-items: flex-end;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-5);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
@@ -332,41 +310,32 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.04em;
   color: var(--text-3);
 }
 
 .picker select {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
-.btn {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  border: 1px solid transparent;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.btn.primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+.picker select:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
 .hint {
   margin: 4px 0 var(--space-2);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 
@@ -397,7 +366,9 @@ h2 {
   border-radius: var(--radius-tag);
   background: var(--surface-muted);
   color: var(--text-3);
-  font-size: 11px;
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.04em;
 }
 
 .side-tag.target {
@@ -409,11 +380,13 @@ h2 {
   font-size: 28px;
   font-weight: 600;
   line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
 }
 
 .side-meta {
   margin: 0;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -423,14 +396,18 @@ h2 {
 }
 
 .delta-label {
-  font-size: 12px;
   color: var(--text-3);
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.06em;
 }
 
 .delta-value {
-  font-size: 34px;
+  font-size: var(--fs-hero);
   font-weight: 600;
   line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .up {
@@ -445,33 +422,27 @@ h2 {
   color: var(--text-3);
 }
 
-.card {
-  padding: var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-}
-
 .card h3 {
-  font-size: 14px;
+  margin-bottom: var(--space-2);
 }
 
 .card h4 {
   margin: var(--space-3) 0 var(--space-1);
-  font-size: 12.5px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .dims {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .dim-head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 
@@ -482,17 +453,16 @@ h2 {
 }
 
 .track {
-  height: 5px;
+  height: 6px;
   margin-top: 4px;
-  border-radius: 3px;
+  border-radius: 999px;
   background: var(--surface-muted);
-  border: 1px solid var(--border);
   overflow: hidden;
 }
 
 .fill {
   height: 100%;
-  border-radius: 2px;
+  border-radius: 999px;
 }
 
 .fill.base {
@@ -516,7 +486,7 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-2);
 }
 
@@ -533,19 +503,6 @@ h2 {
   margin: 0;
 }
 
-.chip {
-  padding: 1px 8px;
-  border-radius: var(--radius-tag);
-  background: var(--primary-soft);
-  color: var(--primary);
-  font-size: 12px;
-}
-
-.chip.muted {
-  background: var(--surface-muted);
-  color: var(--text-3);
-}
-
 .summary-text {
   margin: var(--space-2) 0 0;
   font-size: 13.5px;
@@ -556,7 +513,7 @@ h2 {
 
 .max-delta-hint {
   margin: 0;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 

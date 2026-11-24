@@ -280,7 +280,7 @@ onBeforeUnmount(() => {
       <p class="lead">
         把真实面试变成可复盘的证据：上传录音走语音转写，或直接粘贴转写文本 / 手写笔记；分析完成后确认改进行动。
       </p>
-      <button type="button" class="btn primary" @click="formOpen = !formOpen">
+      <button type="button" class="btn" :class="formOpen ? 'ghost' : 'primary'" @click="formOpen = !formOpen">
         {{ formOpen ? '收起' : '新建复盘' }}
       </button>
     </header>
@@ -405,10 +405,10 @@ onBeforeUnmount(() => {
           <div class="row-main">
             <div class="row-title-line">
               <strong class="row-title">{{ title(item) }}</strong>
-              <span class="badge" :class="REVIEW_STATUS_TONE[item.status]">
+              <span class="status" :class="REVIEW_STATUS_TONE[item.status]">
                 {{ REVIEW_STATUS_TEXT[item.status] ?? item.status }}
               </span>
-              <span class="badge muted">{{ INPUT_TYPE_TEXT[item.inputType] }}</span>
+              <span class="tag">{{ INPUT_TYPE_TEXT[item.inputType] }}</span>
             </div>
             <p class="row-meta">{{ meta(item) }}</p>
           </div>
@@ -452,48 +452,20 @@ onBeforeUnmount(() => {
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-}
-
-.page-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .lead {
   margin: 0;
+  max-width: 680px;
   color: var(--text-2);
-  font-size: 13px;
-  max-width: 720px;
-}
-
-.btn {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
-  background: var(--surface);
-  color: var(--text-2);
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.btn.primary {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn:disabled {
-  opacity: 0.55;
 }
 
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-5);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
@@ -510,24 +482,38 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 4px;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.04em;
 }
 
 .form select,
 .form input,
 .form textarea,
 .filters select {
-  padding: var(--space-2) var(--space-3);
+  height: 34px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 
 .form textarea {
+  height: auto;
+  padding: var(--space-2) var(--space-3);
   resize: vertical;
+}
+
+.form select:focus-visible,
+.form input:focus-visible,
+.form textarea:focus-visible,
+.filters select:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
 .input-block {
@@ -540,7 +526,7 @@ onBeforeUnmount(() => {
 .polling {
   margin: 0;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .tabs {
@@ -549,12 +535,13 @@ onBeforeUnmount(() => {
 }
 
 .tab {
-  padding: var(--space-2) var(--space-3);
+  height: 30px;
+  padding: 0 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
+  border-radius: 999px;
   background: var(--surface);
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
 .tab.active {
@@ -575,46 +562,16 @@ onBeforeUnmount(() => {
   gap: var(--space-2);
 }
 
-.banner {
-  padding: var(--space-3);
-  border-radius: var(--radius-btn);
-  font-size: 13px;
-}
-
-.banner.danger {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.banner.success {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.banner.warning {
-  background: var(--warning-soft);
-  color: var(--warning);
-}
-
-.skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.skeleton-row {
-  height: 64px;
-  border-radius: var(--radius-card);
-  background: var(--surface-muted);
-}
-
 .list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 .row {
@@ -622,10 +579,17 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--dur-1) var(--ease);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row:hover {
+  background: var(--surface-muted);
 }
 
 .row-main {
@@ -641,7 +605,8 @@ onBeforeUnmount(() => {
 }
 
 .row-title {
-  font-size: 14px;
+  font-size: 13.5px;
+  font-weight: 500;
 }
 
 .row-meta {
@@ -650,53 +615,11 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
-.badge {
-  padding: 1px 6px;
-  border-radius: var(--radius-tag);
-  font-size: 11px;
-  background: var(--surface-muted);
-  color: var(--text-3);
-}
-
-.badge.success {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.badge.warning {
-  background: var(--warning-soft);
-  color: var(--warning);
-}
-
-.badge.danger {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.badge.muted {
-  background: var(--surface-muted);
-  color: var(--text-3);
-}
-
 .row-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
-}
-
-.link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.link.danger {
-  color: var(--danger);
+  gap: var(--space-3);
 }
 
 .pager {
@@ -705,6 +628,6 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: var(--space-3);
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 </style>

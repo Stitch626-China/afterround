@@ -366,7 +366,7 @@ onBeforeUnmount(cancelStream)
     <aside class="sessions">
       <header class="sessions-head">
         <span>会话</span>
-        <button type="button" class="btn primary" :disabled="busy" @click="createSession">新建</button>
+        <button type="button" class="btn ghost" :disabled="busy" @click="createSession">新建</button>
       </header>
 
       <p v-if="loading" class="muted small">加载中…</p>
@@ -399,7 +399,7 @@ onBeforeUnmount(cancelStream)
         <header class="chat-head">
           <div class="chat-title">
             <strong>{{ session.title || `会话 ${session.id}` }}</strong>
-            <span class="badge" :class="STATUS_TONE[session.status]">
+            <span class="status" :class="STATUS_TONE[session.status]">
               {{ STATUS_TEXT[session.status] ?? session.status }}
             </span>
           </div>
@@ -549,7 +549,7 @@ onBeforeUnmount(cancelStream)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   color: var(--text-3);
 }
 
@@ -589,88 +589,21 @@ onBeforeUnmount(cancelStream)
 }
 
 .selectors select {
+  height: 32px;
   max-width: 220px;
-  padding: 6px 10px;
+  padding: 0 10px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
 }
 
-.badge {
-  padding: 1px 8px;
-  border-radius: var(--radius-tag);
-  font-size: 11px;
-  font-weight: 400;
-}
-
-.badge.success {
-  color: var(--success);
-  background: var(--success-soft);
-}
-
-.badge.primary {
-  color: var(--primary);
-  background: var(--primary-soft);
-}
-
-.badge.muted {
-  color: var(--text-3);
-  background: var(--surface-muted);
-}
-
-.btn {
-  padding: 6px 12px;
-  border-radius: var(--radius-btn);
-  border: 1px solid transparent;
-  font-size: 12.5px;
-}
-
-.btn.primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn.ghost {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text-2);
-}
-
-.btn.danger {
-  background: var(--danger);
-  color: #fff;
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.banner {
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-btn);
-  font-size: 12.5px;
-}
-
-.banner.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid var(--danger);
-}
-
-.banner.success {
-  color: var(--success);
-  background: var(--success-soft);
-  border: 1px solid var(--success);
-}
-
-.banner.warning {
-  color: var(--warning);
-  background: var(--warning-soft);
-  border: 1px solid var(--warning);
+.selectors select:focus-visible,
+.composer textarea:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
 .messages {
@@ -686,7 +619,6 @@ onBeforeUnmount(cancelStream)
   max-width: 76%;
   padding: var(--space-3);
   border-radius: var(--radius-card);
-  border: 1px solid var(--border);
   background: var(--surface-muted);
 }
 

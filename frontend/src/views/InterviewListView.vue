@@ -211,7 +211,9 @@ onBeforeUnmount(() => {
       <p class="lead">
         按方向或岗位 JD 生成模拟面试；关联简历后约 60% 的题目会深挖项目。出题、追问与评估均在后台异步执行。
       </p>
-      <button type="button" class="btn primary" @click="openCreate">新建面试</button>
+      <button type="button" class="btn" :class="createOpen ? 'ghost' : 'primary'" @click="openCreate">
+        新建面试
+      </button>
     </header>
 
     <section v-if="createOpen" class="create">
@@ -310,12 +312,12 @@ onBeforeUnmount(() => {
           <div class="row-main" @click="open(item)">
             <div class="row-title-line">
               <strong class="row-title">{{ item.directionLabel ?? item.direction ?? '模拟面试' }}</strong>
-              <span class="badge" :class="SESSION_STATUS_TONE[item.status]">
+              <span class="status" :class="SESSION_STATUS_TONE[item.status]">
                 {{ SESSION_STATUS_TEXT[item.status] ?? item.status }}
               </span>
               <span
                 v-if="item.status === 'SUBMITTED' || item.status === 'COMPLETED'"
-                class="badge"
+                class="tag"
                 :class="item.evaluateStatus === 'FAILED' ? 'danger' : item.evaluateStatus === 'COMPLETED' ? 'success' : 'warning'"
               >
                 评估 {{ item.evaluateStatus }}
@@ -358,56 +360,20 @@ onBeforeUnmount(() => {
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-}
-
-.page-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-3);
+  gap: var(--space-5);
 }
 
 .lead {
   margin: 0;
+  max-width: 680px;
   color: var(--text-2);
-  font-size: 13.5px;
-}
-
-.btn {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  border: 1px solid transparent;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.btn.primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn.ghost {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text-2);
-}
-
-.btn.ghost:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .create {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-5);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
@@ -426,24 +392,36 @@ onBeforeUnmount(() => {
 }
 
 .create-grid span {
-  font-size: 12px;
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.04em;
   color: var(--text-3);
 }
 
 .create-grid select,
-.create-grid input {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+.create-grid input,
+.filters select {
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
+}
+
+.create-grid select:focus-visible,
+.create-grid input:focus-visible,
+.filters select:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
 .hint {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 
@@ -458,54 +436,16 @@ onBeforeUnmount(() => {
   gap: var(--space-2);
 }
 
-.filters select {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
-  background: var(--surface);
-  color: var(--text);
-  font-family: var(--font-sans);
-  font-size: 12.5px;
-}
-
-.banner {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  font-size: 12.5px;
-}
-
-.banner.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid var(--danger);
-}
-
-.banner.success {
-  color: var(--success);
-  background: var(--success-soft);
-  border: 1px solid var(--success);
-}
-
-.skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.skeleton-row {
-  height: 76px;
-  border-radius: var(--radius-card);
-  border: 1px solid var(--border);
-  background: var(--surface);
-}
-
 .list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 .row {
@@ -513,14 +453,17 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--dur-1) var(--ease);
+}
+
+.row:last-child {
+  border-bottom: none;
 }
 
 .row:hover {
-  border-color: var(--border-strong);
+  background: var(--surface-muted);
 }
 
 .row-main {
@@ -558,57 +501,10 @@ onBeforeUnmount(() => {
   color: var(--danger);
 }
 
-.badge {
-  padding: 1px 8px;
-  border-radius: var(--radius-tag);
-  font-size: 11.5px;
-  white-space: nowrap;
-}
-
-.badge.success {
-  color: var(--success);
-  background: var(--success-soft);
-}
-
-.badge.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-}
-
-.badge.primary {
-  color: var(--primary);
-  background: var(--primary-soft);
-}
-
-.badge.warning {
-  color: var(--warning);
-  background: var(--warning-soft);
-}
-
 .row-actions {
   display: flex;
   gap: var(--space-3);
   white-space: nowrap;
-}
-
-.link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 12.5px;
-}
-
-.link.danger {
-  color: var(--danger);
-}
-
-.pager {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12.5px;
-  color: var(--text-3);
 }
 
 .pager-actions {

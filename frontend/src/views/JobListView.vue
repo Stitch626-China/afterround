@@ -382,7 +382,7 @@ onBeforeUnmount(() => {
       <p class="lead">
         导入 JD 后自动结构化解析，支持生命周期跟踪、简历匹配与行情统计；解析与匹配都在后台异步执行。
       </p>
-      <button type="button" class="btn primary" @click="importOpen = !importOpen">
+      <button type="button" class="btn" :class="importOpen ? 'ghost' : 'primary'" @click="importOpen = !importOpen">
         {{ importOpen ? '收起导入' : '导入 JD' }}
       </button>
     </header>
@@ -518,10 +518,10 @@ onBeforeUnmount(() => {
             <div class="row-main" @click="openDetail(item)">
               <div class="row-title-line">
                 <strong class="row-title">{{ title(item) }}</strong>
-                <span class="badge" :class="PARSE_TONE[item.parseStatus]">
+                <span class="status" :class="PARSE_TONE[item.parseStatus]">
                   {{ PARSE_TEXT[item.parseStatus] ?? item.parseStatus }}
                 </span>
-                <span class="badge" :class="STATUS_TONE[item.status]">
+                <span class="status" :class="STATUS_TONE[item.status]">
                   {{ STATUS_TEXT[item.status] ?? item.status }}
                 </span>
               </div>
@@ -608,35 +608,6 @@ onBeforeUnmount(() => {
   font-size: 13.5px;
 }
 
-.btn {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  border: 1px solid transparent;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.btn.primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn.ghost {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text-2);
-}
-
-.btn.ghost:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
 .tabs {
   display: flex;
   gap: var(--space-1);
@@ -672,7 +643,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-5);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
@@ -786,35 +757,27 @@ onBeforeUnmount(() => {
 
 .filters input,
 .filters select {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
+}
+
+.filters input:focus-visible,
+.filters select:focus-visible,
+.import textarea:focus-visible,
+.remark-editor input:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
 .filters input {
   min-width: 160px;
-}
-
-.banner {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  font-size: 12.5px;
-}
-
-.banner.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid var(--danger);
-}
-
-.banner.success {
-  color: var(--success);
-  background: var(--success-soft);
-  border: 1px solid var(--success);
 }
 
 .bulk {
@@ -860,26 +823,16 @@ onBeforeUnmount(() => {
   gap: var(--space-3);
 }
 
-.skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.skeleton-row {
-  height: 72px;
-  border-radius: var(--radius-card);
-  border: 1px solid var(--border);
-  background: var(--surface);
-}
-
 .list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 .row {
@@ -887,14 +840,17 @@ onBeforeUnmount(() => {
   grid-template-columns: 20px 1fr auto;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--dur-1) var(--ease);
+}
+
+.row:last-child {
+  border-bottom: none;
 }
 
 .row:hover {
-  border-color: var(--border-strong);
+  background: var(--surface-muted);
 }
 
 .check {
@@ -956,54 +912,10 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
-.badge {
-  padding: 1px 8px;
-  border-radius: var(--radius-tag);
-  font-size: 11.5px;
-  white-space: nowrap;
-}
-
-.badge.success {
-  color: var(--success);
-  background: var(--success-soft);
-}
-
-.badge.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-}
-
-.badge.primary {
-  color: var(--primary);
-  background: var(--primary-soft);
-}
-
-.badge.warning {
-  color: var(--warning);
-  background: var(--warning-soft);
-}
-
-.badge.muted {
-  color: var(--text-3);
-  background: var(--surface-muted);
-}
-
 .row-actions {
   display: flex;
   gap: var(--space-3);
   white-space: nowrap;
-}
-
-.link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 12.5px;
-}
-
-.link.danger {
-  color: var(--danger);
 }
 
 .bulk-select {
@@ -1019,14 +931,6 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: var(--space-2);
   cursor: pointer;
-}
-
-.pager {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12.5px;
-  color: var(--text-3);
 }
 
 .pager-actions {

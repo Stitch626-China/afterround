@@ -65,8 +65,8 @@ onMounted(load)
     <div v-if="error" class="banner danger">{{ error }}</div>
 
     <div v-if="loading" class="skeleton">
-      <div class="skeleton-card" />
-      <div class="skeleton-card" />
+      <div class="skeleton-row tall" />
+      <div class="skeleton-row tall" />
     </div>
 
     <EmptyState
@@ -126,7 +126,7 @@ onMounted(load)
       </article>
 
       <article class="card">
-        <h2>岗位方向分布</h2>
+        <h2 class="card-title">岗位方向分布</h2>
         <p class="card-hint">按岗位名原文取 Top 10</p>
         <ul v-if="top(data?.directionDistribution ?? []).length" class="bars">
           <li v-for="item in top(data?.directionDistribution ?? [])" :key="item.label">
@@ -149,20 +149,7 @@ onMounted(load)
 .market {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-}
-
-.market-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-
-.lead {
-  margin: 0;
-  color: var(--text-2);
-  font-size: 13.5px;
+  gap: var(--space-5);
 }
 
 .head-actions {
@@ -171,57 +158,8 @@ onMounted(load)
   gap: var(--space-3);
 }
 
-.meta {
-  color: var(--text-3);
-  font-size: 12px;
-}
-
-.btn {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  border: 1px solid transparent;
-  font-size: 13px;
-}
-
-.btn.ghost {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text-2);
-}
-
-.btn.ghost:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.banner {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  font-size: 12.5px;
-}
-
-.banner.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid var(--danger);
-}
-
-.skeleton {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-
-.skeleton-card {
-  height: 240px;
-  border-radius: var(--radius-card);
-  border: 1px solid var(--border);
-  background: var(--surface);
+.skeleton-row.tall {
+  height: 180px;
 }
 
 .grid {
@@ -230,26 +168,15 @@ onMounted(load)
   gap: var(--space-4);
 }
 
-.card {
-  padding: var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-}
-
-.card h2 {
-  font-size: 14px;
-}
-
 .card-hint {
-  margin: 2px 0 var(--space-3);
-  font-size: 12px;
+  margin: 2px 0 var(--space-4);
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 
 .card-empty {
   margin: var(--space-3) 0 0;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--text-3);
 }
 
@@ -259,7 +186,7 @@ onMounted(load)
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 10px;
 }
 
 .bar-head {
@@ -283,29 +210,23 @@ onMounted(load)
 }
 
 .track {
-  height: 5px;
-  margin-top: 3px;
-  border-radius: 3px;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 999px;
   background: var(--surface-muted);
-  border: 1px solid var(--border);
   overflow: hidden;
 }
 
 .fill {
   height: 100%;
-  background: var(--primary);
-  border-radius: 2px;
-  transition: width 0.3s ease;
+  border-radius: 999px;
+  background: var(--chart-1);
+  transition: width 0.3s var(--ease);
 }
 
 @media (max-width: 900px) {
-  .grid,
-  .skeleton {
+  .grid {
     grid-template-columns: 1fr;
-  }
-
-  .market-head {
-    flex-direction: column;
   }
 }
 </style>

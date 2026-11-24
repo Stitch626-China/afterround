@@ -82,3 +82,9 @@
 - 验证：`npm run build`（含 `vue-tsc`）通过；Vitest **26 passed**；Playwright **16 passed**（沙箱对 Edge 缓存写入报 restricted，退出码 1，测试结果 16 passed）；Edge headless 明暗两套截图核对简历中心、预览报告、真实报告、岗位库、洞察、对话、Offer 页；期间发现旧 vite 进程热更新失效，改用 5174 新进程复核，结束后已停止。
 - 下一步 / 断点：等用户评审样板；通过后再逐页套用 `ui.css` 共享层并核对暗色与对比度。旧 5173 开发服务可能仍是旧代码，需重启后再看。
 
+### 17:50 事件
+- 改动：用户确认样板后全量推广「纸墨」——岗位库 / 岗位详情、投递档案、面试复盘（列表 / 详情 / 改进看板）、求职洞察、模拟面试（列表 / 房间）、Offer 决策、简历对比、模型对话、设置抽屉全部套用 `tokens.css` + `ui.css` 共享层；删除各页重复的 `.btn` / `.card` / `.banner` / `.badge` / `.link` / `.skeleton` 本地样式；列表统一单容器 + 行分隔线；状态统一 `.status` 圆点 + 文字（E2E 断言 `.badge` 同步改 `.status`）；提示统一 `.banner` 左竖条；表单输入统一 34px；`ModelSettings` / `SceneSettings` 去掉本地按钮 / 横幅 / 标签样式，场景列表改单容器，模型操作行允许换行，「已是全局默认」时隐藏「设为默认」；`ui.css` 补 `.link:disabled`；`InterviewRoomView` 交卷按钮改 ghost，保证每屏实心按钮 ≤1；`/jobs/:id`、`/reviews/:id`、`/interviews/:id` 加 `meta.ownTitle` 避免与外壳页标题重复。README 落地进度与 PROGRESS 同步为「全量完成」。
+- 原因：样板评审通过，用户要求把视觉体系推广到所有页面，消除满屏卡片、层级弱与重复 CSS。
+- 验证：`npm run build`（含 `vue-tsc`）通过；Vitest **26 passed**；Playwright **16 passed**（沙箱对 Edge 缓存写入报 restricted，退出码 1，测试结果 16 passed）；Edge headless + 真后端 + 验收库 5433 截图核对岗位详情、岗位库、模拟面试列表 / 房间、Offer、简历对比、对话、洞察、设置三 Tab，并核对洞察 / 岗位详情 / 报告暗色；为核对房间页通过 API 创建 1 个真实面试会话（5 题），截图后已删除，模拟面试列表恢复为空。
+- 下一步 / 断点：提交推送；无剩余改造项。
+

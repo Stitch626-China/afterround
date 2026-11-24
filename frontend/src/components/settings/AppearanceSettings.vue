@@ -90,19 +90,19 @@ function choose(value: Theme): void {
 }
 
 .preview.light {
-  background: #f6f7f9;
+  background: #f7f5f1;
 }
 
 .preview.dark {
-  background: #0f1115;
-  border-color: #262b34;
+  background: #141311;
+  border-color: #302c26;
 }
 
 .bar {
   height: 6px;
   width: 100%;
   border-radius: 3px;
-  background: rgba(30, 79, 216, 0.55);
+  background: rgba(36, 59, 99, 0.55);
 }
 
 .preview.dark .bar {
@@ -111,7 +111,7 @@ function choose(value: Theme): void {
 
 .bar.short {
   width: 62%;
-  background: rgba(90, 100, 114, 0.35);
+  background: rgba(111, 106, 97, 0.35);
 }
 
 .preview.dark .bar.short {

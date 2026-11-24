@@ -81,7 +81,7 @@ onMounted(() => {
             {{ company.name }}
           </option>
         </select>
-        <button type="button" class="btn" @click="load">刷新</button>
+        <button type="button" class="btn ghost" @click="load">刷新</button>
       </div>
     </header>
 
@@ -96,19 +96,19 @@ onMounted(() => {
       <div class="sample-grid">
         <div class="stat">
           <span>投递</span>
-          <strong>{{ data.sample.applications }}</strong>
+          <strong class="numeric">{{ data.sample.applications }}</strong>
         </div>
         <div class="stat">
           <span>面试</span>
-          <strong>{{ data.sample.interviews }}</strong>
+          <strong class="numeric">{{ data.sample.interviews }}</strong>
         </div>
         <div class="stat">
           <span>已确认复盘</span>
-          <strong>{{ data.sample.confirmedReviews }}</strong>
+          <strong class="numeric">{{ data.sample.confirmedReviews }}</strong>
         </div>
         <div class="stat">
           <span>Offer</span>
-          <strong>{{ data.sample.offers }}</strong>
+          <strong class="numeric">{{ data.sample.offers }}</strong>
         </div>
       </div>
 
@@ -119,8 +119,8 @@ onMounted(() => {
 
       <section class="card summary">
         <div class="card-head">
-          <h3>归因总结</h3>
-          <span class="badge muted">本地聚合 · 不调用 LLM</span>
+          <h3 class="card-title">归因总结</h3>
+          <span class="tag">本地聚合 · 不调用 LLM</span>
         </div>
         <p class="summary-text">{{ data.summary.content }}</p>
       </section>
@@ -136,7 +136,7 @@ onMounted(() => {
       <template v-else>
         <section class="card">
           <div class="card-head">
-            <h3>知识点 × 结果</h3>
+            <h3 class="card-title">知识点 × 结果</h3>
             <span class="meta">失败率 = 失败 /（通过 + 失败）</span>
           </div>
           <div v-if="data.topics.length" class="metric-list">
@@ -151,8 +151,8 @@ onMounted(() => {
               <div class="bar">
                 <div class="bar-fill danger" :style="{ width: barWidth(item.failRate) }" />
               </div>
-              <strong class="metric-value">{{ pct(item.failRate) }}</strong>
-              <span v-if="!item.sufficient" class="badge muted">样本不足</span>
+              <strong class="metric-value numeric">{{ pct(item.failRate) }}</strong>
+              <span v-if="!item.sufficient" class="tag">样本不足</span>
             </div>
           </div>
           <p v-else class="empty-line">暂无可聚合的知识点标签。</p>
@@ -160,7 +160,7 @@ onMounted(() => {
 
         <section class="card">
           <div class="card-head">
-            <h3>失分类型频次</h3>
+            <h3 class="card-title">失分类型频次</h3>
             <span class="meta">出现场数，按频次排序</span>
           </div>
           <div v-if="data.lossTags.length" class="metric-list">
@@ -171,11 +171,11 @@ onMounted(() => {
               </div>
               <div class="bar">
                 <div
-                  class="bar-fill warning"
+                  class="bar-fill chart"
                   :style="{ width: barWidth(item.count / maxLossCount) }"
                 />
               </div>
-              <strong class="metric-value">{{ item.count }} 场</strong>
+              <strong class="metric-value numeric">{{ item.count }} 场</strong>
             </div>
           </div>
           <p v-else class="empty-line">暂无失分标签。</p>
@@ -183,7 +183,7 @@ onMounted(() => {
 
         <section class="card">
           <div class="card-head">
-            <h3>轮次通过率</h3>
+            <h3 class="card-title">轮次通过率</h3>
             <span class="meta">通过率 = 通过 /（通过 + 失败）</span>
           </div>
           <div v-if="data.roundPassRates.length" class="metric-list">
@@ -198,8 +198,8 @@ onMounted(() => {
               <div class="bar">
                 <div class="bar-fill success" :style="{ width: barWidth(item.passRate) }" />
               </div>
-              <strong class="metric-value">{{ pct(item.passRate) }}</strong>
-              <span v-if="!item.sufficient" class="badge muted">样本不足</span>
+              <strong class="metric-value numeric">{{ pct(item.passRate) }}</strong>
+              <span v-if="!item.sufficient" class="tag">样本不足</span>
             </div>
           </div>
           <p v-else class="empty-line">暂无面试轮次记录。</p>
@@ -207,7 +207,7 @@ onMounted(() => {
 
         <section class="card">
           <div class="card-head">
-            <h3>公司 / 岗位画像</h3>
+            <h3 class="card-title">公司 / 岗位画像</h3>
             <span class="meta">常考知识点与高频失分类型（各取 Top 3）</span>
           </div>
           <div v-if="data.companyProfiles.length" class="company-list">
@@ -221,19 +221,19 @@ onMounted(() => {
               </div>
               <div class="tag-line">
                 <span class="tag-label">常考</span>
-                <span v-for="topic in company.topTopics" :key="topic.tag" class="badge primary">
+                <span v-for="topic in company.topTopics" :key="topic.tag" class="tag primary">
                   {{ topic.label }} · {{ topic.count }}
                 </span>
                 <span v-if="!company.topTopics.length" class="meta">暂无标签</span>
               </div>
               <div class="tag-line">
                 <span class="tag-label">失分</span>
-                <span v-for="tag in company.commonLossTags" :key="tag.tag" class="badge danger">
+                <span v-for="tag in company.commonLossTags" :key="tag.tag" class="tag danger">
                   {{ tag.label }} · {{ tag.count }}
                 </span>
                 <span v-if="!company.commonLossTags.length" class="meta">暂无标签</span>
               </div>
-              <span v-if="!company.sufficient" class="badge muted">样本不足</span>
+              <span v-if="!company.sufficient" class="tag">样本不足</span>
             </article>
           </div>
           <p v-else class="empty-line">暂无公司维度数据。</p>
@@ -241,7 +241,7 @@ onMounted(() => {
 
         <section class="card">
           <div class="card-head">
-            <h3>高频问题 Top 10</h3>
+            <h3 class="card-title">高频问题 Top 10</h3>
             <span class="meta">来自已确认复盘，可反哺下一次准备</span>
           </div>
           <ol v-if="data.topQuestions.length" class="question-list">
@@ -255,8 +255,8 @@ onMounted(() => {
 
         <section class="card">
           <div class="card-head">
-            <h3>跨场趋势</h3>
-            <span class="badge" :class="data.trend.sufficient ? 'success' : 'muted'">
+            <h3 class="card-title">跨场趋势</h3>
+            <span class="tag" :class="data.trend.sufficient ? 'success' : ''">
               {{ data.trend.sufficient ? '样本充足' : '样本不足' }}
             </span>
           </div>
@@ -279,23 +279,28 @@ onMounted(() => {
 
       <section class="card">
         <div class="card-head">
-          <h3>投递与简历漏斗</h3>
+          <h3 class="card-title">投递与简历漏斗</h3>
           <span class="meta">基于所选窗口内创建的投递</span>
         </div>
         <div class="funnel">
-          <div class="funnel-step">
-            <strong>{{ data.funnel.applications }}</strong>
-            <span>投递</span>
+          <div class="funnel-row">
+            <span class="funnel-label">投递</span>
+            <div class="funnel-track"><div class="funnel-fill f1" style="width: 100%" /></div>
+            <strong class="funnel-value numeric">{{ data.funnel.applications }}</strong>
           </div>
-          <span class="funnel-arrow">→</span>
-          <div class="funnel-step">
-            <strong>{{ data.funnel.interviews }}</strong>
-            <span>进入面试</span>
+          <div class="funnel-row">
+            <span class="funnel-label">进入面试</span>
+            <div class="funnel-track">
+              <div class="funnel-fill f2" :style="{ width: barWidth(data.funnel.interviewRate) }" />
+            </div>
+            <strong class="funnel-value numeric">{{ data.funnel.interviews }}</strong>
           </div>
-          <span class="funnel-arrow">→</span>
-          <div class="funnel-step">
-            <strong>{{ data.funnel.offers }}</strong>
-            <span>拿到 Offer</span>
+          <div class="funnel-row">
+            <span class="funnel-label">拿到 Offer</span>
+            <div class="funnel-track">
+              <div class="funnel-fill f3" :style="{ width: barWidth(data.funnel.offerRate) }" />
+            </div>
+            <strong class="funnel-value numeric">{{ data.funnel.offers }}</strong>
           </div>
         </div>
         <p class="meta">
@@ -319,7 +324,7 @@ onMounted(() => {
               <tr v-for="row in data.resumeFunnel" :key="row.resumeId ?? 'none'">
                 <td>
                   {{ row.fileName || '未指定简历' }}
-                  <span v-if="!row.sufficient" class="badge muted">样本不足</span>
+                  <span v-if="!row.sufficient" class="tag">样本不足</span>
                 </td>
                 <td>{{ row.applications }}</td>
                 <td>{{ row.interviews }}</td>
@@ -335,14 +340,14 @@ onMounted(() => {
 
       <section class="card">
         <div class="card-head">
-          <h3>改进闭环</h3>
+          <h3 class="card-title">改进闭环</h3>
           <RouterLink to="/improvements" class="link">改进看板 →</RouterLink>
         </div>
         <div class="sample-grid compact">
-          <div class="stat"><span>待开始</span><strong>{{ data.improvements.todo }}</strong></div>
-          <div class="stat"><span>进行中</span><strong>{{ data.improvements.inProgress }}</strong></div>
-          <div class="stat"><span>已验证</span><strong>{{ data.improvements.verified }}</strong></div>
-          <div class="stat"><span>已放弃</span><strong>{{ data.improvements.dropped }}</strong></div>
+          <div class="stat"><span>待开始</span><strong class="numeric">{{ data.improvements.todo }}</strong></div>
+          <div class="stat"><span>进行中</span><strong class="numeric">{{ data.improvements.inProgress }}</strong></div>
+          <div class="stat"><span>已验证</span><strong class="numeric">{{ data.improvements.verified }}</strong></div>
+          <div class="stat"><span>已放弃</span><strong class="numeric">{{ data.improvements.dropped }}</strong></div>
         </div>
         <p class="meta">
           验证率 {{ pct(data.improvements.verificationRate) }} · 共 {{ data.improvements.total }} 条行动
@@ -351,7 +356,7 @@ onMounted(() => {
           <p class="tag-label">超过 14 天未验证</p>
           <div v-for="item in data.improvements.staleActions" :key="item.id" class="stale-row">
             <span>{{ item.action }}</span>
-            <span class="badge muted">{{ ACTION_STATUS_TEXT[item.status] ?? item.status }}</span>
+            <span class="tag">{{ ACTION_STATUS_TEXT[item.status] ?? item.status }}</span>
             <span class="meta">{{ formatTime(item.createdAt) }}</span>
           </div>
         </div>
@@ -365,8 +370,7 @@ onMounted(() => {
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  max-width: 1080px;
+  gap: var(--space-5);
 }
 
 .page-head {
@@ -379,9 +383,8 @@ onMounted(() => {
 
 .lead {
   margin: 0;
+  max-width: 680px;
   color: var(--text-2);
-  font-size: 13px;
-  max-width: 720px;
 }
 
 .filters {
@@ -390,113 +393,68 @@ onMounted(() => {
   gap: var(--space-2);
 }
 
-.btn {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
-  background: var(--surface);
-  color: var(--text-2);
-  font-size: 13px;
-}
-
 .filters select {
-  padding: var(--space-2) var(--space-3);
+  height: 34px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 
+/* 指标条：一个容器 + 竖分隔线，替代四张独立卡片 */
 .sample-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--space-3);
-}
-
-.sample-grid.compact {
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-}
-
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--space-3) var(--space-4);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.sample-grid .stat {
+  padding: var(--space-4) var(--space-5);
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
+}
+
+.sample-grid .stat:first-child {
+  border-left: none;
+}
+
+.sample-grid.compact .stat {
+  padding: var(--space-3) var(--space-4);
 }
 
 .stat span {
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.06em;
 }
 
 .stat strong {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-.banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border-radius: var(--radius-btn);
-  font-size: 13px;
-}
-
-.banner.warning {
-  background: var(--warning-soft);
-  color: var(--warning);
-}
-
-.banner.success {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.banner.danger {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-}
-
-.card-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.card h3 {
+.card-title {
   margin: 0;
-  font-size: 14px;
 }
 
 .summary-text {
   margin: 0;
   color: var(--text-2);
-  font-size: 13.5px;
   line-height: 1.7;
 }
 
 .metric-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 14px;
 }
 
 .metric-row {
@@ -512,12 +470,12 @@ onMounted(() => {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .bar {
   flex: 1 1 180px;
-  height: 8px;
+  height: 6px;
   border-radius: 999px;
   background: var(--surface-muted);
   overflow: hidden;
@@ -532,6 +490,10 @@ onMounted(() => {
   background: var(--danger);
 }
 
+.bar-fill.chart {
+  background: var(--chart-3);
+}
+
 .bar-fill.warning {
   background: var(--warning);
 }
@@ -544,6 +506,7 @@ onMounted(() => {
   width: 56px;
   text-align: right;
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 
 .company-list {
@@ -552,14 +515,18 @@ onMounted(() => {
   gap: var(--space-3);
 }
 
+/* 公司画像不再套卡片，用顶部墨线分隔 */
 .company {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
-  background: var(--surface-muted);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border);
+}
+
+.company-list .company:first-child {
+  border-top: none;
+  padding-top: 0;
 }
 
 .company-head {
@@ -581,7 +548,9 @@ onMounted(() => {
 .tag-label {
   margin: 0;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.06em;
 }
 
 .question-list {
@@ -607,55 +576,53 @@ onMounted(() => {
 
 .funnel {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.funnel-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) 56px;
   align-items: center;
   gap: var(--space-3);
 }
 
-.funnel-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  min-width: 96px;
-  padding: var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
+.funnel-label {
+  font-size: 12.5px;
+  color: var(--text-2);
 }
 
-.funnel-step strong {
-  font-size: 20px;
+.funnel-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  overflow: hidden;
 }
 
-.funnel-step span {
-  color: var(--text-3);
-  font-size: 12px;
+.funnel-fill {
+  height: 100%;
+  border-radius: 999px;
 }
 
-.funnel-arrow {
-  color: var(--text-3);
+.funnel-fill.f1 {
+  background: var(--chart-1);
+}
+
+.funnel-fill.f2 {
+  background: var(--chart-2);
+}
+
+.funnel-fill.f3 {
+  background: var(--chart-3);
+}
+
+.funnel-value {
+  text-align: right;
+  font-size: 13px;
 }
 
 .table-wrap {
   overflow-x: auto;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-
-.table th,
-.table td {
-  padding: var(--space-2);
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-}
-
-.table th {
-  color: var(--text-3);
-  font-weight: 500;
 }
 
 .delta-list {
@@ -706,53 +673,10 @@ onMounted(() => {
 .empty-line {
   margin: 0;
   color: var(--text-3);
-  font-size: 12.5px;
-}
-
-.badge {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: var(--radius-tag);
-  font-size: 11px;
-  background: var(--surface-muted);
-  color: var(--text-3);
-}
-
-.badge.primary {
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.badge.success {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.badge.danger {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.badge.muted {
-  background: var(--surface-muted);
-  color: var(--text-3);
-}
-
-.skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  font-size: var(--fs-sm);
 }
 
 .skeleton-row {
   height: 96px;
-  border-radius: var(--radius-card);
-  background: var(--surface-muted);
-}
-
-.link {
-  color: var(--primary);
-  font-size: 12px;
-  text-decoration: none;
 }
 </style>

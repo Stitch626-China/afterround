@@ -288,13 +288,13 @@ onBeforeUnmount(stopPolling)
         </h2>
       </div>
       <div v-if="detail" class="head-actions">
-        <button v-if="canAnalyze" type="button" class="btn" :disabled="busy" @click="reanalyze">
+        <button v-if="canAnalyze" type="button" class="btn ghost" :disabled="busy" @click="reanalyze">
           重新分析
         </button>
         <button
           v-if="detail.inputType === 'AUDIO' && detail.asrStatus === 'FAILED'"
           type="button"
-          class="btn"
+          class="btn ghost"
           :disabled="busy"
           @click="retryAsr"
         >
@@ -318,11 +318,11 @@ onBeforeUnmount(stopPolling)
 
     <template v-else-if="detail">
       <div class="status-line">
-        <span class="badge" :class="REVIEW_STATUS_TONE[detail.status]">
+        <span class="status" :class="REVIEW_STATUS_TONE[detail.status]">
           {{ REVIEW_STATUS_TEXT[detail.status] ?? detail.status }}
         </span>
-        <span class="badge muted">{{ INPUT_TYPE_TEXT[detail.inputType] }}</span>
-        <span v-if="detail.confirmed" class="badge success">已确认</span>
+        <span class="tag">{{ INPUT_TYPE_TEXT[detail.inputType] }}</span>
+        <span v-if="detail.confirmed" class="tag success">已确认</span>
         <span class="meta">创建于 {{ formatTime(detail.createdAt) }}</span>
         <span v-if="processing" class="meta">处理中，自动刷新…</span>
       </div>
@@ -332,7 +332,7 @@ onBeforeUnmount(stopPolling)
 
       <section class="card">
         <div class="card-head">
-          <h3>转写与面试上下文</h3>
+          <h3 class="card-title">转写与面试上下文</h3>
           <span v-if="detail.audioFileName" class="meta">音频：{{ detail.audioFileName }}</span>
         </div>
         <p v-if="detail.inputType === 'NOTES'" class="hint">
@@ -346,7 +346,7 @@ onBeforeUnmount(stopPolling)
           :disabled="processing"
         />
         <div class="actions">
-          <button type="button" class="btn" :disabled="busy || processing" @click="saveTranscript">
+          <button type="button" class="btn ghost" :disabled="busy || processing" @click="saveTranscript">
             保存转写
           </button>
           <span class="hint">保存后点击「重新分析」才会更新分析结果。</span>
@@ -354,7 +354,7 @@ onBeforeUnmount(stopPolling)
       </section>
 
       <section v-if="!analysis" class="card">
-        <h3>结构化分析</h3>
+        <h3 class="card-title">结构化分析</h3>
         <p class="hint">
           {{ processing ? '分析进行中，完成后自动展示。' : '尚无分析结果；可手动触发分析。' }}
         </p>
@@ -365,7 +365,7 @@ onBeforeUnmount(stopPolling)
 
       <section v-else class="card">
         <div class="card-head">
-          <h3>结构化分析</h3>
+          <h3 class="card-title">结构化分析</h3>
           <span class="meta">
             {{ analysis.promptVersion }} · {{ analysis.rubricVersion }} ·
             {{ analysis.taxonomyVersion }}
@@ -378,14 +378,14 @@ onBeforeUnmount(stopPolling)
 
         <div class="tag-line">
           <span class="tag-label">知识点</span>
-          <span v-for="topic in analysis.topics" :key="topic.tag" class="badge primary">
+          <span v-for="topic in analysis.topics" :key="topic.tag" class="tag primary">
             {{ topic.label || topicLabels.get(topic.tag) || topic.tag }}
           </span>
           <span v-if="!analysis.topics.length" class="meta">未识别</span>
         </div>
         <div class="tag-line">
           <span class="tag-label">失分类型</span>
-          <span v-for="tag in analysis.lossTags" :key="tag.tag" class="badge danger">
+          <span v-for="tag in analysis.lossTags" :key="tag.tag" class="tag danger">
             {{ tag.label || lossLabels.get(tag.tag) || tag.tag }}
           </span>
           <span v-if="!analysis.lossTags.length" class="meta">未识别</span>
@@ -395,7 +395,7 @@ onBeforeUnmount(stopPolling)
           <article v-for="question in analysis.questions" :key="question.questionIndex" class="question">
             <div class="question-head">
               <strong>Q{{ question.questionIndex }} · {{ question.question }}</strong>
-              <span v-if="question.score != null" class="badge warning">{{ question.score }} 分</span>
+              <span v-if="question.score != null" class="tag warning">{{ question.score }} 分</span>
             </div>
             <p v-if="question.answerSummary" class="q-text">
               <span class="q-label">回答摘要</span>{{ question.answerSummary }}
@@ -459,7 +459,7 @@ onBeforeUnmount(stopPolling)
           <button type="button" class="btn primary" :disabled="busy" @click="saveAnalysis(true)">
             {{ detail.confirmed ? '更新并重新确认' : '确认分析并生成行动' }}
           </button>
-          <button type="button" class="btn" :disabled="busy" @click="saveAnalysis(false)">
+          <button type="button" class="btn ghost" :disabled="busy" @click="saveAnalysis(false)">
             仅保存修正
           </button>
         </div>
@@ -467,12 +467,12 @@ onBeforeUnmount(stopPolling)
 
       <section class="card">
         <div class="card-head">
-          <h3>由本复盘生成的改进行动</h3>
+          <h3 class="card-title">由本复盘生成的改进行动</h3>
           <RouterLink to="/improvements" class="link">改进看板 →</RouterLink>
         </div>
         <ul v-if="actions.length" class="action-list">
           <li v-for="action in actions" :key="action.id" class="action-item">
-            <span class="badge" :class="ACTION_STATUS_TONE[action.status]">
+            <span class="status" :class="ACTION_STATUS_TONE[action.status]">
               {{ ACTION_STATUS_TEXT[action.status] ?? action.status }}
             </span>
             <span class="action-text">{{ action.action }}</span>
@@ -489,20 +489,12 @@ onBeforeUnmount(stopPolling)
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  max-width: 980px;
-}
-
-.page-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .back {
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   text-decoration: none;
 }
 
@@ -512,13 +504,13 @@ onBeforeUnmount(stopPolling)
 
 .title {
   margin: var(--space-2) 0 0;
-  font-size: 17px;
+  font-size: var(--fs-h1);
 }
 
 .sub {
   margin-left: var(--space-2);
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 400;
 }
 
@@ -530,64 +522,11 @@ onBeforeUnmount(stopPolling)
   gap: var(--space-2);
 }
 
-.btn {
-  padding: var(--space-2) var(--space-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
-  background: var(--surface);
-  color: var(--text-2);
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.btn.primary {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn.danger {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
-.btn.ghost {
-  background: transparent;
-}
-
-.btn:disabled {
-  opacity: 0.55;
-}
-
 .status-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
-}
-
-.card {
-  display: flex;
-  flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-}
-
-.card-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.card h3,
-.card h4 {
-  margin: 0;
-  font-size: 14px;
 }
 
 .card textarea,
@@ -598,80 +537,25 @@ onBeforeUnmount(stopPolling)
   background: var(--surface);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
 
 .card textarea {
   resize: vertical;
 }
 
+.card textarea:focus-visible,
+.card input:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
 .hint,
 .meta {
   margin: 0;
   color: var(--text-3);
-  font-size: 12px;
-}
-
-.banner {
-  padding: var(--space-3);
-  border-radius: var(--radius-btn);
-  font-size: 13px;
-}
-
-.banner.danger {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.banner.success {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.banner.warning {
-  background: var(--warning-soft);
-  color: var(--warning);
-}
-
-.skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.skeleton-row {
-  height: 96px;
-  border-radius: var(--radius-card);
-  background: var(--surface-muted);
-}
-
-.badge {
-  display: inline-block;
-  padding: 1px 6px;
-  border-radius: var(--radius-tag);
-  font-size: 11px;
-  background: var(--surface-muted);
-  color: var(--text-3);
-}
-
-.badge.primary {
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.badge.success {
-  background: var(--success-soft);
-  color: var(--success);
-}
-
-.badge.warning {
-  background: var(--warning-soft);
-  color: var(--warning);
-}
-
-.badge.danger {
-  background: var(--danger-soft);
-  color: var(--danger);
+  font-size: var(--fs-sm);
 }
 
 .tag-line {
@@ -683,20 +567,25 @@ onBeforeUnmount(stopPolling)
 
 .tag-label {
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.06em;
 }
 
 .questions {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
 }
 
+/* 逐题分析不再套小卡片，用墨线分隔 */
 .question {
-  padding: var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
-  background: var(--surface-muted);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border);
+}
+
+.questions .question:first-child {
+  border-top: none;
+  padding-top: 0;
 }
 
 .question-head {
@@ -704,20 +593,20 @@ onBeforeUnmount(stopPolling)
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-2);
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .q-text {
   margin: 6px 0 0;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   line-height: 1.6;
 }
 
 .q-label {
   margin-right: 6px;
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
 }
 
 .evidence {
@@ -735,7 +624,9 @@ onBeforeUnmount(stopPolling)
   flex-direction: column;
   gap: 4px;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.04em;
 }
 
 .summary-grid {
@@ -750,13 +641,14 @@ onBeforeUnmount(stopPolling)
   gap: var(--space-3);
 }
 
+/* 可编辑行动行用浅底通栏，不画第二层卡片边框 */
 .action-row {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3);
-  border: 1px solid var(--border);
   border-radius: var(--radius-btn);
+  background: var(--surface-muted);
 }
 
 .action-meta {
@@ -773,7 +665,7 @@ onBeforeUnmount(stopPolling)
 .action-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -783,7 +675,7 @@ onBeforeUnmount(stopPolling)
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   font-size: 13px;
 }
 
@@ -791,17 +683,7 @@ onBeforeUnmount(stopPolling)
   flex: 1 1 220px;
 }
 
-.link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.link.danger {
-  color: var(--danger);
+.skeleton-row {
+  height: 120px;
 }
 </style>
