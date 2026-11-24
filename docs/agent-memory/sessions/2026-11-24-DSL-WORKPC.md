@@ -49,3 +49,17 @@
 - 原因：展示层改名后同步仓库名，避免对外地址仍显示旧名。
 - 验证：`gh repo view` 返回 `name=afterround`、`visibility=PRIVATE`、描述已更新；`git ls-remote origin refs/heads/main` 返回 `3b4ecc4`，与本地提交一致；旧地址由 GitHub 自动重定向。
 - 下一步 / 断点：无；工作区干净。
+
+### 10:00 M3-c / M3-d 独立复验
+- 改动：无代码改动，仅追加本记录。
+- 原因：用户要求独立核验另一会话「M3-c 全部完成 + M3-d 技术收口」的声明，不沿用既有结论。
+- 验证：
+  - 契约 `1.10.0`：56 路径 / 88 端点 / 175 schema，`x-implemented: false` 无残留；`info.title` 已为「面后（AfterRound）API」；`redocly lint` **0 error / 0 warning**。
+  - 后端 `mvn test` **180 tests 全绿**，JaCoCo 门禁通过；`M3cInsightsApiIntegrationTest` 的 surefire 报告 `tests=2 / skipped=0`，确认集成测试真实执行而非被 `@EnabledIf` 跳过。
+  - 前端 `npm run build`（114 modules，含契约类型重新生成）通过；Vitest **26 passed**；Playwright **16 passed**。
+  - 洞察实现：`InsightsService.MINIMUM_SAMPLE = 5`，多处 `sufficient` 判定与样本不足文案；模块内无 `LlmClient` 引用，符合「本地规则总结、不调用 LLM」；`InsightsMapper` 聚合全部限定 `rs.confirmed = TRUE`。
+  - 前端：`/insights` 路由与 `InsightsView` 存在，E2E 有 2 个洞察用例（样本不足提示、无已确认复盘引导）。
+  - 命名：`origin` 为 `afterround.git`；README 标题、契约 title、需求文档文件名与 `AGENTS.md` 引用均为「面后（AfterRound）」；前端源码无「职点 / JobPilot」残留。
+  - CI：`0cf5972` / `3b4ecc4` / `5ae9f75` / `8e64914` 四次运行全部 success。
+- 差异：需求 §11 的 M3-d 还含「Markdown 导出（可选）、种子数据与 5 分钟演示、公开仓库准备」；本次收口实际覆盖测试 + 命名 + 文档，演示脚本与 LICENSE 未做（已在会话「未完成」中列明，非虚报）。
+- 下一步 / 断点：5 分钟演示脚本与差异化材料、LICENSE 待定；M3-d 剩余项完成后再做公开仓库准备。
