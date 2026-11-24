@@ -131,6 +131,13 @@
 - 验证：前端生产构建（含 `vue-tsc` 与契约类型生成）通过；Vitest **26 tests 全过**（新增 insights utils 3）；Playwright **16 E2E 全过**（新增 2 个洞察用例，既有 14 个回归；沙箱对 Edge 系统缓存写入报 restricted，测试结果为 16 passed）；后端 178 tests / 契约 lint 0/0 已在前一步验证。
 - 下一步 / 断点：M3-d 收口——全量回归、命名五项检查（需用户最终确认）、LICENSE 与契约 `info.license`、公开仓库与 5 分钟演示准备；不做自动投递、模板库、PDF 导出等 Out of Scope 功能。
 
+### 22:05 M3-d 技术收口完成，命名检查发现冲突（等待用户决策）
+- 改动：新增 `M3cInsightsApiIntegrationTest`（2 个用例）——真实 PostgreSQL + Flyway 下直接种入公司 / 岗位 / 投递 / 面试事件 / 已确认复盘 / 行动，校验 JSONB `topics` / `lossTags` / `questions` 展开、轮次通过率、公司画像、问题频次、漏斗、改进验证率、趋势，以及 N<5 样本保护与 `companyId` 筛选；测试前后清理自有数据，避免污染其它集成测试。
+- 验证：`M3cInsightsApiIntegrationTest` 2 tests 通过（Testcontainers postgres:16-alpine，Flyway V1~V8）；后端全量 **180 tests 全绿、JaCoCo 门禁通过**；真实浏览器（Edge headless + vite 5174 + 真后端 8080 + 真 LLM）创建 1 条复盘并确认后打开 `/insights`：样本卡「已确认复盘 1 份」、样本不足提示、知识点 / 失分 / 轮次 / 公司画像 / 高频问题 / 漏斗 / 改进 / 趋势区块均渲染；切换公司筛选后接口 `?companyId=...` 返回同一份数据且无错误横幅；清理后只读 SELECT（带 WHERE）复核测试公司 / 投递 / 复盘均为 0，后端与前端进程已停止，临时脚本已删除。
+- 命名检查（初步，非正式商标检索）：「职点」与广州南方人才资讯科技有限公司的「职点求职 / 职点招聘」同名同领域（App Store、安卓市场，宣称 850 万用户）；「JobPilot」已被 App Store 多款求职应用、GitHub/Gitee `jlifeng/JobPilot`（本地优先 AI 简历 + JD 匹配 + 模拟面试，Apache-2.0）、PyPI `jobpilot` 及多个 Devpost 项目使用，且功能高度重叠。参考：https://apps.apple.com/cn/app/jobpilot-ai-job-finder/id6819394130 、https://gitee.com/jlifeng/JobPilot 、https://pypi.org/project/jobpilot/ 、https://apps.apple.com/cn/app/%E8%81%8C%E7%82%B9%E6%8B%9B%E8%81%98/id1253360260 。结论：当前中英文名均不建议直接用于公开产品；需用户重新定名后再做 GitHub / 搜索引擎 / 应用商店 / 商标 / 域名五项正式检查。
+- 下一步 / 断点（阻塞，需用户决策）：M3-d 剩余事项——用户确认最终名称与 LICENSE；随后同步 README / 契约 `info.license` / 仓库名与公开设置，补 5 分钟演示；未经用户确认不擅自改名。
+
+
 
 
 
