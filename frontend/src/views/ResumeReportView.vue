@@ -169,10 +169,10 @@ onBeforeUnmount(() => {
   <div class="page">
     <header class="page-head">
       <div class="head-main">
-        <RouterLink to="/resumes" class="back">← 返回简历列表</RouterLink>
+        <RouterLink to="/resumes" class="back">← 简历中心</RouterLink>
         <div class="title-row">
-          <h2>{{ resume?.fileName || '粘贴文本简历' }}</h2>
-          <span class="badge" :class="statusTone">{{ statusText }}</span>
+          <h1>{{ resume?.fileName || '粘贴文本简历' }}</h1>
+          <span class="status" :class="statusTone">{{ statusText }}</span>
         </div>
         <p class="meta">
           上传于 {{ formatTime(resume?.createdAt) }}
@@ -276,37 +276,6 @@ onBeforeUnmount(() => {
   margin-top: var(--space-2);
 }
 
-.title-row h2 {
-  font-size: 18px;
-}
-
-.badge {
-  padding: 1px 8px;
-  border-radius: var(--radius-tag);
-  font-size: 11.5px;
-  font-weight: 500;
-}
-
-.badge.success {
-  color: var(--success);
-  background: #ecfdf5;
-}
-
-.badge.danger {
-  color: var(--danger);
-  background: #fef2f2;
-}
-
-.badge.primary {
-  color: var(--primary);
-  background: var(--primary-soft);
-}
-
-.badge.muted {
-  color: var(--text-3);
-  background: var(--surface-muted);
-}
-
 .meta {
   margin: var(--space-1) 0 0;
   font-size: 12.5px;
@@ -323,59 +292,6 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
 }
 
-.btn {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  font-size: 13px;
-  border: 1px solid transparent;
-  transition: background 0.12s ease, border-color 0.12s ease;
-}
-
-.btn.primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn.primary:hover:not(:disabled) {
-  background: var(--primary-hover);
-}
-
-.btn.ghost {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text-2);
-}
-
-.btn.ghost:hover {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.error-banner {
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid #fecaca;
-  border-radius: var(--radius-btn);
-  background: #fef2f2;
-  color: var(--danger);
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.error-banner .link {
-  color: inherit;
-  text-decoration: underline;
-  white-space: nowrap;
-}
-
 .state-card {
   display: flex;
   align-items: flex-start;
@@ -383,8 +299,8 @@ onBeforeUnmount(() => {
   padding: var(--space-5);
   background: var(--surface);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-rest);
 }
 
 .state-card h3 {
@@ -399,7 +315,7 @@ onBeforeUnmount(() => {
 }
 
 .state-card.failed {
-  border-color: var(--danger);
+  border-left-color: var(--danger);
   justify-content: space-between;
 }
 
@@ -444,15 +360,8 @@ onBeforeUnmount(() => {
   gap: var(--space-4);
 }
 
-.skeleton-card {
-  height: 180px;
-  border-radius: var(--radius-card);
-  background: var(--surface);
-  border: 1px solid var(--border);
-}
-
-.skeleton-card.short {
-  height: 96px;
+.skeleton-row.tall {
+  height: 160px;
 }
 
 @media (max-width: 720px) {

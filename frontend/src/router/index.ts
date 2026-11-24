@@ -98,7 +98,7 @@ if (import.meta.env.DEV) {
     path: '/preview/report',
     name: 'report-preview',
     component: () => import('@/views/ReportPreviewView.vue'),
-    meta: { title: '报告视觉样板（开发预览）' },
+    meta: { title: '报告视觉样板（开发预览）', ownTitle: true },
   })
 }
 

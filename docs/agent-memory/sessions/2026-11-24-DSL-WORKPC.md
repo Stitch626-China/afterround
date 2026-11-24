@@ -75,3 +75,10 @@
 - 原因：选中岗位时提示条插入文档流，导致记录整体下移一行，视觉突兀。
 - 验证：前端构建（`vue-tsc` + Vite）通过；Playwright 实测选中前后首行 Y 坐标均为 241（位移 0），批量条 `position: fixed`、100% 胶囊圆角；截图核对正常。
 - 下一步 / 断点：无；改动待提交推送。
+
+### 16:45 事件
+- 改动：需求文档升 v1.15 并重写 §6.10（「纸墨」配色、字号梯度、容器三层、组件与动效规范、暗色令牌）；`frontend/src/styles/tokens.css` 重写为暖纸白 + 墨蓝 + 数据色板 + 三档动效；新增 `frontend/src/styles/ui.css`（CSS `@layer components`：按钮 / 卡片 / 状态 / 提示 / 指标 / 表格 / 骨架 / 分页）；`App.vue` 改为 232px 分组侧栏（档案 / 复盘 / 决策 / 练习 + 线性图标 + 左侧墨线）+ 48px 面包屑顶栏 + 内容区 H1（`meta.ownTitle` 页面除外）；`ResumeListView` 改为单容器列表 + 行分隔线 + 圆点状态；`ReportContent` / `ScoreBar` / `ResumeReportView` 重排字号与层级（总分 32px 主数字、去静止态阴影、去嵌套卡片）；`EmptyState` 去虚线框；`ChatView` 高度改为 48px 顶栏；README 新增「前端视觉系统（v1.15 纸墨）」章节；PROGRESS 同步。
+- 原因：用户反馈界面配色与样式单调朴素；确认方向 A「纸墨」（暖纸白 + 墨蓝重音 + 区块化）后，按 §6.10「先样板」原则落地外壳 + 简历中心 + 分析报告两屏。
+- 验证：`npm run build`（含 `vue-tsc`）通过；Vitest **26 passed**；Playwright **16 passed**（沙箱对 Edge 缓存写入报 restricted，退出码 1，测试结果 16 passed）；Edge headless 明暗两套截图核对简历中心、预览报告、真实报告、岗位库、洞察、对话、Offer 页；期间发现旧 vite 进程热更新失效，改用 5174 新进程复核，结束后已停止。
+- 下一步 / 断点：等用户评审样板；通过后再逐页套用 `ui.css` 共享层并核对暗色与对比度。旧 5173 开发服务可能仍是旧代码，需重启后再看。
+

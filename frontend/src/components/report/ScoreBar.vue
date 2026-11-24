@@ -36,7 +36,7 @@ const tone = computed(() => {
 .score-bar {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 6px;
 }
 
 .score-head {
@@ -57,28 +57,27 @@ const tone = computed(() => {
 }
 
 .score-meta strong {
-  font-size: 14px;
+  font-size: var(--fs-h2);
   font-weight: 600;
   color: var(--text);
 }
 
 .weight {
-  font-size: 11px;
+  font-size: var(--fs-overline);
   color: var(--text-3);
 }
 
 .track {
   height: 6px;
-  border-radius: 3px;
+  border-radius: 999px;
   background: var(--surface-muted);
-  border: 1px solid var(--border);
   overflow: hidden;
 }
 
 .fill {
   height: 100%;
-  border-radius: 2px;
-  transition: width 0.3s ease;
+  border-radius: 999px;
+  transition: width 0.3s var(--ease);
 }
 
 .fill.high {

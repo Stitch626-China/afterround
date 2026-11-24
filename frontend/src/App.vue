@@ -1,14 +1,89 @@
 <script setup lang="ts">
 /**
- * 应用外壳（§6.10）：一级导航只放业务主线；模型配置/主题收进左下角齿轮的右侧抽屉。
+ * 应用外壳（§6.10 v1.15）：侧栏按「档案 / 复盘 / 决策 / 练习」分组，48px 面包屑顶栏；
+ * 模型配置/主题收进左下角齿轮的右侧抽屉。
  */
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
 import { openSettings, settingsOpen } from '@/composables/useSettings'
 
+/** 图标统一 24 视窗、1.6 描边，保持线性克制。 */
+const groups = [
+  {
+    label: '档案',
+    items: [
+      {
+        to: '/resumes',
+        label: '简历中心',
+        icon: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4',
+      },
+      {
+        to: '/jobs',
+        label: '岗位库',
+        icon: 'M4 8h16v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2',
+      },
+      {
+        to: '/applications',
+        label: '投递档案',
+        icon: 'M22 2 11 13M22 2l-7 20-4-9-9-4z',
+      },
+    ],
+  },
+  {
+    label: '复盘',
+    items: [
+      {
+        to: '/reviews',
+        label: '面试复盘',
+        icon: 'M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM8 8h8M8 12h8M8 16h5',
+      },
+      {
+        to: '/improvements',
+        label: '改进看板',
+        icon: 'M8 11.5l3 3 5-6M4 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z',
+      },
+      {
+        to: '/insights',
+        label: '求职洞察',
+        icon: 'M3 17l6-6 4 4 7-8M17 7h4v4',
+      },
+    ],
+  },
+  {
+    label: '决策',
+    items: [
+      {
+        to: '/offers',
+        label: 'Offer 决策',
+        icon: 'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.2 13.9 7 22l5-3 5 3-1.2-8.1',
+      },
+    ],
+  },
+  {
+    label: '练习',
+    items: [
+      {
+        to: '/interviews',
+        label: '模拟面试',
+        icon: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v4',
+      },
+    ],
+  },
+]
+
 const route = useRoute()
 const pageTitle = computed(() => (route.meta.title as string) ?? '面后')
+/** 少数页面自带页标题（文件名、对话全屏等），避免重复渲染。 */
+const ownTitle = computed(() => route.meta.ownTitle === true)
+const currentGroup = computed(
+  () => groups.find((group) => group.items.some((item) => isActive(item.to)))?.label ?? '',
+)
+
+/** 子页面（如 /resumes/:id/report）也要点亮父级入口。 */
+function isActive(to: string): boolean {
+  return route.path === to || route.path.startsWith(`${to}/`)
+}
 </script>
 
 <template>
@@ -23,14 +98,31 @@ const pageTitle = computed(() => (route.meta.title as string) ?? '面后')
       </div>
 
       <nav class="nav">
-        <RouterLink to="/resumes" class="nav-item">简历中心</RouterLink>
-        <RouterLink to="/jobs" class="nav-item">岗位库</RouterLink>
-        <RouterLink to="/applications" class="nav-item">投递档案</RouterLink>
-        <RouterLink to="/reviews" class="nav-item">面试复盘</RouterLink>
-        <RouterLink to="/improvements" class="nav-item">改进看板</RouterLink>
-        <RouterLink to="/insights" class="nav-item">求职洞察</RouterLink>
-        <RouterLink to="/interviews" class="nav-item">模拟面试</RouterLink>
-        <RouterLink to="/offers" class="nav-item">Offer 决策</RouterLink>
+        <div v-for="group in groups" :key="group.label" class="nav-group">
+          <p class="nav-label">{{ group.label }}</p>
+          <RouterLink
+            v-for="item in group.items"
+            :key="item.to"
+            :to="item.to"
+            class="nav-item"
+            :class="{ active: isActive(item.to) }"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="15"
+              height="15"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path :d="item.icon" />
+            </svg>
+            <span>{{ item.label }}</span>
+          </RouterLink>
+        </div>
       </nav>
 
       <div class="sidebar-bottom">
@@ -41,7 +133,7 @@ const pageTitle = computed(() => (route.meta.title as string) ?? '面后')
             height="15"
             fill="none"
             stroke="currentColor"
-            stroke-width="1.8"
+            stroke-width="1.6"
             stroke-linecap="round"
             stroke-linejoin="round"
             aria-hidden="true"
@@ -62,9 +154,16 @@ const pageTitle = computed(() => (route.meta.title as string) ?? '面后')
 
     <main class="main">
       <header class="topbar">
-        <h1>{{ pageTitle }}</h1>
+        <nav class="crumb" aria-label="面包屑">
+          <template v-if="currentGroup">
+            <span class="crumb-group">{{ currentGroup }}</span>
+            <span class="crumb-sep">/</span>
+          </template>
+          <span class="crumb-current">{{ pageTitle }}</span>
+        </nav>
       </header>
       <section class="content">
+        <h1 v-if="!ownTitle" class="page-title">{{ pageTitle }}</h1>
         <RouterView />
       </section>
     </main>
@@ -87,7 +186,7 @@ const pageTitle = computed(() => (route.meta.title as string) ?? '面后')
   flex-direction: column;
   background: var(--surface);
   border-right: 1px solid var(--border);
-  padding: var(--space-5) var(--space-3);
+  padding: var(--space-5) var(--space-3) var(--space-4);
 }
 
 .brand {
@@ -98,15 +197,15 @@ const pageTitle = computed(() => (route.meta.title as string) ?? '面后')
 }
 
 .brand-mark {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-tag);
+  border-radius: 7px;
   background: var(--primary);
   color: #fff;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -118,31 +217,55 @@ const pageTitle = computed(() => (route.meta.title as string) ?? '面后')
 
 .brand-text strong {
   font-size: 15px;
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 
 .brand-text small {
   color: var(--text-3);
-  font-size: 11px;
-  letter-spacing: 0.06em;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .nav {
   display: flex;
   flex-direction: column;
+  gap: var(--space-4);
+}
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
   gap: 2px;
 }
 
+.nav-label {
+  margin: 0 0 4px;
+  padding: 0 10px;
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: var(--space-2) var(--space-3);
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
   border-radius: var(--radius-btn);
   color: var(--text-2);
-  font-size: 13.5px;
-  transition: background 0.12s ease, color 0.12s ease;
+  font-size: 13px;
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+
+.nav-item svg {
+  flex: 0 0 15px;
+  color: var(--text-3);
+  transition: color var(--dur-1) var(--ease);
 }
 
 .nav-item:hover {
@@ -150,36 +273,37 @@ const pageTitle = computed(() => (route.meta.title as string) ?? '面后')
   color: var(--text);
 }
 
-.nav-item.router-link-active {
+.nav-item:hover svg {
+  color: var(--text-2);
+}
+
+.nav-item.active {
   background: var(--primary-soft);
   color: var(--primary);
   font-weight: 500;
 }
 
-.nav-item.planned {
-  color: var(--text-3);
-  cursor: default;
+.nav-item.active svg {
+  color: var(--primary);
 }
 
-.nav-item.planned:hover {
-  background: none;
-  color: var(--text-3);
-}
-
-.nav-item em {
-  font-style: normal;
-  font-size: 10.5px;
-  padding: 0 5px;
-  border-radius: var(--radius-tag);
-  background: var(--surface-muted);
-  color: var(--text-3);
+/* 当前页：左侧墨线，与侧栏边缘对齐 */
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--space-3) * -1);
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--primary);
 }
 
 .sidebar-bottom {
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
   padding-top: var(--space-3);
   border-top: 1px solid var(--border);
 }
@@ -187,14 +311,20 @@ const pageTitle = computed(() => (route.meta.title as string) ?? '面后')
 .settings-btn {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
   border: none;
   border-radius: var(--radius-btn);
   background: none;
   color: var(--text-2);
   font-size: 13px;
   text-align: left;
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+
+.settings-btn svg {
+  color: var(--text-3);
 }
 
 .settings-btn:hover {
@@ -206,9 +336,9 @@ const pageTitle = computed(() => (route.meta.title as string) ?? '面后')
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 var(--space-3);
+  padding: 0 10px;
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
 }
 
 .dot {
@@ -227,22 +357,47 @@ const pageTitle = computed(() => (route.meta.title as string) ?? '面后')
 }
 
 .topbar {
-  height: 56px;
-  flex: 0 0 56px;
+  height: 48px;
+  flex: 0 0 48px;
   display: flex;
   align-items: center;
   padding: 0 var(--space-6);
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  max-width: var(--measure);
+  width: 100%;
+  margin: 0 auto;
 }
 
-.topbar h1 {
-  font-size: 15px;
+.crumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+}
+
+.crumb-group {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+}
+
+.crumb-sep {
+  color: var(--text-3);
+}
+
+.crumb-current {
+  color: var(--text-3);
 }
 
 .content {
   flex: 1;
+  width: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
   overflow-y: auto;
-  padding: var(--space-6);
+  padding: 0 var(--space-6) var(--space-6);
+}
+
+.page-title {
+  margin: 0 0 var(--space-5);
 }
 </style>

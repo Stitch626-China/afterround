@@ -59,14 +59,12 @@ watch(() => props.saving, (now, before) => {
 
 <template>
   <div class="report">
-    <!-- 总分 + 五维 -->
+    <!-- 总分 + 五维：总分是整页唯一的主数字 -->
     <section class="card overview">
       <div class="overall">
-        <div class="overall-score numeric">{{ report.overallScore }}</div>
-        <div class="overall-meta">
-          <span>综合评分</span>
-          <small>五维加权 · 满分 100</small>
-        </div>
+        <p class="overline">综合评分</p>
+        <div class="overall-score num-hero">{{ report.overallScore }}</div>
+        <small class="overall-note">满分 100 · 五维加权</small>
       </div>
       <div class="dimensions">
         <ScoreBar
@@ -126,12 +124,12 @@ watch(() => props.saving, (now, before) => {
               :disabled="saving"
             />
           </label>
-          <button type="button" class="mini primary" :disabled="saving" @click="submitSalary">
+          <button type="button" class="btn primary quiet" :disabled="saving" @click="submitSalary">
             {{ saving ? '保存中…' : '保存' }}
           </button>
-          <button type="button" class="mini ghost" :disabled="saving" @click="editingSalary = false">取消</button>
+          <button type="button" class="btn ghost quiet" :disabled="saving" @click="editingSalary = false">取消</button>
         </template>
-        <button v-else type="button" class="link-btn" @click="beginEditSalary">修改薪资</button>
+        <button v-else type="button" class="link" @click="beginEditSalary">修改薪资</button>
       </div>
     </section>
 
@@ -208,24 +206,17 @@ watch(() => props.saving, (now, before) => {
   gap: var(--space-4);
 }
 
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-rest);
-  padding: var(--space-5);
-}
-
 .card-title {
   margin-bottom: var(--space-3);
-  font-size: 13.5px;
+  font-size: var(--fs-h2);
+  font-weight: 500;
   color: var(--text);
 }
 
 /* 总分 */
 .overview {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 190px 1fr;
   gap: var(--space-6);
   align-items: center;
 }
@@ -233,39 +224,30 @@ watch(() => props.saving, (now, before) => {
 .overall {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 6px;
   padding-right: var(--space-5);
   border-right: 1px solid var(--border);
 }
 
 .overall-score {
-  font-size: 44px;
-  line-height: 1;
-  font-weight: 650;
   color: var(--text);
 }
 
-.overall-meta {
-  display: flex;
-  flex-direction: column;
-  font-size: 12.5px;
-  color: var(--text-2);
-}
-
-.overall-meta small {
+.overall-note {
   color: var(--text-3);
+  font-size: var(--fs-sm);
 }
 
 .dimensions {
   display: grid;
-  gap: var(--space-3);
+  gap: 14px;
 }
 
 /* 基本信息 */
 .basic {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-6);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4) var(--space-5);
 }
 
 .basic-item {
@@ -276,20 +258,24 @@ watch(() => props.saving, (now, before) => {
 }
 
 .basic-label {
-  font-size: 11.5px;
   color: var(--text-3);
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.06em;
 }
 
 .salary-actions {
+  grid-column: 1 / -1;
   display: flex;
   align-items: flex-end;
+  justify-content: flex-end;
   gap: var(--space-2);
-  margin-left: auto;
 }
 
 .salary-input {
   width: 120px;
-  padding: 2px 8px;
+  height: 30px;
+  padding: 0 8px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
   background: var(--surface);
@@ -300,32 +286,6 @@ watch(() => props.saving, (now, before) => {
 .salary-input:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 1px;
-}
-
-.link-btn {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 12.5px;
-}
-
-.mini {
-  padding: 2px 10px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-btn);
-  font-size: 12.5px;
-}
-
-.mini.primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.mini.ghost {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text-2);
 }
 
 /* 两栏 */
@@ -422,10 +382,8 @@ watch(() => props.saving, (now, before) => {
 }
 
 .direction {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-btn);
-  padding: var(--space-4);
-  background: var(--surface-muted);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
 }
 
 .direction-title {
@@ -447,9 +405,11 @@ watch(() => props.saving, (now, before) => {
 }
 
 .tag-label {
-  font-size: 11px;
+  margin: 0 var(--space-1) 0 0;
   color: var(--text-3);
-  margin-right: var(--space-1);
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.06em;
 }
 
 .tag {

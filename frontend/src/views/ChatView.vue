@@ -474,7 +474,7 @@ onBeforeUnmount(cancelStream)
   display: grid;
   grid-template-columns: 240px 1fr;
   gap: var(--space-4);
-  height: calc(100vh - 56px - var(--space-6) * 2);
+  height: calc(100vh - 48px - var(--space-6));
   min-height: 460px;
 }
 

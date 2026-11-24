@@ -219,7 +219,8 @@ onBeforeUnmount(() => {
 <template>
   <div class="page">
     <header class="page-head">
-      <div>
+      <div class="head-main">
+        <h1>简历中心</h1>
         <p class="lead">上传简历，获得五维评分、短板分析与岗位方向推荐；历史上传的记录都会保留。</p>
       </div>
       <div class="head-actions">
@@ -240,6 +241,20 @@ onBeforeUnmount(() => {
       @drop.prevent="onDrop"
     >
       <input ref="fileInput" type="file" accept=".pdf,.docx,.doc,.txt" hidden @change="onPick" />
+      <svg
+        class="drop-icon"
+        viewBox="0 0 24 24"
+        width="20"
+        height="20"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M12 16V4M7 9l5-5 5 5M4 20h16" />
+      </svg>
       <p class="drop-title"><strong>拖入简历文件</strong>，或点击选择</p>
       <p class="drop-hint">PDF / DOCX / DOC / TXT · 单文件不超过 5MB</p>
       <p v-if="uploading" class="drop-busy">上传中…</p>
@@ -288,7 +303,7 @@ onBeforeUnmount(() => {
           <p class="row-meta">{{ meta(item) }}</p>
         </div>
 
-        <span class="badge" :class="STATUS_TONE[item.analyzeStatus]">
+        <span class="status" :class="STATUS_TONE[item.analyzeStatus]">
           {{ STATUS_TEXT[item.analyzeStatus] ?? item.analyzeStatus }}
         </span>
 
@@ -328,63 +343,35 @@ onBeforeUnmount(() => {
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
-.page-head {
+.head-main {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-3);
+  flex-direction: column;
+  gap: 6px;
 }
 
 .head-actions {
   display: flex;
   gap: var(--space-2);
+  flex: 0 0 auto;
 }
 
 .lead {
   margin: 0;
+  max-width: 680px;
   color: var(--text-2);
-  font-size: 13.5px;
-}
-
-.btn {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  border: 1px solid transparent;
-  font-size: 13px;
-}
-
-.btn.primary {
-  background: var(--primary);
-  color: #fff;
-}
-
-.btn.ghost {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text-2);
-}
-
-.btn.ghost:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 .dropzone {
-  padding: var(--space-6);
+  padding: 28px var(--space-6);
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-card);
   background: var(--surface);
   cursor: pointer;
   text-align: center;
-  transition: border-color 0.12s ease, background 0.12s ease;
+  transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
 }
 
 .dropzone:hover,
@@ -393,9 +380,18 @@ onBeforeUnmount(() => {
   background: var(--primary-soft);
 }
 
+.drop-icon {
+  color: var(--text-3);
+  margin-bottom: var(--space-2);
+}
+
+.dropzone:hover .drop-icon,
+.dropzone.dragging .drop-icon {
+  color: var(--primary);
+}
+
 .drop-title {
   margin: 0;
-  font-size: 13.5px;
   color: var(--text-2);
 }
 
@@ -411,7 +407,7 @@ onBeforeUnmount(() => {
 
 .drop-busy {
   margin: var(--space-2) 0 0;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   color: var(--primary);
 }
 
@@ -419,7 +415,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-5);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background: var(--surface);
@@ -437,51 +433,15 @@ onBeforeUnmount(() => {
   font-size: 13px;
 }
 
+.paste textarea:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 0;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
 .paste-actions {
   display: flex;
   gap: var(--space-2);
-}
-
-.banner {
-  margin: 0;
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-btn);
-  font-size: 12.5px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.banner .link {
-  color: inherit;
-  text-decoration: underline;
-  white-space: nowrap;
-}
-
-.banner.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-  border: 1px solid var(--danger);
-}
-
-.banner.success {
-  color: var(--success);
-  background: var(--success-soft);
-  border: 1px solid var(--success);
-}
-
-.skeleton {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.skeleton-row {
-  height: 64px;
-  border-radius: var(--radius-card);
-  background: var(--surface);
-  border: 1px solid var(--border);
 }
 
 .list {
@@ -490,25 +450,29 @@ onBeforeUnmount(() => {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
 }
 
 .row {
   display: grid;
-  grid-template-columns: 1fr auto 48px auto;
+  grid-template-columns: 1fr auto 56px auto;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  transition: background var(--dur-1) var(--ease);
+}
+
+.row:last-child {
+  border-bottom: none;
 }
 
 .row:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-rest);
+  background: var(--surface-muted);
 }
 
 .row-title {
@@ -522,37 +486,11 @@ onBeforeUnmount(() => {
   color: var(--text-3);
 }
 
-.badge {
-  padding: 1px 8px;
-  border-radius: var(--radius-tag);
-  font-size: 11.5px;
-  white-space: nowrap;
-}
-
-.badge.success {
-  color: var(--success);
-  background: var(--success-soft);
-}
-
-.badge.danger {
-  color: var(--danger);
-  background: var(--danger-soft);
-}
-
-.badge.primary {
-  color: var(--primary);
-  background: var(--primary-soft);
-}
-
-.badge.muted {
-  color: var(--text-3);
-  background: var(--surface-muted);
-}
-
 .score {
   text-align: right;
   font-size: 18px;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .score.placeholder {
@@ -565,26 +503,6 @@ onBeforeUnmount(() => {
   gap: var(--space-3);
   justify-content: flex-end;
   white-space: nowrap;
-}
-
-.link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--primary);
-  font-size: 12.5px;
-}
-
-.link.danger {
-  color: var(--danger);
-}
-
-.pager {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12.5px;
-  color: var(--text-3);
 }
 
 .pager-actions {
