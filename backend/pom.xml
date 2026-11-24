@@ -15,7 +15,7 @@
   <artifactId>jobpilot</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <name>jobpilot</name>
-  <description>职点（JobPilot）后端服务</description>
+  <description>面后（AfterRound）后端服务</description>
 
   <properties>
     <java.version>21</java.version>

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 
 info:
-  title: 职点（JobPilot）API
+  title: 面后（AfterRound）API
   version: 1.10.0
   description: |
     **本文件是接口的唯一真实源。**
@@ -57,7 +57,7 @@ info:
     - `40917` 该投递的面试轮次已存在复盘记录
 
   contact:
-    name: 职点（JobPilot）
+    name: 面后（AfterRound）
   license:
     name: 私有项目（未授权）
     identifier: LicenseRef-Proprietary

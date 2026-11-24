@@ -1,4 +1,4 @@
-# 职点（JobPilot）项目全记录：设计、实现与 AI 协作方法论
+# 面后（AfterRound）项目全记录：设计、实现与 AI 协作方法论
 
 > 文档定位：记录本项目从需求、设计、实现到 AI 协作的全过程，兼顾三个用途——
 > 1. 未来回看「当时为什么这么做」；
@@ -6,7 +6,7 @@
 > 3. 作为 Agent / LLM 应用开发岗位的面试项目说明。
 >
 > 维护规则：**只追加、不改写历史**；每条记录带日期与证据（提交 / 运行 ID / 文档链接）；不写密钥与个人隐私。
-> 与其它文档的分工：需求以 `docs/superpowers/specs/职点（JobPilot）需求文档.md` 为准，接口以 `contracts/openapi.yaml` 为准，进度以 `docs/agent-memory/PROGRESS.md` 为准，原始过程见 `docs/agent-memory/sessions/`。**代码是最终事实源**。
+> 与其它文档的分工：需求以 `docs/superpowers/specs/面后（AfterRound）需求文档.md` 为准，接口以 `contracts/openapi.yaml` 为准，进度以 `docs/agent-memory/PROGRESS.md` 为准，原始过程见 `docs/agent-memory/sessions/`。**代码是最终事实源**。
 
 ---
 
@@ -23,7 +23,7 @@
 
 ### 1.1 一句话介绍
 
-> 职点（JobPilot）是一个面向个人求职闭环的 AI 平台：上传简历得到五维分析与岗位方向；导入 JD 做匹配与行情分析；用结构化模拟面试练习；最后把真实面试沉淀为可复盘、可统计的文档。
+> 面后（AfterRound）是一个面向个人求职闭环的 AI 平台：上传简历得到五维分析与岗位方向；导入 JD 做匹配与行情分析；用结构化模拟面试练习；最后把真实面试沉淀为可复盘、可统计的文档。
 
 ### 1.2 形态与边界
 
@@ -65,6 +65,7 @@
 | 2026-11-13 | M1 收口 | 复审阻断项修复、覆盖率门禁、二次加固 | `98ef7a4` `db1f615` |
 | 2026-11-16 | 验收与体验 | M1 用户验收；README 开源化；模型配置引导；多设备章节；CI 落地 | `8019585` `68ae8a4` `0b11cb0` `62cf2c2` |
 | 2026-11-17 | M2 第一批 | 契约冻结；独立复验修复版本/错误码/Prompt 版本；需求 v1.8 | `00621ee` `c74bdef` `803c15d` `0fdac7b` |
+| 2026-11-24 | 命名收口 | 产品更名为「面后（AfterRound）」；展示层与仓库名同步，代码坐标保留 | 需求 v1.14 |
 
 ---
 
@@ -418,7 +419,7 @@ OpenAI 兼容上游（/chat/completions、/models、SSE）
 
 ### 9.1 30 秒介绍
 
-> 我做了一个个人自用的 AI 求职平台「职点」，覆盖简历分析、岗位匹配、模拟面试和面试复盘。后端是 Java 21 + Spring Boot + PostgreSQL，前端 Vue3。模型层是数据库驱动的多 Provider / 多模型网关，支持热切换、SSE 流式、结构化 JSON 输出与失败重试。项目全程用 AI 结对开发，我用契约先行、测试门禁、CI 和独立复验来控制质量。
+> 我做了一个个人自用的 AI 求职平台「面后（AfterRound）」，覆盖简历分析、岗位匹配、模拟面试和面试复盘。后端是 Java 21 + Spring Boot + PostgreSQL，前端 Vue3。模型层是数据库驱动的多 Provider / 多模型网关，支持热切换、SSE 流式、结构化 JSON 输出与失败重试。项目全程用 AI 结对开发，我用契约先行、测试门禁、CI 和独立复验来控制质量。
 
 ### 9.2 5 分钟演示脚本
 
@@ -523,7 +524,7 @@ A：单用户无鉴权、M2 尚未实现、缺少自动评测集与 CD；AI 协�
 
 **文档索引**
 
-- 需求：`docs/superpowers/specs/职点（JobPilot）需求文档.md`（v1.8）
+- 需求：`docs/superpowers/specs/面后（AfterRound）需求文档.md`（v1.14）
 - 契约：`contracts/openapi.yaml`（1.6.0，45 端点）
 - 进度：`docs/agent-memory/PROGRESS.md`
 - 会话：`docs/agent-memory/sessions/`

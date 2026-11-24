@@ -5,13 +5,13 @@
 
 ## 快照
 
-- 产品：职点（JobPilot），个人求职档案与决策系统（真实面试复盘 → 跨场归因 → 改进闭环 → Offer 决策）
+- 产品：面后（AfterRound），个人求职档案与决策系统（真实面试复盘 → 跨场归因 → 改进闭环 → Offer 决策）
 - 形态：个人自用版，免登录、单用户，本地 Docker Compose
-- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.13** 已确认；契约 **1.10.0**（M3-a / M3-b / M3-c 全部完成，**88 端点全部实现**）；M3-d 收口中
+- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.14** 已确认；契约 **1.10.0**（M3-a / M3-b / M3-c 全部完成，**88 端点全部实现**）；M3-d 技术收口完成，产品已定名「面后（AfterRound）」
 
 ## 当前状态
 
-- **M3-d 技术收口完成，命名冲突阻塞（2026-11-23，DSL-WORKPC）**：新增 `M3cInsightsApiIntegrationTest` 2 tests，在 Testcontainers PostgreSQL + Flyway 下验证洞察 JSONB 聚合、公司筛选与 N<5 样本保护；后端全量 **180 tests 全绿、JaCoCo 门禁通过**。真实浏览器（Edge headless + vite + 真后端 + 真 LLM）验证 `/insights` 全区块、样本提示与公司筛选，清理后只读 SELECT 复核测试数据为 0。命名初步检查：「职点」与广州南方人才资讯科技有限公司的「职点求职 / 职点招聘」同名同领域；「JobPilot」已被 App Store 多款求职应用、`jlifeng/JobPilot`（功能高度重叠）、PyPI `jobpilot` 等使用。**未擅自改名**；需用户确认最终名称与 LICENSE 后再做五项正式检查、契约 `info.license`、公开仓库与演示。
+- **M3-d 技术收口完成，命名已定（2026-11-23 收口 / 2026-11-24 定名，DSL-WORKPC）**：新增 `M3cInsightsApiIntegrationTest` 2 tests，在 Testcontainers PostgreSQL + Flyway 下验证洞察 JSONB 聚合、公司筛选与 N<5 样本保护；后端全量 **180 tests 全绿、JaCoCo 门禁通过**。真实浏览器（Edge headless + vite + 真后端 + 真 LLM）验证 `/insights` 全区块、样本提示与公司筛选，清理后只读 SELECT 复核测试数据为 0。命名检查：「职点」与广州南方人才资讯科技有限公司的「职点求职 / 职点招聘」同名同领域；「JobPilot」已被 App Store 多款求职应用、`jlifeng/JobPilot`（功能高度重叠）、PyPI `jobpilot` 等使用。2026-11-24 用户确认新名为「**面后（AfterRound）**」，展示层（README / 前端标题与品牌区 / 契约 info / 需求文档 v1.14）与 GitHub 仓库名同步修改，代码坐标（`com.jobpilot`、artifactId、库名）保留；LICENSE 暂不添加，契约维持「私有项目（未授权）」；公开检索已完成（中文搜索 / App Store / GitHub / 域名），中国商标网未查，公开商用前需另行自查。
 - **M3-c 跨场洞察已实现（2026-11-23，DSL-WORKPC）**：契约 **1.10.0** 新增 `GET /api/insights` 与 17 个 schema（**88/88 实现**）；后端 `modules/insights` 用 PostgreSQL 原生聚合（JSONB topics / lossTags / questions unnest、轮次通过率、公司画像 Top3、投递 / 简历漏斗、改进统计、当前 vs 上一等长窗口趋势），`InsightsService` 负责比例、样本保护（N<5 只展示原始统计）与本地规则总结（不调用 LLM）；前端新增 `/insights` 求职洞察页（30/90/180/365 天与公司筛选、样本提示、知识点失败率、失分频次、轮次通过率、公司画像、高频问题、漏斗、改进闭环、趋势）；导航「求职洞察」转正式入口。验证：`redocly lint` 0/0；后端 178→180 tests、JaCoCo 门禁通过（`InsightsServiceTest` 4 + 集成 2）；前端构建通过、Vitest **26**、Playwright **16 E2E 全过**；真实接口与真实浏览器均验证样本不足与公司筛选，清理后只读 SELECT 复核临时数据为 0。
 - **M3-b B5 全量回归与收口完成（2026-11-23，DSL-WORKPC）**：`redocly lint` **0 error / 0 warning**（1.9.5，87 端点）；后端 `mvn test` **174 tests 全绿、JaCoCo 全部门禁通过**（JDK 21）；前端生产构建（含 `vue-tsc`）通过、Vitest **23 tests 全过**、Playwright **14 E2E 全过**（沙箱对 Edge 系统缓存写入报 restricted 导致退出码 1，测试结果为 14 passed）；真实接口冒烟（验收库 5433 + 真后端 + 全局默认 `deepseek/deepseek-flash`）跑通「建公司 → JD 文本导入解析 → 建投递 → 建文本复盘 → 异步分析 READY（2 题 / 3 知识点 / 3 行动）→ 确认 → 行动 VERIFIED + 证据 → 投递时间线 → 全部删除」；只读 SELECT（带 WHERE）复核临时数据 6 张表均为 0 行，后端进程已停止。**M3-b 完成，进入 M3-c。**
 - **M3-b B4 前端复盘页面已实现（2026-11-23，DSL-WORKPC）**：新增 `api/reviews.ts`（复盘 / 转写 / 分析 / 改进行动 / 词表，类型由契约生成）、`utils/review.ts`（枚举文案、状态色调、`isProcessing`、`parseTagList`、`buildAnalysisPayload`）；`api/http.ts` 支持 FormData 并新增 `postForm`；新增 `ReviewListView`（投递选择、轮次自动 +1、录音 / 文本 / 笔记三输入、处理中 3 秒轮询、重试转写 / 重新分析 / 二次确认删除、失败保留输入）、`ReviewDetailView`（转写修正、轻量状态轮询、分析展示、总结与行动修正、确认生成行动、来源行动）、`ImprovementBoardView`（状态筛选 / 流转、验证证据、新增 / 删除）；路由 `/reviews`、`/reviews/:id`、`/improvements`，导航加入「面试复盘 / 改进看板」；投递时间线展示复盘条目与状态；补 Offer E2E 缺失的 `job-applications` mock。验证：前端生产构建（含 `vue-tsc`）通过；Vitest **23 tests 全过**；Playwright **14 E2E 全过**（新增 3 个复盘用例，既有 11 个回归；沙箱对 Edge 系统缓存写入报 restricted，测试结果为 14 passed）。
@@ -63,9 +63,9 @@
 
 ## 下一步
 
-1. **M3-d 收口（阻塞，需用户决策）**：技术回归已完成（180 tests / Vitest 26 / Playwright 16 / 真实浏览器）；剩余需用户确认最终名称与 LICENSE。当前名「职点 / JobPilot」初步检查均与同领域产品冲突（详见会话 22:05），确认新名称后再做 GitHub / 搜索引擎 / 应用商店 / 商标 / 域名五项正式检查，并同步 README / 契约 `info.license` / 仓库名与公开设置、补 5 分钟演示。未经用户确认不擅自改名。
+1. **M3-d 收口（命名已完成，2026-11-24）**：技术回归已完成（180 tests / Vitest 26 / Playwright 16 / 真实浏览器）；产品已定名「面后（AfterRound）」，展示层与 GitHub 仓库名已同步，代码坐标（`com.jobpilot` / artifactId / 库名）保留。剩余：LICENSE 暂不添加（用户决定），公开仓库前补 5 分钟演示与差异化材料。
 2. **M2 用户验收（暂停，可继续）**：验收库容器 5433 仍在运行，后端按需启动；M2 两批功能已实现并修复验收问题。F3 模拟面试后续只保留为可选练习。
-3. **命名与公开仓库准备**：候选名必须通过 GitHub（仓库名/Star/功能）、搜索引擎、App Store / 应用市场、中国商标网、域名五项检查，并附同名项目的功能与未做功能清单；同时补 LICENSE、差异化 README 与 5 分钟演示。
+3. **公开仓库准备**：命名已定「面后（AfterRound）」；公开检索已完成（中文搜索 / App Store / GitHub / 域名），中国商标网未查。公开前还需补 LICENSE（用户决定暂缓）、差异化 README 与 5 分钟演示。
 4. **M2 收口（已完成）**：两批 38 端点、前端页面、Vitest 19 / Playwright 11 与真实链路联调全部通过。
 5. 非阻塞遗留：开源前补 `LICENSE` 并同步契约 `info.license`；CD 待换机稳定手动部署后再做。
 6. M2 改进项：历史消息升级为「完整轮次 + token 预算 + 摘要」；契约类型/required 深度校验；SSE E2E 增量渲染断言。
@@ -124,3 +124,4 @@
 | 2026-11-17 | F3 Skill 出题用**文件目录**（`SKILL.md` + `skill.meta.yml` + `references/`） | 需求 §6.6 已定；方向只有 2-3 个，DB 化收益低 |
 | 2026-11-17 | 行情洞察**实时统计不落快照**；经验与方向按原文统计、不做归一化 | 个人数据量小，实时足够；归一化需额外词表，M3 再评估 |
 | 2026-11-17 | JD 解析**回落全局默认**（可绑定场景枚举不含 JD 解析） | FRX.11 只列 7 个场景；`llm_call_logs.scene` 仍记 `jd_parse` 便于成本归因 |
+| 2026-11-24 | 产品更名「面后（AfterRound）」：只改展示层与 GitHub 仓库名，代码坐标（`com.jobpilot` / artifactId / 库名）保留 | 原名「职点 / JobPilot」同领域重名；全量改包名风险大且无用户收益 |

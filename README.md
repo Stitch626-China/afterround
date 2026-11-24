@@ -1,8 +1,10 @@
-# 职点（JobPilot）
+# 面后（AfterRound）
 
 AI 求职辅助平台，围绕求职全流程构建闭环：
 
 **简历分析 → 岗位匹配 → 模拟面试 → 真实面试复盘**
+
+「面后」指每场面试之后——把这一场变成下一场的准备。
 
 一句话定位：让每一次求职动作（改简历、选岗位、练面试、复盘）都有 AI 深度参与和数据沉淀。
 
@@ -30,7 +32,7 @@ interview-main/
 
 | 真实源 | 管什么 | 谁依赖 |
 |---|---|---|
-| `docs/superpowers/specs/职点（JobPilot）需求文档.md` | **做什么**（业务规则、验收标准） | 人 |
+| `docs/superpowers/specs/面后（AfterRound）需求文档.md` | **做什么**（业务规则、验收标准） | 人 |
 | `contracts/openapi.yaml` | **怎么调**（路径、入参、出参、错误码、枚举） | 后端 + 前端 |
 
 流程：先改契约 → 评审通过 → 后端实现（加契约一致性测试）→ 前端用 `openapi-typescript` 由契约生成类型，禁止手写接口类型。
@@ -474,7 +476,7 @@ npx @redocly/cli lint contracts/openapi.yaml
 
 | 文档 | 说明 |
 |---|---|
-| [职点（JobPilot）需求文档](docs/superpowers/specs/职点（JobPilot）需求文档.md) | 唯一需求源，含功能需求、非功能需求、架构、数据模型、接口原则、里程碑 |
+| [面后（AfterRound）需求文档](docs/superpowers/specs/面后（AfterRound）需求文档.md) | 唯一需求源，含功能需求、非功能需求、架构、数据模型、接口原则、里程碑 |
 | [AGENTS.md](AGENTS.md) | AI 协作契约：开工 pull + 读记忆，收工写记忆 + push |
 | [PROGRESS.md](docs/agent-memory/PROGRESS.md) | 当前进度、阻塞、下一步、关键决策 |
 | [sessions/](docs/agent-memory/sessions/) | 会话记录：跨日/换设备新建，同日同机追加，不改已有段落 |

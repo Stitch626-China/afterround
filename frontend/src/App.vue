@@ -8,17 +8,17 @@ import SettingsDrawer from '@/components/settings/SettingsDrawer.vue'
 import { openSettings, settingsOpen } from '@/composables/useSettings'
 
 const route = useRoute()
-const pageTitle = computed(() => (route.meta.title as string) ?? '职点')
+const pageTitle = computed(() => (route.meta.title as string) ?? '面后')
 </script>
 
 <template>
   <div class="layout">
     <aside class="sidebar">
       <div class="brand">
-        <span class="brand-mark">职</span>
+        <span class="brand-mark">面</span>
         <span class="brand-text">
-          <strong>职点</strong>
-          <small>JobPilot</small>
+          <strong>面后</strong>
+          <small>AfterRound</small>
         </span>
       </div>
 
