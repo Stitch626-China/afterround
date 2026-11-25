@@ -45,7 +45,7 @@
 ### 11:32 事件
 - 改动：公开仓库材料收口。README 新增「项目背景 / 核心能力 / 设计原则 / 授权与使用」，修正克隆地址（afterround）与当前进度；新增 `docs/5分钟演示脚本.md`；脱敏 5 处（契约示例地址 2 处、会话内网地址 2 处、内部服务商名 1 处、本机用户名路径 1 处）；`docker-compose.yml` 默认库密码改为 `change-me`；PROGRESS 更新状态与下一步。
 - 原因：用户要求完成公开仓库前的脱敏、README 完善与 M3-d 5 分钟演示材料。
-- 验证：`redocly lint` 0 error / 0 warning；grep 复查无 `192.168.` / `datangsoft` / `大唐` / `Users.Leno` 残留；README 与演示文档互链存在。
+- 验证：`redocly lint` 0 error / 0 warning；grep 复查无内网地址、内部服务商名与本机用户名残留；README 与演示文档互链存在。
 - 下一步 / 断点：改动待提交推送；仓库仍为私有，等待用户确认是否公开。
 
 ### 15:10 事件
