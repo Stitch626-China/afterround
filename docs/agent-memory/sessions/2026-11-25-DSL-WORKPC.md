@@ -65,3 +65,9 @@
 - 原因：公开仓库，便于他人查看项目并对 AI 方法论提建议。
 - 验证：无痕访问仓库页 200、raw README 200、中文开发手册 raw 200、截图 raw 200；GitHub API 返回 `private=false` / `visibility=public`；安全配置查询显示 secret_scanning / push_protection / dependabot_security_updates 均为 enabled。
 - 下一步 / 断点：观察首批访问与 Issue 反馈；LICENSE 保持不加，README 已声明保留所有权利。
+
+### 16:18 事件
+- 改动：按用户要求停止本机 8080 后端（`mvn spring-boot:run`），关闭 5 个遗留 Dependabot PR（#2 Tika / #3 faker+redocly / #4 vitest-mocker / #5 tinypool+vitest / #6 vitest）；新增 `scripts/seed-demo.mjs` 演示种子脚本；README「快速开始」新增「可选：导入演示数据」，`docs/5分钟演示脚本.md` 同步脚本入口与匹配分数（80）。
+- 原因：遗留 PR 与「个人自用、暂不升级依赖」的决定冲突；公开仓库需要可一键复现的演示数据，原仓库只有演示文档、无种子脚本。
+- 验证：8080 已释放、open PR 为 0；临时空库（postgres:16-alpine 5434 + Flyway + 真模型 `deepseek/deepseek-flash`）首次运行成功（简历 83 / 匹配 80 / 5 场已确认复盘 / 15 条行动 / 1 Offer / 洞察样本 2·5·5·1 sufficient），二次运行全部复用无重复；只读 SELECT 带 `WHERE user_id=1` 计数 2/2/1/1/2/5/5/5/15/1，与演示清单一致。
+- 下一步 / 断点：临时验证容器 `afterround-seedtest-pg`（5434）与演示库容器 `jobpilot-verify-pg`（5433）因清理命令被跳过仍在运行，待用户确认后清理；本次改动待 commit + push。

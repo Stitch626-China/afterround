@@ -11,6 +11,7 @@
 
 ## 当前状态
 
+- **演示数据种子脚本（2026-11-25，DSL-WORKPC）**：新增 `scripts/seed-demo.mjs`，通过真实 API 生成完整演示链路（2 公司 / 2 岗位 / 1 份已分析简历 / 1 条匹配 / 2 条投递 / 5 轮面试 / 5 场已确认复盘 / 15 条改进行动 / 1 个 Offer）；按公司名、岗位标题、简历姓名、投递与轮次复用，幂等可重复执行；README「快速开始」与 `docs/5分钟演示脚本.md` 已同步用法。验证：临时空库（postgres:16-alpine + Flyway + 真模型 `deepseek/deepseek-flash`）首次全量生成成功（简历 83 / 匹配 80 / 洞察样本 2·5·5·1 且 sufficient），二次运行全部命中已有数据、无重复；只读 SELECT 计数与演示清单完全一致（2/2/1/1/2/5/5/5/15/1）。5 个遗留 Dependabot PR 已全部关闭并附说明。
 - **仓库已公开（2026-11-25，DSL-WORKPC）**：GitHub 仓库 `Stitch626-China/afterround` 已从私有切换为 **PUBLIC**；开启 Secret Scanning、Push Protection 与 Dependabot Alerts（自动 Security Updates 已按用户要求关闭）；添加 topics（job-hunting / interview / spring-boot / vue3 / llm / openapi / java）。公开后无痕核验：仓库页 200、raw README 200、中文开发手册 raw 200、截图 raw 200、API `private=false`。LICENSE 保持不加（README 已声明保留所有权利），会话记录按用户要求保留公开。
 - **公开 README 重构（2026-11-25，DSL-WORKPC）**：README 从 582 行精简为 **225 行公开版**（截图 / 为什么做 / 核心能力 / 技术栈 / 架构 / 快速开始 / 测试与 CI / 文档导航 / 授权）；原有接口清单、完整配置、多设备部署、前端实现与协作流程完整迁入 `docs/开发手册.md`（453 行）；新增 `docs/screenshots/` 4 张真实截图（简历报告 / 复盘详情 / 洞察 / Offer 对比，共约 360KB）。验证：README 标题结构与图片引用核对通过，截图逐一目视核对；截图用的后端 8080 / 前端 5173 与验收库容器均已停止。
 - **公开仓库材料完成（2026-11-25，DSL-WORKPC）**：README 补齐项目背景 / 核心能力 / 设计原则 / 授权说明，修正克隆地址与当前进度；新增 `docs/5分钟演示脚本.md`（时间轴、点击路径、话术、追问与兜底）；内网地址、内部服务商名与本机用户名路径已脱敏；`docker-compose.yml` 默认数据库密码改为 `change-me`；契约示例地址改为 `https://api.example.com/v1`。验证：grep 无内部标识残留、契约 lint 0/0。（当时仓库仍未公开，随后已公开。）
@@ -71,7 +72,7 @@
 1. **前端「纸墨」已全量推广（2026-11-24）**：全站页面与设置抽屉均套用共享层，用户评审样板通过后一次完成；构建 / Vitest 26 / Playwright 16 复核通过。后续只在用户提出视觉问题时定点微调，不再批量改样式。
 2. **M3-d 收口（已完成，2026-11-25）**：技术回归、命名、README、脱敏、演示材料与公开仓库均已完成；LICENSE 保持不加（README 已声明保留所有权利），中国商标网未查。
 3. **M2 用户验收（暂停，可继续）**：验收库容器 5433 仍在运行，后端按需启动；M2 两批功能已实现并修复验收问题。F3 模拟面试后续只保留为可选练习。
-4. **公开仓库（已完成，2026-11-25）**：仓库已设为 PUBLIC 并开启 Secret Scanning / Push Protection / Dependabot，添加 topics；后续根据反馈迭代 README 与演示材料。
+4. **公开仓库（已完成，2026-11-25）**：仓库已设为 PUBLIC 并开启 Secret Scanning / Push Protection / Dependabot（自动 Security Updates 关闭）；演示数据种子 `scripts/seed-demo.mjs` 已完成并验证；后续根据反馈迭代 README 与演示材料，可选补 v1.0.0 tag / Release、social preview 与 Pin。
 5. **M2 收口（已完成）**：两批 38 端点、前端页面、Vitest 19 / Playwright 11 与真实链路联调全部通过。
 6. 非阻塞遗留：开源前补 `LICENSE` 并同步契约 `info.license`；CD 待换机稳定手动部署后再做。
 7. M2 改进项：历史消息升级为「完整轮次 + token 预算 + 摘要」；契约类型/required 深度校验；SSE E2E 增量渲染断言。
