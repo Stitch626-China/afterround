@@ -79,7 +79,13 @@
 - 下一步 / 断点：本次文档与种子脚本已推送（`2c4dafc`），CI 三 job 全绿；无未完成项。
 
 ### 16:37 事件
-- 改动：开启 GitHub `main` 分支保护：禁止强制推送与删除；要求 CI 三个检查（后端测试与覆盖率门禁 / 前端构建、单测与 E2E / 契约校验）通过，`strict=true` 要求分支最新；`enforce_admins=true` 管理员同样受限；未启用「必须走 PR」，保留直接推送习惯。
-- 原因：用户要求保护 main 分支，防止误强推/误删并让 CI 成为合并门槛。
-- 验证：GitHub API PUT 成功并回读；`allow_force_pushes` / `allow_deletions` 均为 false，三个检查上下文与 CI 任务名完全一致；开启后普通 `git push` 仍可用（待本次文档提交验证）。
-- 下一步 / 断点：观察后续推送与 CI；如需更严格流程，可再启用「必须 PR + 至少 1 次审批」。
+- 改动：首次开启 GitHub `main` 分支保护：禁止强制推送与删除；要求 CI 三个检查（后端测试与覆盖率门禁 / 前端构建、单测与 E2E / 契约校验）通过，`strict=true` 要求分支最新；`enforce_admins=true` 管理员同样受限；未启用「必须走 PR」。
+- 原因：用户要求保护 main 分支，防止误强推/误删并让 CI 成为门槛。
+- 验证：GitHub API PUT 成功并回读；但随后普通 `git push` 被 GitHub 拒绝：`GH006 Protected branch update failed ... 3 of 3 required status checks are expected`。
+- 下一步 / 断点：该配置会破坏现有直接推送工作流，需调整。
+
+### 16:40 事件
+- 改动：移除 `required_status_checks`，保留 `allow_force_pushes=false`、`allow_deletions=false`、`enforce_admins=true`；未启用「必须 PR」。
+- 原因：GitHub 在 `enforce_admins=true` 时会把 required status checks 也作为直接推送的前置条件；保留 CI 门槛就必须改走 PR 流程，当前优先保持直接推送习惯。
+- 验证：API PUT 成功并回读；调整后普通 `git push` 成功（本次提交验证）；强推与删除仍被禁止。
+- 下一步 / 断点：如用户希望 CI 成为硬门槛，再改为「分支 + PR + 检查通过后合并」。
