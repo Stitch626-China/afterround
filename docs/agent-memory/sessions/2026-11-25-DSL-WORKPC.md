@@ -95,3 +95,9 @@
 - 原因：用户要求实际演示「feature 分支 + PR + CI + 合并」流程，并希望 CI 可手动触发。
 - 验证：PR 两次推送均自动重跑 CI（run 45580524341 / 45581044925）且三 job 全绿；合并后 main push CI（run 45581388702）全绿；`gh workflow run ci.yml --ref main` 手动触发 run 45581740790（workflow_dispatch）三 job 全绿。
 - 下一步 / 断点：分支保护仍为「禁强推/禁删、不强制 PR」；如后续要 CI 硬门槛，再启用 Require a pull request + Require status checks。
+
+### 17:32 事件
+- 改动：新增本地 `.local/PR流程实操手册.md` 与 `.local/release-notes-v1.0.0.md`（`.local/` 已加入 `.git/info/exclude`，不提交）；在 `95ffa5d` 创建 annotated tag `v1.0.0` 并推送；创建 GitHub Release（`https://github.com/Stitch626-China/afterround/releases/tag/v1.0.0`），附 4 张截图、演示脚本、开发手册、接口契约与演示种子说明。
+- 原因：用户要求把 PR 实操整理成本地详细文档，并发布 v1.0.0 tag + GitHub Release。
+- 验证：`gh release view` 返回 tag `v1.0.0`、非草稿 / 非预发布、发布时间正常；Release 正文包含截图与演示脚本链接；raw 截图 URL 返回 200；`git ls-remote --tags` 确认远端 tag；工作区干净。
+- 下一步 / 断点：无；本次文档提交会触发 main CI，按常规确认全绿即可。

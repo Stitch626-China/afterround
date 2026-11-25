@@ -11,6 +11,7 @@
 
 ## 当前状态
 
+- **v1.0.0 已发布（2026-11-25，DSL-WORKPC）**：在 `95ffa5d` 打 annotated tag `v1.0.0` 并创建 GitHub Release（https://github.com/Stitch626-China/afterround/releases/tag/v1.0.0），附 4 张截图、README、开发手册、5 分钟演示脚本、接口契约与演示种子脚本说明；Release 非草稿 / 非预发布，raw 截图 URL 200，远端 tag 已确认。PR 实操手册与 Release notes 存放于本地 `.local/`（已加入 `.git/info/exclude`，不提交）。
 - **PR 流程与 CI 手动触发实测（2026-11-25，DSL-WORKPC）**：`.github/workflows/ci.yml` 增加 `workflow_dispatch`，README「测试与 CI」补充手动触发说明；首次完整走通「feature 分支 `ci/workflow-dispatch` → PR #7 → CI 三 job 全绿 → Squash 合并 `9b1e15c` → 删除远端与本地分支」。验证：PR 的两次提交均自动重跑 CI 并全绿；合并后 main push CI 全绿；`gh workflow run ci.yml --ref main` 手动触发 run `45581740790` 三 job 全绿。
 - **main 分支保护已开启（2026-11-25，DSL-WORKPC）**：禁止强制推送与删除分支，管理员同样受限（enforce_admins=true）；未启用「必须 PR」与 CI 推送门槛，保留现有直接推送习惯。过程中发现「CI 三检查 + enforce_admins」会让 GitHub 直接拒绝普通 `git push`（GH006），如后续要 CI 作为门槛，需整体改为「分支 + PR + 检查通过后合并」流程。
 - **演示数据种子脚本（2026-11-25，DSL-WORKPC）**：新增 `scripts/seed-demo.mjs`，通过真实 API 生成完整演示链路（2 公司 / 2 岗位 / 1 份已分析简历 / 1 条匹配 / 2 条投递 / 5 轮面试 / 5 场已确认复盘 / 15 条改进行动 / 1 个 Offer）；按公司名、岗位标题、简历姓名、投递与轮次复用，幂等可重复执行；README「快速开始」与 `docs/5分钟演示脚本.md` 已同步用法。验证：临时空库（postgres:16-alpine + Flyway + 真模型 `deepseek/deepseek-flash`）首次全量生成成功（简历 83 / 匹配 80 / 洞察样本 2·5·5·1 且 sufficient），二次运行全部命中已有数据、无重复；只读 SELECT 计数与演示清单完全一致（2/2/1/1/2/5/5/5/15/1）。5 个遗留 Dependabot PR 已全部关闭并附说明。
