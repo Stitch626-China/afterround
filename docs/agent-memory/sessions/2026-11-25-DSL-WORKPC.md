@@ -59,3 +59,9 @@
 - 原因：用户明确要求去掉该句。
 - 验证：grep 确认 README 与开发手册已无 `reference/interview-guide` / `AGPL` 表述。
 - 下一步 / 断点：提交推送；需求文档仍有 3 处相关表述（第 491、978、1010 行），是否一并清理待用户决定。
+
+### 15:30 事件
+- 改动：按用户决定（LICENSE 保持不加、会话记录保留公开）将 GitHub 仓库 `Stitch626-China/afterround` 从私有切换为 **PUBLIC**；开启 Secret Scanning、Push Protection、Dependabot Alerts 与 Security Updates；添加 topics（job-hunting / interview / spring-boot / vue3 / llm / openapi / java）。
+- 原因：公开仓库，便于他人查看项目并对 AI 方法论提建议。
+- 验证：无痕访问仓库页 200、raw README 200、中文开发手册 raw 200、截图 raw 200；GitHub API 返回 `private=false` / `visibility=public`；安全配置查询显示 secret_scanning / push_protection / dependabot_security_updates 均为 enabled。
+- 下一步 / 断点：观察首批访问与 Issue 反馈；LICENSE 保持不加，README 已声明保留所有权利。
