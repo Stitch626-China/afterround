@@ -445,11 +445,23 @@ onBeforeUnmount(stopPolling)
             <button type="button" class="link" @click="addAction">+ 添加一条</button>
           </div>
           <div v-for="(action, index) in actionDrafts" :key="index" class="action-row">
-            <textarea v-model="action.action" rows="2" maxlength="500" placeholder="具体、可执行的改进动作" />
-            <div class="action-meta">
-              <input v-model="action.category" maxlength="64" placeholder="分类（知识点补强 / 表达结构）" />
-              <input v-model="action.reason" maxlength="1000" placeholder="原因（可选）" />
+            <div class="action-row-head">
+              <span class="action-index">行动 {{ index + 1 }}</span>
               <button type="button" class="link danger" @click="removeAction(index)">移除</button>
+            </div>
+            <label class="field">
+              <span class="field-label">行动内容</span>
+              <textarea v-model="action.action" rows="2" maxlength="500" placeholder="具体、可执行的改进动作" />
+            </label>
+            <div class="action-meta">
+              <label class="field category">
+                <span class="field-label">分类</span>
+                <input v-model="action.category" maxlength="64" placeholder="知识点补强 / 表达结构" />
+              </label>
+              <label class="field reason">
+                <span class="field-label">依据 / 原因（可选）</span>
+                <input v-model="action.reason" maxlength="1000" placeholder="为什么需要这条行动" />
+              </label>
             </div>
           </div>
           <p v-if="!actionDrafts.length" class="hint">暂无行动；可添加后确认。</p>
@@ -476,7 +488,7 @@ onBeforeUnmount(stopPolling)
               {{ ACTION_STATUS_TEXT[action.status] ?? action.status }}
             </span>
             <span class="action-text">{{ action.action }}</span>
-            <span v-if="action.category" class="meta">{{ action.category }}</span>
+            <span v-if="action.category" class="tag">{{ action.category }}</span>
           </li>
         </ul>
         <p v-else class="hint">确认分析后会在这里生成行动。</p>
@@ -531,6 +543,8 @@ onBeforeUnmount(stopPolling)
 
 .card textarea,
 .card input {
+  width: 100%;
+  box-sizing: border-box;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-btn);
@@ -542,6 +556,7 @@ onBeforeUnmount(stopPolling)
 
 .card textarea {
   resize: vertical;
+  line-height: 1.6;
 }
 
 .card textarea:focus-visible,
@@ -641,31 +656,67 @@ onBeforeUnmount(stopPolling)
   gap: var(--space-3);
 }
 
+.action-editor h4 {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+
 /* 可编辑行动行用浅底通栏，不画第二层卡片边框 */
 .action-row {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-btn);
   background: var(--surface-muted);
+}
+
+.action-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.action-index {
+  color: var(--text-3);
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-label {
+  color: var(--text-3);
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.04em;
 }
 
 .action-meta {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
+  align-items: flex-end;
+  gap: var(--space-3);
 }
 
-.action-meta input {
-  flex: 1 1 160px;
+.action-meta .category {
+  flex: 0 0 180px;
+}
+
+.action-meta .reason {
+  flex: 1 1 260px;
 }
 
 .action-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -676,7 +727,14 @@ onBeforeUnmount(stopPolling)
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-  font-size: 13px;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+
+.action-item:first-child {
+  border-top: none;
+  padding-top: 0;
 }
 
 .action-text {
