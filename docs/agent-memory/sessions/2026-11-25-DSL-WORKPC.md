@@ -89,3 +89,9 @@
 - 原因：GitHub 在 `enforce_admins=true` 时会把 required status checks 也作为直接推送的前置条件；保留 CI 门槛就必须改走 PR 流程，当前优先保持直接推送习惯。
 - 验证：API PUT 成功并回读；调整后普通 `git push` 成功（本次提交验证）；强推与删除仍被禁止。
 - 下一步 / 断点：如用户希望 CI 成为硬门槛，再改为「分支 + PR + 检查通过后合并」。
+
+### 17:04 事件
+- 改动：`.github/workflows/ci.yml` 增加 `workflow_dispatch` 并更新头注释；README「测试与 CI」补充手动触发说明；首次按 PR 流程完成：`ci/workflow-dispatch` 分支 → 提交 `6b41047` / `fd68efb` → PR #7 → Squash 合并 `9b1e15c` → 删除远端与本地分支。
+- 原因：用户要求实际演示「feature 分支 + PR + CI + 合并」流程，并希望 CI 可手动触发。
+- 验证：PR 两次推送均自动重跑 CI（run 45580524341 / 45581044925）且三 job 全绿；合并后 main push CI（run 45581388702）全绿；`gh workflow run ci.yml --ref main` 手动触发 run 45581740790（workflow_dispatch）三 job 全绿。
+- 下一步 / 断点：分支保护仍为「禁强推/禁删、不强制 PR」；如后续要 CI 硬门槛，再启用 Require a pull request + Require status checks。
