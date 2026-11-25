@@ -71,3 +71,9 @@
 - 原因：遗留 PR 与「个人自用、暂不升级依赖」的决定冲突；公开仓库需要可一键复现的演示数据，原仓库只有演示文档、无种子脚本。
 - 验证：8080 已释放、open PR 为 0；临时空库（postgres:16-alpine 5434 + Flyway + 真模型 `deepseek/deepseek-flash`）首次运行成功（简历 83 / 匹配 80 / 5 场已确认复盘 / 15 条行动 / 1 Offer / 洞察样本 2·5·5·1 sufficient），二次运行全部复用无重复；只读 SELECT 带 `WHERE user_id=1` 计数 2/2/1/1/2/5/5/5/15/1，与演示清单一致。
 - 下一步 / 断点：临时验证容器 `afterround-seedtest-pg`（5434）与演示库容器 `jobpilot-verify-pg`（5433）因清理命令被跳过仍在运行，待用户确认后清理；本次改动待 commit + push。
+
+### 16:30 事件
+- 改动：用户确认后清理验证环境：删除临时验证容器 `afterround-seedtest-pg`，停止演示库容器 `jobpilot-verify-pg`；本地临时 SQL 与测试存储目录已删除。
+- 原因：验证完成，恢复验证前状态并释放本机资源。
+- 验证：`afterround-seedtest-pg` 已不存在，`jobpilot-verify-pg` 为 `Exited (0)`；5433 / 5434 / 8080 / 8081 全部释放。
+- 下一步 / 断点：本次文档与种子脚本已推送（`2c4dafc`），CI 三 job 全绿；无未完成项。
