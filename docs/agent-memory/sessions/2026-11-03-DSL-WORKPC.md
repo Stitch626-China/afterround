@@ -24,7 +24,7 @@
 
 ## 实测结论（LLM 网关）
 
-- 网关 `http://192.168.101.200:3000/v1`，类型 **new-api**（one-api 分支），内网地址
+- 网关为内网 new-api（one-api 分支）地址，**已脱敏**
 - 当前仅 `Qwen3.8-27B` 一个模型；早期三个别名（27B / NVFP4 / W8A8-DFlash2）**全部路由到同一后端** `Qwen3.8-27B-W8A8-DFlash2`，输出与延迟无差异 → 属模型别名
 - `/v1/models` ✅、`response_format: json_object` ✅、SSE 流式 ✅（30 tok / 801ms）、UTF-8 正常
 - 吞吐约 15 tok/s；首 token < 1s，满足 NFR1

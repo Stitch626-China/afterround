@@ -15,7 +15,7 @@ services:
     environment:
       POSTGRES_DB: jobpilot
       POSTGRES_USER: jobpilot
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-jobpilot}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change-me}
     ports:
       - "5432:5432"
     volumes:
@@ -40,7 +40,7 @@ services:
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/jobpilot
       DB_USER: jobpilot
-      DB_PASSWORD: ${DB_PASSWORD:-jobpilot}
+      DB_PASSWORD: ${DB_PASSWORD:-change-me}
       # 容器内路径，配合 appdata 卷持久化上传的原始文件
       STORAGE_ROOT: /app/data/files
     ports:

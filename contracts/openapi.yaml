@@ -2967,7 +2967,7 @@ components:
           type: string
           format: uri
           description: OpenAI 兼容端点，需包含 /v1
-          example: http://192.168.101.200:3000/v1
+          example: https://api.example.com/v1
         apiKeyMasked:
           type: string
           description: 掩码后的密钥，仅用于展示，**永不返回明文**
@@ -3031,7 +3031,7 @@ components:
           type: string
           format: uri
           maxLength: 512
-          example: http://192.168.101.200:3000/v1
+          example: https://api.example.com/v1
         apiKey:
           type: string
           description: 明文传入，服务端加密存储，绝不回显

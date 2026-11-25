@@ -108,7 +108,7 @@
 ### 验证
 - `npm run build`：gen:api + vue-tsc 类型检查 + vite 构建全部通过
 - 浏览器实测 `/preview/report`：标题/四类章节/5 条评分条/总分 76 全部正确，条形宽度与分值比例一致，控制台 0 错误
-- 截图：`C:\Users\Leno\AppData\Local\Temp\trae\screenshots\preview-report-top.png` 等
+- 截图：`<临时目录>/trae/screenshots/preview-report-top.png` 等（本机路径已脱敏）
 
 ### 待评审 / 下一步
 - 用户评审样板观感与信息层级

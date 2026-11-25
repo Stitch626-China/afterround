@@ -29,7 +29,7 @@
 ### 10:19 验收环境重新启动
 - 改动：启动 Docker Desktop 与 `jobpilot-verify-pg`（5433）；后端 8080（`DB_URL` 指向验收库）；前端 Vite 5173。
 - 原因：用户继续验收 M2 第二批。
-- 验证：health `UP`；Flyway 仍为 v5；Provider `datangsoft / 大唐软件API / Qwen3.8-27B（全局默认）` 持久化可读；前端 5173 返回 200。上次未推送提交 `794ab82` 已直连补推成功（`origin/main..main = 0`）。
+- 验证：health `UP`；Flyway 仍为 v5；Provider `示例服务商 / 示例模型（全局默认）` 持久化可读（名称已脱敏）；前端 5173 返回 200。上次未推送提交 `794ab82` 已直连补推成功（`origin/main..main = 0`）。
 - 下一步 / 断点：用户开始验收。
 
 ### 10:35 粘贴导入 JD 报「服务器内部错误」修复
