@@ -188,6 +188,8 @@ cd frontend && npm run test:e2e
 npx @redocly/cli lint contracts/openapi.yaml
 ```
 
+CI 在 push 到 `main` 或创建 / 更新 PR 时自动运行；也可在 Actions 页面点「Run workflow」，或执行 `gh workflow run ci.yml` 手动触发。
+
 | 指标 | 当前 |
 |---|---|
 | 后端测试 | 180 tests，JaCoCo 行覆盖 ≥85% 门禁 |
