@@ -77,3 +77,9 @@
 - 原因：验证完成，恢复验证前状态并释放本机资源。
 - 验证：`afterround-seedtest-pg` 已不存在，`jobpilot-verify-pg` 为 `Exited (0)`；5433 / 5434 / 8080 / 8081 全部释放。
 - 下一步 / 断点：本次文档与种子脚本已推送（`2c4dafc`），CI 三 job 全绿；无未完成项。
+
+### 16:37 事件
+- 改动：开启 GitHub `main` 分支保护：禁止强制推送与删除；要求 CI 三个检查（后端测试与覆盖率门禁 / 前端构建、单测与 E2E / 契约校验）通过，`strict=true` 要求分支最新；`enforce_admins=true` 管理员同样受限；未启用「必须走 PR」，保留直接推送习惯。
+- 原因：用户要求保护 main 分支，防止误强推/误删并让 CI 成为合并门槛。
+- 验证：GitHub API PUT 成功并回读；`allow_force_pushes` / `allow_deletions` 均为 false，三个检查上下文与 CI 任务名完全一致；开启后普通 `git push` 仍可用（待本次文档提交验证）。
+- 下一步 / 断点：观察后续推送与 CI；如需更严格流程，可再启用「必须 PR + 至少 1 次审批」。
