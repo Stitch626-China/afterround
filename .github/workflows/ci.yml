@@ -1,4 +1,4 @@
-# CI：每次 push 到 main 或发起 PR 时自动验证。
+# CI：每次 push 到 main、发起 PR 或手动触发时验证。
 #
 # 说明：这里只决定「何时、在哪、跑哪条命令」；具体跑哪些用例由测试代码和
 # pom.xml / vite.config.ts / playwright.config.ts 决定，契约只约束接口形状。
@@ -9,6 +9,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # 支持在 Actions 页面或 `gh workflow run ci.yml` 手动触发一次
+  workflow_dispatch:
 
 # 同一分支有新提交时取消上一次未完成的运行，避免重复消耗额度
 concurrency:
