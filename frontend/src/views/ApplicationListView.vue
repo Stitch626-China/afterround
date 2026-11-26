@@ -15,9 +15,23 @@ import {
   type JobApplicationTimeline,
 } from '@/api/applications'
 import { listJobPositions, type JobPositionListItem } from '@/api/jobs'
+import {
+  deleteInterviewEvent,
+  updateInterviewEvent,
+  type InterviewEventListItem,
+  type InterviewFormat,
+  type InterviewRoundType,
+} from '@/api/reviews'
 import { listResumes, type ResumeListItem } from '@/api/resumes'
 import EmptyState from '@/components/EmptyState.vue'
-import { INTERVIEW_RESULT_TEXT, REVIEW_STATUS_TEXT, ROUND_TYPE_TEXT } from '@/utils/review'
+import {
+  FORMATS,
+  FORMAT_TEXT,
+  INTERVIEW_RESULT_TEXT,
+  REVIEW_STATUS_TEXT,
+  ROUND_TYPES,
+  ROUND_TYPE_TEXT,
+} from '@/utils/review'
 
 const items = ref<JobApplicationListItem[]>([])
 const jobs = ref<JobPositionListItem[]>([])
@@ -55,6 +69,24 @@ const draft = reactive<{
 const confirmId = ref<number | null>(null)
 const timelineId = ref<number | null>(null)
 const timeline = ref<JobApplicationTimeline | null>(null)
+
+/** 面试事件编辑（FR5.1）：复用 PATCH /interview-events；无复盘的事件可删除。 */
+const eventEditId = ref<number | null>(null)
+const eventSaving = ref(false)
+const eventDeletingId = ref<number | null>(null)
+const eventConfirmId = ref<number | null>(null)
+const eventDraft = reactive<{
+  roundType: InterviewRoundType
+  interviewerRole: string
+  format: InterviewFormat | ''
+  interviewTime: string
+  notes: string
+}>({ roundType: 'TECH', interviewerRole: '', format: '', interviewTime: '', notes: '' })
+const EVENT_RESULT_TONE: Record<string, string> = {
+  PASS: 'success',
+  FAIL: 'danger',
+  PENDING: 'muted',
+}
 
 const pages = computed(() => Math.max(1, Math.ceil(total.value / size)))
 const STATUSES: JobApplicationStatus[] = ['APPLIED', 'INTERVIEWING', 'OFFERED', 'REJECTED', 'WITHDRAWN']
@@ -196,6 +228,8 @@ async function toggleTimeline(item: JobApplicationListItem): Promise<void> {
   if (timelineId.value === item.id) {
     timelineId.value = null
     timeline.value = null
+    eventEditId.value = null
+    eventConfirmId.value = null
     return
   }
   error.value = ''
@@ -204,6 +238,73 @@ async function toggleTimeline(item: JobApplicationListItem): Promise<void> {
     timelineId.value = item.id
   } catch (ex) {
     error.value = ex instanceof Error ? ex.message : '加载时间线失败'
+  }
+}
+
+/** ISO 时间转 datetime-local（本地时区，精确到分钟）。 */
+function toLocalInput(value: string): string {
+  const date = new Date(value)
+  const pad = (part: number): string => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function startEventEdit(event: InterviewEventListItem): void {
+  eventEditId.value = event.id
+  eventConfirmId.value = null
+  eventDraft.roundType = event.roundType
+  eventDraft.interviewerRole = event.interviewerRole ?? ''
+  eventDraft.format = event.format ?? ''
+  eventDraft.interviewTime = toLocalInput(event.interviewTime)
+  eventDraft.notes = event.notes ?? ''
+}
+
+async function reloadTimeline(): Promise<void> {
+  const applicationId = timelineId.value
+  if (!applicationId) {
+    return
+  }
+  try {
+    timeline.value = await getJobApplicationTimeline(applicationId)
+  } catch {
+    // 刷新失败保留当前时间线，避免打断编辑
+  }
+}
+
+async function saveEvent(event: InterviewEventListItem): Promise<void> {
+  eventSaving.value = true
+  error.value = ''
+  try {
+    await updateInterviewEvent(event.id, {
+      roundType: eventDraft.roundType,
+      interviewerRole: eventDraft.interviewerRole.trim() || null,
+      format: eventDraft.format || null,
+      interviewTime: eventDraft.interviewTime
+        ? new Date(eventDraft.interviewTime).toISOString()
+        : null,
+      notes: eventDraft.notes.trim() || null,
+    })
+    eventEditId.value = null
+    notice.value = '面试信息已更新'
+    await reloadTimeline()
+  } catch (ex) {
+    error.value = ex instanceof Error ? ex.message : '更新面试信息失败'
+  } finally {
+    eventSaving.value = false
+  }
+}
+
+async function removeEvent(event: InterviewEventListItem): Promise<void> {
+  eventDeletingId.value = event.id
+  error.value = ''
+  try {
+    await deleteInterviewEvent(event.id)
+    eventConfirmId.value = null
+    notice.value = '面试轮次已删除'
+    await reloadTimeline()
+  } catch (ex) {
+    error.value = ex instanceof Error ? ex.message : '删除面试轮次失败'
+  } finally {
+    eventDeletingId.value = null
   }
 }
 
@@ -368,10 +469,87 @@ onMounted(() => {
             <p class="timeline-empty">
               面试轮次 {{ timeline.events.length }} 条、改进行动 {{ timeline.actions.length }} 条。
             </p>
-            <ul v-if="timeline.events.length" class="timeline-reviews">
-              <li v-for="event in timeline.events" :key="event.id">
-                第 {{ event.roundNo }} 轮 · {{ ROUND_TYPE_TEXT[event.roundType] ?? event.roundType }} ·
-                {{ INTERVIEW_RESULT_TEXT[event.result] ?? event.result }}
+            <ul v-if="timeline.events.length" class="timeline-events">
+              <li v-for="event in timeline.events" :key="event.id" class="timeline-event">
+                <div class="timeline-event-line">
+                  <span>第 {{ event.roundNo }} 轮</span>
+                  <span class="tag">{{ ROUND_TYPE_TEXT[event.roundType] ?? event.roundType }}</span>
+                  <span class="status" :class="EVENT_RESULT_TONE[event.result]">
+                    {{ INTERVIEW_RESULT_TEXT[event.result] ?? event.result }}
+                  </span>
+                  <span class="meta">{{ formatTime(event.interviewTime) }}</span>
+                  <span v-if="event.interviewerRole" class="meta">{{ event.interviewerRole }}</span>
+                  <span v-if="event.format" class="meta">{{ FORMAT_TEXT[event.format] ?? event.format }}</span>
+                  <button
+                    v-if="eventEditId !== event.id"
+                    type="button"
+                    class="link"
+                    @click="startEventEdit(event)"
+                  >
+                    编辑
+                  </button>
+                  <template v-if="!event.reviewSessionId">
+                    <template v-if="eventConfirmId === event.id">
+                      <button
+                        type="button"
+                        class="link danger"
+                        :disabled="eventDeletingId === event.id"
+                        @click="removeEvent(event)"
+                      >
+                        确认删除
+                      </button>
+                      <button type="button" class="link" @click="eventConfirmId = null">取消</button>
+                    </template>
+                    <button v-else type="button" class="link danger" @click="eventConfirmId = event.id">
+                      删除
+                    </button>
+                  </template>
+                  <RouterLink v-else :to="`/reviews/${event.reviewSessionId}`" class="link">
+                    复盘 →
+                  </RouterLink>
+                </div>
+                <div v-if="eventEditId === event.id" class="event-edit">
+                  <label>
+                    轮次类型
+                    <select v-model="eventDraft.roundType">
+                      <option v-for="type in ROUND_TYPES" :key="type" :value="type">
+                        {{ ROUND_TYPE_TEXT[type] }}
+                      </option>
+                    </select>
+                  </label>
+                  <label>
+                    面试官
+                    <input v-model="eventDraft.interviewerRole" maxlength="64" placeholder="如 技术负责人" />
+                  </label>
+                  <label>
+                    形式
+                    <select v-model="eventDraft.format">
+                      <option value="">未填写</option>
+                      <option v-for="format in FORMATS" :key="format" :value="format">
+                        {{ FORMAT_TEXT[format] }}
+                      </option>
+                    </select>
+                  </label>
+                  <label>
+                    时间
+                    <input v-model="eventDraft.interviewTime" type="datetime-local" />
+                  </label>
+                  <label class="wide">
+                    备注
+                    <input v-model="eventDraft.notes" maxlength="1000" placeholder="备注（可选）" />
+                  </label>
+                  <div class="event-actions">
+                    <button
+                      type="button"
+                      class="btn ghost"
+                      :disabled="eventSaving"
+                      @click="saveEvent(event)"
+                    >
+                      {{ eventSaving ? '保存中…' : '保存' }}
+                    </button>
+                    <button type="button" class="btn quiet" @click="eventEditId = null">取消</button>
+                  </div>
+                </div>
               </li>
             </ul>
             <ul v-if="timeline.reviews.length" class="timeline-reviews">
@@ -569,6 +747,68 @@ onMounted(() => {
   margin: 0;
   padding-left: var(--space-4);
   font-size: 12px;
+}
+
+.timeline-events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-event {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.timeline-event-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.event-edit {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-btn);
+}
+
+.event-edit label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-3);
+  font-size: var(--fs-overline);
+}
+
+.event-edit label.wide,
+.event-actions {
+  grid-column: 1 / -1;
+}
+
+.event-edit select,
+.event-edit input {
+  height: 30px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-btn);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.event-actions {
+  display: flex;
+  gap: var(--space-2);
 }
 
 .pager {

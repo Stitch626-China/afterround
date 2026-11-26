@@ -122,6 +122,11 @@ export function updateInterviewEvent(
   return patch<InterviewEventListItem>(`/interview-events/${id}`, payload)
 }
 
+/** 删除面试轮次：存在关联复盘时后端返回 409，需先删除复盘。 */
+export function deleteInterviewEvent(id: number): Promise<void> {
+  return del<void>(`/interview-events/${id}`)
+}
+
 /** 创建复盘：音频与文本 / 笔记互斥；multipart 由浏览器自动设置 boundary。 */
 export function createReviewSession(input: CreateReviewInput): Promise<ReviewSessionListItem> {
   const form = new FormData()
