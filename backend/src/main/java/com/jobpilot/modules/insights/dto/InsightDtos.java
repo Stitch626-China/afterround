@@ -82,4 +82,13 @@ public final class InsightDtos {
                                    InsightImprovements improvements,
                                    InsightTrend trend, String taxonomyVersion, OffsetDateTime generatedAt) {
     }
+
+    /** AI 总结请求（FR5.8）：筛选条件与洞察概览一致，全部可选。 */
+    public record InsightsSummaryRequest(Integer days, Long companyId, Long jobPositionId) {
+    }
+
+    /** AI 总结响应（FR5.8）：degraded=true 表示已回退本地规则总结。 */
+    public record InsightsSummaryResponse(String content, boolean degraded, InsightSample sample,
+                                          String provider, String model, OffsetDateTime generatedAt) {
+    }
 }

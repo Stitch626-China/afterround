@@ -15,6 +15,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jobpilot.common.api.ErrorCode;
 import com.jobpilot.common.api.PageResult;
 import com.jobpilot.common.exception.BizException;
+import com.jobpilot.common.llm.ChatMessage;
+import com.jobpilot.common.llm.ChatResult;
+import com.jobpilot.common.llm.LlmClient;
+import com.jobpilot.infrastructure.llm.LlmCallLogger;
+import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightCompanyProfile;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightEventItem;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightEventTopic;
@@ -32,6 +37,8 @@ import com.jobpilot.modules.insights.dto.InsightDtos.InsightTagCount;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightTopicOutcome;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightTrend;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightsOverview;
+import com.jobpilot.modules.insights.dto.InsightDtos.InsightsSummaryRequest;
+import com.jobpilot.modules.insights.dto.InsightDtos.InsightsSummaryResponse;
 import com.jobpilot.modules.insights.mapper.InsightsMapper;
 import com.jobpilot.modules.insights.mapper.InsightsRows.ActionStatusRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyRow;
@@ -46,6 +53,9 @@ import com.jobpilot.modules.insights.mapper.InsightsRows.ReviewStatsRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.RoundRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.StaleActionRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.TopicOutcomeRow;
+import com.jobpilot.modules.insights.prompt.InsightsPromptFactory;
+import com.jobpilot.modules.llm.dto.LlmScene;
+import com.jobpilot.modules.llm.service.LlmSceneService;
 import com.jobpilot.modules.review.taxonomy.ReviewTaxonomyCatalog;
 import org.springframework.stereotype.Service;
 
@@ -68,9 +78,18 @@ public class InsightsService {
             "DIRECTOR", "总监面", "FINAL", "终面", "OTHER", "其他");
 
     private final InsightsMapper mapper;
+    private final LlmSceneService sceneService;
+    private final ProviderClientRegistry registry;
+    private final LlmCallLogger callLogger;
+    private final InsightsPromptFactory prompts;
 
-    public InsightsService(InsightsMapper mapper) {
+    public InsightsService(InsightsMapper mapper, LlmSceneService sceneService, ProviderClientRegistry registry,
+                           LlmCallLogger callLogger, InsightsPromptFactory prompts) {
         this.mapper = mapper;
+        this.sceneService = sceneService;
+        this.registry = registry;
+        this.callLogger = callLogger;
+        this.prompts = prompts;
     }
 
     public InsightsOverview overview(int days, Long companyId, Long jobPositionId) {
@@ -113,6 +132,104 @@ public class InsightsService {
         return new InsightsOverview(sample, summary(sample, lossTags, rounds, topics, improvements),
                 topics, lossTags, rounds, companies, questions, funnel, resumeFunnel, channels, companyTypes,
                 improvements, trend, ReviewTaxonomyCatalog.TAXONOMY_VERSION, now);
+    }
+
+    /**
+     * AI 总结（FR5.8 可选）：复用同一窗口的聚合结果调用一次模型；
+     * 未配置模型或调用失败时回退本地规则总结，接口不报错。
+     */
+    public InsightsSummaryResponse summarize(InsightsSummaryRequest request) {
+        int days = request == null || request.days() == null ? 90 : request.days();
+        InsightsOverview overview = overview(days,
+                request == null ? null : request.companyId(),
+                request == null ? null : request.jobPositionId());
+        String local = overview.summary().content();
+        OffsetDateTime now = OffsetDateTime.now();
+        if (overview.sample().confirmedReviews() == 0) {
+            return new InsightsSummaryResponse(local, true, overview.sample(), null, null, now);
+        }
+        LlmSceneService.SceneModel target = null;
+        long start = System.nanoTime();
+        try {
+            target = sceneService.resolve(LlmScene.REVIEW_ANALYZE);
+            LlmClient client = registry.get(target.providerKey());
+            ChatResult result = client.chat(target.model(), List.of(
+                    ChatMessage.system(prompts.system()),
+                    ChatMessage.user(prompts.user(days, summaryData(overview)))));
+            long duration = (System.nanoTime() - start) / 1_000_000;
+            callLogger.log("INSIGHTS_SUMMARY", target.providerKey(), target.model(), result.promptTokens(),
+                    result.completionTokens(), result.totalTokens(), duration, true, null);
+            String content = result.content() == null ? "" : result.content().trim();
+            if (content.isEmpty()) {
+                return new InsightsSummaryResponse(local, true, overview.sample(),
+                        target.providerKey(), target.model(), now);
+            }
+            return new InsightsSummaryResponse(content, false, overview.sample(),
+                    target.providerKey(), target.model(), now);
+        } catch (Exception ex) {
+            long duration = (System.nanoTime() - start) / 1_000_000;
+            callLogger.log("INSIGHTS_SUMMARY", target == null ? null : target.providerKey(),
+                    target == null ? null : target.model(), null, null, null, duration, false, ex.getMessage());
+            return new InsightsSummaryResponse(local, true, overview.sample(),
+                    target == null ? null : target.providerKey(),
+                    target == null ? null : target.model(), now);
+        }
+    }
+
+    /** 把结构化统计压成纯文本注入 Prompt；只给结论数据，不给原始转写。 */
+    private static String summaryData(InsightsOverview overview) {
+        InsightSample sample = overview.sample();
+        StringBuilder data = new StringBuilder()
+                .append("样本：投递 ").append(sample.applications())
+                .append("，面试 ").append(sample.interviews())
+                .append("，复盘 ").append(sample.reviews())
+                .append("（已确认 ").append(sample.confirmedReviews()).append('）')
+                .append("，Offer ").append(sample.offers())
+                .append(sample.sufficient() ? "（样本充足）" : "（样本不足）").append('\n');
+        if (!overview.topics().isEmpty()) {
+            data.append("知识点失败率：").append(overview.topics().stream().limit(5)
+                    .map(item -> item.label() + " " + item.interviewCount() + " 场 / 淘汰 "
+                            + item.failCount() + rate(item.failRate()))
+                    .collect(Collectors.joining("；"))).append('\n');
+        }
+        if (!overview.lossTags().isEmpty()) {
+            data.append("失分类型：").append(overview.lossTags().stream().limit(5)
+                    .map(item -> item.label() + " " + item.count() + " 次")
+                    .collect(Collectors.joining("；"))).append('\n');
+        }
+        if (!overview.roundPassRates().isEmpty()) {
+            data.append("轮次通过率：").append(overview.roundPassRates().stream()
+                    .map(item -> item.label() + " " + item.total() + " 场 / 通过 "
+                            + item.passCount() + rate(item.passRate()))
+                    .collect(Collectors.joining("；"))).append('\n');
+        }
+        if (!overview.companyProfiles().isEmpty()) {
+            data.append("公司画像：").append(overview.companyProfiles().stream().limit(5)
+                    .map(item -> item.companyName() + " " + item.interviewCount() + " 场 / 通过 "
+                            + item.passCount())
+                    .collect(Collectors.joining("；"))).append('\n');
+        }
+        if (!overview.topQuestions().isEmpty()) {
+            data.append("高频问题：").append(overview.topQuestions().stream().limit(5)
+                    .map(item -> item.question() + "（" + item.askedCount() + " 次）")
+                    .collect(Collectors.joining("；"))).append('\n');
+        }
+        InsightImprovements improvements = overview.improvements();
+        data.append("改进闭环：共 ").append(improvements.total())
+                .append(" 条，已验证 ").append(improvements.verified())
+                .append("，待开始 ").append(improvements.todo())
+                .append("，进行中 ").append(improvements.inProgress())
+                .append("，超 14 天未验证 ").append(improvements.staleActions().size())
+                .append(rate(improvements.verificationRate())).append('\n');
+        InsightTrend trend = overview.trend();
+        data.append("趋势：当前窗口复盘 ").append(trend.currentReviews())
+                .append(" 份，上一窗口 ").append(trend.previousReviews())
+                .append(trend.sufficient() ? "" : "（样本不足）");
+        return data.toString();
+    }
+
+    private static String rate(Double value) {
+        return value == null ? "" : "（" + Math.round(value * 100) + "%）";
     }
 
     /** 面试明细（FR5.2）：按事件时间倒序分页，支持结果 / 轮次类型 / 知识点扁平筛选。 */

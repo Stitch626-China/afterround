@@ -148,6 +148,7 @@ const overview = {
 
 test('求职洞察：样本不足提示、聚合区块与窗口筛选', async ({ page }) => {
   let lastQuery = ''
+  let summaryBody = ''
 
   await page.route('**/api/companies?*', (route) =>
     route.fulfill(ok({ items: [{ id: 1, name: '字节跳动', tags: [], jobPositionCount: 3 }], total: 1, page: 1, size: 100 })),
@@ -155,6 +156,19 @@ test('求职洞察：样本不足提示、聚合区块与窗口筛选', async ({
   await page.route('**/api/insights?*', (route) => {
     lastQuery = route.request().url()
     return route.fulfill(ok(overview))
+  })
+  await page.route('**/api/insights/summary', (route) => {
+    summaryBody = route.request().postData() ?? ''
+    return route.fulfill(
+      ok({
+        content: '整体表现稳定，优先补 JVM 深度。',
+        degraded: false,
+        sample: overview.sample,
+        provider: 'corp',
+        model: 'flash',
+        generatedAt: '2026-11-26T10:00:00Z',
+      }),
+    )
   })
   await page.route('**/api/insights/interview-events?*', (route) =>
     route.fulfill(ok({ items: [], total: 0, page: 1, size: 8 })),
@@ -193,6 +207,12 @@ test('求职洞察：样本不足提示、聚合区块与窗口筛选', async ({
   await expect(page.getByText('验证率 33%', { exact: false })).toBeVisible()
   await expect(page.getByText('补 JVM 笔记')).toBeVisible()
   await expect(page.getByText('+2')).toBeVisible()
+
+  // AI 总结（FR5.8 可选）：成功后展示模型总结与来源
+  await page.getByRole('button', { name: 'AI 总结' }).click()
+  await expect.poll(() => summaryBody).toContain('"days":90')
+  await expect(page.getByText('整体表现稳定，优先补 JVM 深度。')).toBeVisible()
+  await expect(page.getByText('模型：corp / flash')).toBeVisible()
 
   await page.getByLabel('统计窗口').selectOption('30')
   await expect.poll(() => lastQuery).toContain('days=30')

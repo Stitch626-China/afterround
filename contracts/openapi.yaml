@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.17.0
+  version: 1.19.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -2749,6 +2749,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResultInsightEventPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/insights/summary:
+    post:
+      tags: [跨场洞察]
+      operationId: summarizeInsights
+      summary: AI 总结（FR5.8 可选）
+      description: |
+        - 基于同一时间窗口的结构化聚合结果调用一次模型生成洞察总结，不引入 RAG。
+        - 模型解析优先 `REVIEW_ANALYZE` 场景绑定，未绑定时回落全局默认；调用落 `llm_call_logs`（scene=`INSIGHTS_SUMMARY`）。
+        - 模型未配置或调用失败时 `degraded = true`，`content` 回退本地规则总结，接口不报错。
+        - 样本不足（已确认复盘 < 5）时只提示样本不足，不输出因果结论。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InsightsSummaryRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInsightsSummary'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -6528,3 +6556,46 @@ components:
                       type: array
                       items:
                         $ref: '#/components/schemas/InsightEventItem'
+
+    InsightsSummaryRequest:
+      type: object
+      properties:
+        days:
+          type: integer
+          minimum: 7
+          maximum: 365
+          default: 90
+        companyId:
+          type: [integer, "null"]
+          format: int64
+        jobPositionId:
+          type: [integer, "null"]
+          format: int64
+
+    InsightsSummaryResponse:
+      type: object
+      required: [content, degraded, sample, generatedAt]
+      properties:
+        content:
+          type: string
+          description: LLM 总结；degraded=true 时为本地规则总结
+        degraded:
+          type: boolean
+          description: 模型未配置或调用失败时为 true，已回退本地规则总结
+        sample:
+          $ref: '#/components/schemas/InsightSample'
+        provider:
+          type: [string, "null"]
+        model:
+          type: [string, "null"]
+        generatedAt:
+          type: string
+          format: date-time
+
+    ResultInsightsSummary:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/InsightsSummaryResponse'

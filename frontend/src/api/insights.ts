@@ -2,7 +2,7 @@
  * 跨场洞察接口（F5）：类型来自 contracts/openapi.yaml 生成的 schema，禁止手写数据结构。
  */
 import type { components } from './schema'
-import { get } from './http'
+import { get, post } from './http'
 
 export type InsightsOverview = components['schemas']['InsightsOverview']
 export type InsightSample = components['schemas']['InsightSample']
@@ -17,6 +17,7 @@ export type InsightResumeFunnel = components['schemas']['InsightResumeFunnel']
 export type InsightImprovements = components['schemas']['InsightImprovements']
 export type InsightTrend = components['schemas']['InsightTrend']
 export type InsightEventItem = components['schemas']['InsightEventItem']
+export type InsightsSummaryResponse = components['schemas']['InsightsSummaryResponse']
 
 export type InsightEventPage = NonNullable<
   components['schemas']['ResultInsightEventPage']['data']
@@ -83,4 +84,13 @@ export function listInsightInterviewEvents(
   }
   const query = search.toString()
   return get<InsightEventPage>(`/insights/interview-events${query ? `?${query}` : ''}`)
+}
+
+/** AI 总结（FR5.8 可选）：失败时后端返回 degraded=true 并回退本地规则总结。 */
+export function summarizeInsights(filters: InsightFilters = {}): Promise<InsightsSummaryResponse> {
+  return post<InsightsSummaryResponse>('/insights/summary', {
+    days: filters.days ?? 90,
+    companyId: filters.companyId ?? null,
+    jobPositionId: filters.jobPositionId ?? null,
+  })
 }

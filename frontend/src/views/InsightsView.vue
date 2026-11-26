@@ -8,8 +8,10 @@ import { useRouter } from 'vue-router'
 import {
   getInsights,
   listInsightInterviewEvents,
+  summarizeInsights,
   type InsightEventItem,
   type InsightsOverview,
+  type InsightsSummaryResponse,
 } from '@/api/insights'
 import { listCompanies, type Company } from '@/api/jobs'
 import { getReviewTaxonomy, type ReviewTaxonomy } from '@/api/reviews'
@@ -31,6 +33,11 @@ const loading = ref(true)
 const error = ref('')
 const days = ref(90)
 const companyFilter = ref('')
+
+/** AI 总结（FR5.8 可选）：为空时展示本地规则总结。 */
+const aiSummary = ref<InsightsSummaryResponse | null>(null)
+const aiLoading = ref(false)
+const aiError = ref('')
 
 const detailItems = ref<InsightEventItem[]>([])
 const detailTotal = ref(0)
@@ -75,6 +82,8 @@ const maxLossCount = computed(() => {
 
 async function load(): Promise<void> {
   loading.value = true
+  aiSummary.value = null
+  aiError.value = ''
   try {
     data.value = await getInsights({
       days: days.value,
@@ -87,6 +96,22 @@ async function load(): Promise<void> {
     loading.value = false
   }
   void loadDetail(true)
+}
+
+/** 让模型基于当前筛选的聚合结果生成总结；失败保留本地统计并提示。 */
+async function summarize(): Promise<void> {
+  aiLoading.value = true
+  aiError.value = ''
+  try {
+    aiSummary.value = await summarizeInsights({
+      days: days.value,
+      companyId: companyFilter.value ? Number(companyFilter.value) : null,
+    })
+  } catch (ex) {
+    aiError.value = ex instanceof Error ? ex.message : 'AI 总结失败，可继续查看本地统计'
+  } finally {
+    aiLoading.value = false
+  }
 }
 
 async function loadDetail(reset = false): Promise<void> {
@@ -206,9 +231,25 @@ onMounted(() => {
       <section class="card summary">
         <div class="card-head">
           <h3 class="card-title">归因总结</h3>
-          <span class="tag">本地聚合 · 不调用 LLM</span>
+          <div class="summary-tools">
+            <span class="tag">
+              {{ aiSummary ? (aiSummary.degraded ? 'AI 不可用 · 已回退本地' : 'AI 总结') : '本地规则' }}
+            </span>
+            <button
+              type="button"
+              class="btn ghost"
+              :disabled="aiLoading || data.sample.confirmedReviews === 0"
+              @click="summarize"
+            >
+              {{ aiLoading ? '总结中…' : 'AI 总结' }}
+            </button>
+          </div>
         </div>
-        <p class="summary-text">{{ data.summary.content }}</p>
+        <p class="summary-text">{{ aiSummary?.content ?? data.summary.content }}</p>
+        <p v-if="aiSummary && !aiSummary.degraded" class="meta">
+          模型：{{ aiSummary.provider }} / {{ aiSummary.model }}
+        </p>
+        <div v-if="aiError" class="banner danger">{{ aiError }}</div>
       </section>
 
       <EmptyState
@@ -740,6 +781,12 @@ onMounted(() => {
   margin: 0;
   color: var(--text-2);
   line-height: 1.7;
+}
+
+.summary-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .metric-list {

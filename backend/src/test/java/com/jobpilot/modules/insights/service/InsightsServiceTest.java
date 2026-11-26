@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -13,7 +15,12 @@ import java.util.List;
 
 import com.jobpilot.common.api.ErrorCode;
 import com.jobpilot.common.exception.BizException;
+import com.jobpilot.common.llm.ChatResult;
+import com.jobpilot.common.llm.LlmClient;
+import com.jobpilot.infrastructure.llm.LlmCallLogger;
+import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightsOverview;
+import com.jobpilot.modules.insights.dto.InsightDtos.InsightsSummaryRequest;
 import com.jobpilot.modules.insights.mapper.InsightsMapper;
 import com.jobpilot.modules.insights.mapper.InsightsRows.ActionStatusRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyRow;
@@ -28,6 +35,9 @@ import com.jobpilot.modules.insights.mapper.InsightsRows.ReviewStatsRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.RoundRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.StaleActionRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.TopicOutcomeRow;
+import com.jobpilot.modules.insights.prompt.InsightsPromptFactory;
+import com.jobpilot.modules.llm.dto.LlmScene;
+import com.jobpilot.modules.llm.service.LlmSceneService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -39,9 +49,19 @@ class InsightsServiceTest {
 
     @Mock
     private InsightsMapper mapper;
+    @Mock
+    private LlmSceneService sceneService;
+    @Mock
+    private ProviderClientRegistry registry;
+    @Mock
+    private LlmCallLogger callLogger;
+    @Mock
+    private InsightsPromptFactory prompts;
+    @Mock
+    private LlmClient client;
 
     private InsightsService service() {
-        return new InsightsService(mapper);
+        return new InsightsService(mapper, sceneService, registry, callLogger, prompts);
     }
 
     private static TopicOutcomeRow topic(String tag, long total, long pass, long fail, long pending) {
@@ -87,6 +107,18 @@ class InsightsServiceTest {
         when(mapper.resumeFunnel(any(), any(), any(), any())).thenReturn(List.of());
         when(mapper.actionStatusCounts()).thenReturn(List.of());
         when(mapper.staleActions(any())).thenReturn(List.of());
+    }
+
+    private void stubSufficientSample() {
+        stubEmpty();
+        when(mapper.topicOutcomes(any(), any(), any(), any()))
+                .thenReturn(List.of(topic("jvm", 6, 2, 4, 0)));
+        when(mapper.lossTagFrequency(any(), any(), any(), any()))
+                .thenReturn(List.of(loss("shallow-depth", 4)), List.of(loss("shallow-depth", 4)), List.of());
+        when(mapper.roundPassRates(any(), any(), any(), any()))
+                .thenReturn(List.of(round("TECH", 8, 6, 2)), List.of(round("TECH", 8, 6, 2)), List.of());
+        when(mapper.funnel(any(), any(), any(), any())).thenReturn(funnel(8, 6, 3, 2, 0));
+        when(mapper.reviewStats(any(), any(), any(), any())).thenReturn(stats(6, 6), stats(5, 5));
     }
 
     @Test
@@ -160,6 +192,56 @@ class InsightsServiceTest {
             assertThat(delta.delta()).isEqualTo(3);
         });
         assertThat(result.trend().passRateDelta()).isEqualTo(0.25);
+    }
+
+    @Test
+    void summarizeFallsBackToLocalWithoutConfirmedReviews() {
+        stubEmpty();
+        when(mapper.topicOutcomes(any(), any(), any(), any())).thenReturn(List.of());
+        when(mapper.lossTagFrequency(any(), any(), any(), any())).thenReturn(List.of(), List.of(), List.of());
+        when(mapper.roundPassRates(any(), any(), any(), any())).thenReturn(List.of(), List.of(), List.of());
+        when(mapper.funnel(any(), any(), any(), any())).thenReturn(funnel(0, 0, 0, 0, 0));
+        when(mapper.reviewStats(any(), any(), any(), any())).thenReturn(stats(0, 0), stats(0, 0));
+
+        var result = service().summarize(new InsightsSummaryRequest(90, null, null));
+
+        assertThat(result.degraded()).isTrue();
+        assertThat(result.provider()).isNull();
+        assertThat(result.content()).contains("暂无已确认的复盘分析");
+    }
+
+    @Test
+    void summarizeCallsModelAndLogsCall() {
+        stubSufficientSample();
+        when(sceneService.resolve(LlmScene.REVIEW_ANALYZE))
+                .thenReturn(new LlmSceneService.SceneModel("corp", "flash"));
+        when(registry.get("corp")).thenReturn(client);
+        when(prompts.system()).thenReturn("system");
+        when(prompts.user(anyInt(), any())).thenReturn("user");
+        when(client.chat(eq("flash"), any())).thenReturn(new ChatResult("整体在变好。", "flash", 10, 20, 30));
+
+        var result = service().summarize(new InsightsSummaryRequest(30, 1L, 2L));
+
+        assertThat(result.degraded()).isFalse();
+        assertThat(result.content()).isEqualTo("整体在变好。");
+        assertThat(result.provider()).isEqualTo("corp");
+        assertThat(result.model()).isEqualTo("flash");
+        verify(callLogger).log(eq("INSIGHTS_SUMMARY"), eq("corp"), eq("flash"), eq(10), eq(20), eq(30),
+                anyLong(), eq(true), isNull());
+    }
+
+    @Test
+    void summarizeFallsBackWhenModelFails() {
+        stubSufficientSample();
+        when(sceneService.resolve(LlmScene.REVIEW_ANALYZE))
+                .thenThrow(BizException.of(ErrorCode.BAD_REQUEST, "未配置模型"));
+
+        var result = service().summarize(new InsightsSummaryRequest(30, null, null));
+
+        assertThat(result.degraded()).isTrue();
+        assertThat(result.content()).contains("最常出现的失分类型");
+        verify(callLogger).log(eq("INSIGHTS_SUMMARY"), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyLong(), eq(false), eq("未配置模型"));
     }
 
     @Test
