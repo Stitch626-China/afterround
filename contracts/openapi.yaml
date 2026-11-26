@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.19.0
+  version: 1.20.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -374,6 +374,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResultGlobalSetting'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/usage:
+    get:
+      tags: [模型配置]
+      operationId: getLlmUsage
+      summary: token 成本统计（NFR6）
+      description: |
+        - 聚合 `llm_call_logs`：总调用 / 成功率 / token / 平均耗时，并按场景、模型、按天分组。
+        - 只读统计，不修改调用日志；无数据时各数组为空、比例为 null。
+        - `days` 为统计窗口（默认 30 天，7~365）。
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 7
+            maximum: 365
+            default: 30
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultLlmUsage'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -6599,3 +6629,102 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/InsightsSummaryResponse'
+
+    LlmUsageSummary:
+      type: object
+      required: [calls, successCalls, promptTokens, completionTokens, totalTokens, avgDurationMs]
+      properties:
+        calls:
+          type: integer
+        successCalls:
+          type: integer
+        successRate:
+          type: [number, "null"]
+          description: 成功调用 / 总调用；无调用时为 null
+        promptTokens:
+          type: integer
+        completionTokens:
+          type: integer
+        totalTokens:
+          type: integer
+        avgDurationMs:
+          type: integer
+
+    LlmUsageScene:
+      type: object
+      required: [scene, label, calls, totalTokens, avgDurationMs]
+      properties:
+        scene:
+          type: string
+          example: RESUME_ANALYSIS
+        label:
+          type: string
+          example: 简历分析
+        calls:
+          type: integer
+        successCalls:
+          type: integer
+        successRate:
+          type: [number, "null"]
+        totalTokens:
+          type: integer
+        avgDurationMs:
+          type: integer
+
+    LlmUsageModel:
+      type: object
+      required: [calls, totalTokens]
+      properties:
+        providerKey:
+          type: [string, "null"]
+        model:
+          type: [string, "null"]
+        calls:
+          type: integer
+        totalTokens:
+          type: integer
+
+    LlmUsageDay:
+      type: object
+      required: [date, calls, totalTokens]
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-11-26'
+        calls:
+          type: integer
+        totalTokens:
+          type: integer
+
+    LlmUsageResponse:
+      type: object
+      required: [days, generatedAt, summary, scenes, models, daily]
+      properties:
+        days:
+          type: integer
+        generatedAt:
+          type: string
+          format: date-time
+        summary:
+          $ref: '#/components/schemas/LlmUsageSummary'
+        scenes:
+          type: array
+          items:
+            $ref: '#/components/schemas/LlmUsageScene'
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/LlmUsageModel'
+        daily:
+          type: array
+          items:
+            $ref: '#/components/schemas/LlmUsageDay'
+
+    ResultLlmUsage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/LlmUsageResponse'

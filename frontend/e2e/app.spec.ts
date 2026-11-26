@@ -7,10 +7,32 @@ const emptyResumes = {
   data: { items: [], total: 0, page: 1, size: 20 },
 }
 const emptyEnvelope = { code: 0, message: 'ok', data: [] }
+/** 无调用记录的 token 统计（NFR6）。 */
+const emptyUsage = {
+  code: 0,
+  message: 'ok',
+  data: {
+    days: 30,
+    generatedAt: '2026-11-26T10:00:00Z',
+    summary: {
+      calls: 0,
+      successCalls: 0,
+      successRate: null,
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      avgDurationMs: 0,
+    },
+    scenes: [],
+    models: [],
+    daily: [],
+  },
+}
 
 test.beforeEach(async ({ page }) => {
   await page.route(/\/api\/resumes(\?|$)/, (route) => route.fulfill({ json: emptyResumes }))
   await page.route('**/api/llm/providers', (route) => route.fulfill({ json: emptyEnvelope }))
+  await page.route('**/api/llm/usage**', (route) => route.fulfill({ json: emptyUsage }))
   await page.route('**/api/llm/global', (route) => route.fulfill({
     json: { code: 0, message: 'ok', data: { defaultProviderKey: null, defaultModel: null } },
   }))
@@ -33,6 +55,9 @@ test('一级导航只含业务主线，设置抽屉与主题切换可用', async
 
   await page.getByRole('button', { name: /Light/ }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+
+  await page.getByRole('button', { name: '调用统计' }).click()
+  await expect(page.getByText('近 30 天还没有模型调用记录', { exact: false })).toBeVisible()
 })
 
 test('简历页展示上传区与空状态', async ({ page }) => {

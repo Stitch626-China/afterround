@@ -9,6 +9,7 @@ import com.jobpilot.modules.llm.dto.CreateProviderRequest;
 import com.jobpilot.modules.llm.dto.GlobalSettingResponse;
 import com.jobpilot.modules.llm.dto.LlmModelResponse;
 import com.jobpilot.modules.llm.dto.LlmProviderResponse;
+import com.jobpilot.modules.llm.dto.LlmUsageResponse;
 import com.jobpilot.modules.llm.dto.TestProviderRequest;
 import com.jobpilot.modules.llm.dto.UpdateGlobalSettingRequest;
 import com.jobpilot.modules.llm.dto.UpdateModelRequest;
@@ -18,6 +19,7 @@ import com.jobpilot.modules.llm.service.LlmGlobalSettingService;
 import com.jobpilot.modules.llm.service.LlmModelService;
 import com.jobpilot.modules.llm.service.LlmProviderService;
 import com.jobpilot.modules.llm.service.LlmQueryService;
+import com.jobpilot.modules.llm.service.LlmUsageService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,10 +28,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 模型配置 API（contracts/openapi.yaml：模型配置 12 个接口）。
+ * 模型配置 API（contracts/openapi.yaml 1.20.0：模型配置 12 个接口 + token 成本统计 1 个）。
  */
 @RestController
 @RequestMapping("/api/llm")
@@ -39,13 +42,16 @@ public class LlmController {
     private final LlmModelService modelService;
     private final LlmGlobalSettingService globalService;
     private final LlmQueryService queryService;
+    private final LlmUsageService usageService;
 
     public LlmController(LlmProviderService providerService, LlmModelService modelService,
-                         LlmGlobalSettingService globalService, LlmQueryService queryService) {
+                         LlmGlobalSettingService globalService, LlmQueryService queryService,
+                         LlmUsageService usageService) {
         this.providerService = providerService;
         this.modelService = modelService;
         this.globalService = globalService;
         this.queryService = queryService;
+        this.usageService = usageService;
     }
 
     @GetMapping("/providers")
@@ -112,5 +118,10 @@ public class LlmController {
     @PutMapping("/global")
     public Result<GlobalSettingResponse> updateGlobalSetting(@Valid @RequestBody UpdateGlobalSettingRequest request) {
         return Result.ok(globalService.update(request));
+    }
+
+    @GetMapping("/usage")
+    public Result<LlmUsageResponse> usage(@RequestParam(defaultValue = "30") Integer days) {
+        return Result.ok(usageService.usage(days));
     }
 }

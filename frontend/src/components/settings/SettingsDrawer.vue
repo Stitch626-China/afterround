@@ -1,13 +1,14 @@
 <script setup lang="ts">
 /**
  * 设置抽屉（§6.10）：左下角齿轮唤起，右侧滑出，不打断当前页面。
- * 三个 Tab：模型服务 / 场景模型 / 外观。
+ * 四个 Tab：模型服务 / 场景模型 / 外观 / 调用统计（NFR6 全局入口）。
  */
 import { onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ModelSettings from './ModelSettings.vue'
 import SceneSettings from './SceneSettings.vue'
 import AppearanceSettings from './AppearanceSettings.vue'
+import UsageSettings from './UsageSettings.vue'
 import { settingsTab, type SettingsTab } from '@/composables/useSettings'
 
 const props = defineProps<{ open: boolean }>()
@@ -55,11 +56,13 @@ onBeforeUnmount(() => {
             <button type="button" :class="{ active: settingsTab === 'model' }" @click="selectTab('model')">模型服务</button>
             <button type="button" :class="{ active: settingsTab === 'scene' }" @click="selectTab('scene')">场景模型</button>
             <button type="button" :class="{ active: settingsTab === 'appearance' }" @click="selectTab('appearance')">外观</button>
+            <button type="button" :class="{ active: settingsTab === 'usage' }" @click="selectTab('usage')">调用统计</button>
           </nav>
 
           <div class="drawer-body">
             <ModelSettings v-if="settingsTab === 'model'" @navigate="openChat" />
             <SceneSettings v-else-if="settingsTab === 'scene'" />
+            <UsageSettings v-else-if="settingsTab === 'usage'" />
             <AppearanceSettings v-else />
           </div>
         </aside>

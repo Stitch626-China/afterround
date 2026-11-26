@@ -152,6 +152,42 @@ class M1bApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("token 成本统计：真实 PostgreSQL 聚合、场景中文名与窗口校验")
+    void usageAggregatesCallLogs() {
+        jdbc.update("""
+                INSERT INTO llm_call_logs (scene, provider_key, model, prompt_tokens, completion_tokens,
+                                           total_tokens, duration_ms, success, created_at)
+                VALUES ('RESUME_ANALYSIS', 'stub', 'Qwen3.8-27B', 100, 50, 150, 800, true, now() - interval '2 days'),
+                       ('RESUME_ANALYSIS', 'stub', 'Qwen3.8-27B', 40, 20, 60, 400, true, now() - interval '1 day'),
+                       ('CHAT', 'stub', 'Qwen3.8-27B', 10, 0, 10, 200, false, now())
+                """);
+
+        client.get().uri("/api/llm/usage?days=30").exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.days").isEqualTo(30)
+                .jsonPath("$.data.summary.calls").isEqualTo(3)
+                .jsonPath("$.data.summary.successCalls").isEqualTo(2)
+                .jsonPath("$.data.summary.successRate").isEqualTo(0.6667)
+                .jsonPath("$.data.summary.promptTokens").isEqualTo(150)
+                .jsonPath("$.data.summary.completionTokens").isEqualTo(70)
+                .jsonPath("$.data.summary.totalTokens").isEqualTo(220)
+                .jsonPath("$.data.summary.avgDurationMs").isEqualTo(466)
+                .jsonPath("$.data.scenes[0].scene").isEqualTo("RESUME_ANALYSIS")
+                .jsonPath("$.data.scenes[0].label").isEqualTo("简历分析")
+                .jsonPath("$.data.scenes[0].calls").isEqualTo(2)
+                .jsonPath("$.data.scenes[0].successRate").isEqualTo(1.0)
+                .jsonPath("$.data.scenes.length()").isEqualTo(2)
+                .jsonPath("$.data.models[0].providerKey").isEqualTo("stub")
+                .jsonPath("$.data.models[0].model").isEqualTo("Qwen3.8-27B")
+                .jsonPath("$.data.models[0].totalTokens").isEqualTo(220)
+                .jsonPath("$.data.daily.length()").isEqualTo(3)
+                .jsonPath("$.data.daily[0].totalTokens").isEqualTo(150);
+
+        // 窗口超出 7~365 时返回 400，避免误查全表
+        client.get().uri("/api/llm/usage?days=6").exchange().expectStatus().isBadRequest();
+    }
+
+    @Test
     @DisplayName("全局默认、SSE 流式对话、消息追溯、两级切换与 409 守卫")
     void chatFlowAndSwitchGuards() {
         createProvider("stub", upstreamBase + "/v1", "sk-12345678test");

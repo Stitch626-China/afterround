@@ -14,6 +14,7 @@ export type ConnectivityTest = components['schemas']['ConnectivityTest']
 export type UpstreamModelList = components['schemas']['UpstreamModelList']
 export type GlobalSetting = components['schemas']['GlobalSetting']
 export type UpdateGlobalSettingRequest = components['schemas']['UpdateGlobalSettingRequest']
+export type LlmUsage = components['schemas']['LlmUsageResponse']
 
 export function listProviders(): Promise<LlmProvider[]> {
   return get<LlmProvider[]>('/llm/providers')
@@ -57,4 +58,9 @@ export function getGlobalSetting(): Promise<GlobalSetting> {
 
 export function updateGlobalSetting(payload: UpdateGlobalSettingRequest): Promise<GlobalSetting> {
   return put<GlobalSetting>('/llm/global', payload)
+}
+
+/** token 成本统计（NFR6）：days 取值 7~365，后端默认 30。 */
+export function getLlmUsage(days = 30): Promise<LlmUsage> {
+  return get<LlmUsage>(`/llm/usage?days=${days}`)
 }
