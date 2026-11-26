@@ -153,3 +153,18 @@
 - 验证：契约 lint **0 error / 0 warning**；后端 **198 tests 全绿**（JaCoCo 门禁通过，新增 4 个总结用例：无确认复盘回退、成功调用与埋点、模型失败回退、检索片段与笔记兜底）；前端构建、Vitest **27**、Playwright **19** 全过（新增检索 E2E 与洞察 AI 总结断言）。对照表 FR5.8 转 ✅，README / PROGRESS 同步。
 - 备注：过程中再次遇到同一文件并行 Edit 丢改动（契约版本、`ReviewListView` 的搜索框 / 高亮函数），已按记忆中的对策改为串行编辑并逐项复核；后续同一文件多处修改一律串行。
 - 下一步 / 断点：按对照表继续 FR1.7 轨二（JD 库方向图谱反哺；需先向用户汇报补前 / 方案 / 补后再动手）。
+
+### 17:53 事件
+
+- 改动：补齐 **FR1.7 轨二（JD 方向图谱反哺）**（提交 `15758b8`）。`ResumeAnalysisService` 注入 `JobMarketService`，分析时把在招岗位样本、Top 方向、高频技能、薪资分布压成文本注入简历分析 Prompt；Prompt 升 `resume-analysis-v2`，方向池非空时推荐方向必须优先对齐在招方向并在 `matchReason` 点明市场依据，为空时退回按简历判断；报告页方向区新增来源说明（含「手动录入岗位不计入市场统计」）。契约与数据库未改。
+- 原因：原实现只把简历喂给模型，岗位库真实在招方向 / 技能 / 薪资完全没有参与推荐；F2 行情没有反哺 F1 推荐。
+- 验证：后端 **201 tests 全绿**（JaCoCo 门禁通过；新增 3 个用例：行情注入文本、无岗位时不注入、样本存在但列表为空；`ResumeAnalysisService` 行覆盖 95.3% 过关键类门禁）；前端构建、Vitest **27**、Playwright **19** 全过。对照表 FR1.7 转 ✅，README / PROGRESS 同步。
+- 下一步 / 断点：按对照表继续 NFR6 token 成本统计（需先向用户汇报补前 / 方案 / 补后再动手）。
+
+### 18:18 事件
+
+- 改动：补齐 **NFR6 token 成本统计**（提交 `3264e3b`，用户确认入口放设置抽屉）。契约 **1.20.0** 新增 `GET /api/llm/usage`（端点 91 → 92，`days` 7~365 默认 30）与 5 个 schema；后端 `LlmCallLogMapper` 增加 4 个只读聚合查询（汇总 / 按场景 / 按模型 / 按天 `to_char`），`LlmUsageService` 组装并映射场景中文名（无调用时成功率为 `null`），`LlmController` 暴露端点（非法窗口 400）；前端设置抽屉新增第四 Tab「调用统计」（`UsageSettings.vue` + `api/llm.ts#getLlmUsage` + `SettingsTab` 加 `usage`），支持 30 / 90 天切换、汇总卡、每日 token 条形、场景与模型表、空数据空态，任意页面可打开。
+- 原因：NFR6 要求展示 token 成本；用户认为这是全局统计，不应占用一级页面，放抽屉才能在任何页面点开查看。
+- 验证：契约 lint **0 error / 0 warning**；后端 `clean test` 全量 **205 tests 全绿**（新增 `LlmUsageServiceTest` 3 个单测 + `M1bApiIntegrationTest` 真实 PostgreSQL 聚合与非法窗口集成用例；行覆盖 **86.49%**，JaCoCo 门禁通过）；前端构建（含 `vue-tsc`）、Vitest **27**、Playwright **19** 全过（设置抽屉「调用统计」空态 E2E）。对照表 NFR6 转 ✅，README / PROGRESS 同步。
+- 备注：本轮第二次 `mvn test` 曾出现 Mockito 相关测试批量 `NoClassDefFoundError`，但 `target/classes` 中类文件实际存在，`mvn clean test` 后全部通过，判定为增量编译 / 文件竞态而非代码缺陷；后续改后端代码后优先用 `clean test` 验证。
+- 下一步 / 断点：NFR6 文档提交推送；随后按约定先汇报 **NFR7**（分析完成后音频可选清理）的补前现状 / 方案 / 补后效果，等用户审核再动手。
