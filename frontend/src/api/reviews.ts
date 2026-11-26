@@ -197,6 +197,11 @@ export function deleteReviewSession(id: number): Promise<void> {
   return del<void>(`/review-sessions/${id}`)
 }
 
+/** 清理复盘音频（NFR7）：只删磁盘音频与元信息，转写与分析保留。 */
+export function clearReviewAudio(id: number): Promise<void> {
+  return del<void>(`/review-sessions/${id}/audio`)
+}
+
 export function getReviewSessionStatus(id: number): Promise<ReviewSessionStatus> {
   return get<ReviewSessionStatus>(`/review-sessions/${id}/status`)
 }

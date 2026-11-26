@@ -90,6 +90,13 @@ public class ReviewSessionController {
         return Result.ok();
     }
 
+    /** NFR7：清理音频，保留转写与分析。 */
+    @DeleteMapping("/{reviewSessionId}/audio")
+    public Result<Void> clearAudio(@PathVariable Long reviewSessionId) {
+        reviewService.clearAudio(reviewSessionId);
+        return Result.ok();
+    }
+
     @GetMapping("/{reviewSessionId}/status")
     public Result<ReviewSessionStatusResponse> status(@PathVariable Long reviewSessionId) {
         return Result.ok(reviewService.status(reviewSessionId));

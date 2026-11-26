@@ -378,6 +378,46 @@ test('复盘详情：修正总结与行动并确认，行动同步展示', async
   await expect(page.getByText('整理 JVM 内存模型笔记', { exact: false })).toBeVisible()
 })
 
+test('复盘详情：清理音频后保留转写与分析', async ({ page }) => {
+  let audioFileName: string | null = 'interview.mp3'
+  let cleared = false
+  const base = listItem({
+    id: 6,
+    inputType: 'AUDIO',
+    asrStatus: 'COMPLETED',
+    transcript: '面试官：讲讲 JVM 内存模型。候选人：……',
+    confirmed: false,
+  })
+
+  await page.route('**/api/review-taxonomy', (route) => route.fulfill(ok(taxonomy)))
+  await page.route(/\/api\/interview-events\?/, (route) =>
+    route.fulfill(ok({ items: [], total: 0, page: 1, size: 100 })),
+  )
+  await page.route(/\/api\/improvement-actions\?/, (route) =>
+    route.fulfill(ok({ items: [], total: 0, page: 1, size: 50 })),
+  )
+  await page.route('**/api/review-sessions/6/audio', (route) => {
+    cleared = true
+    audioFileName = null
+    return route.fulfill(ok(null))
+  })
+  await page.route(/\/api\/review-sessions\/6$/, (route) =>
+    route.fulfill(ok({ ...base, analysis: null, audioFileName })),
+  )
+
+  await page.goto('/reviews/6')
+  await expect(page.getByText('音频：interview.mp3')).toBeVisible()
+  await page.getByRole('button', { name: '清理音频' }).click()
+  await page.getByRole('button', { name: '确认清理' }).click()
+
+  await expect(page.getByText('音频已清理，转写与分析保留')).toBeVisible()
+  await expect(page.getByText('音频已清理（转写与分析保留）')).toBeVisible()
+  await expect(page.getByText('音频：interview.mp3')).toHaveCount(0)
+  await expect.poll(() => cleared).toBe(true)
+  await expect(page.getByPlaceholder('转写文本为空；可粘贴完整面试记录'))
+    .toHaveValue('面试官：讲讲 JVM 内存模型。候选人：……')
+})
+
 test('改进看板：状态流转、新增行动与验证证据', async ({ page }) => {
   let status = 'TODO'
   let verifiedEventId: number | null = null

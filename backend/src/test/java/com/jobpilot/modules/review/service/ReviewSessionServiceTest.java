@@ -18,6 +18,8 @@ import static org.mockito.Mockito.when;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jobpilot.LambdaCacheSupport;
@@ -272,6 +274,66 @@ class ReviewSessionServiceTest {
 
         verify(storage).delete("reviews/z.m4a");
         verify(sessionMapper).deleteById(30L);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void clearAudioDeletesFileAndBlanksAudioFields() {
+        ReviewSession audioSession = session(30L, 20L);
+        audioSession.setInputType("AUDIO");
+        audioSession.setAudioStorageKey("reviews/a.mp3");
+        audioSession.setAudioFileName("a.mp3");
+        when(sessionMapper.selectById(30L)).thenReturn(audioSession);
+        when(sessionMapper.update(isNull(), any())).thenReturn(1);
+
+        service().clearAudio(30L);
+
+        verify(storage).delete("reviews/a.mp3");
+        ArgumentCaptor<Wrapper<ReviewSession>> captor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(sessionMapper).update(isNull(), captor.capture());
+        assertThat(((LambdaUpdateWrapper<?>) captor.getValue()).getSqlSet())
+                .contains("audio_storage_key", "audio_file_name", "audio_size", "audio_duration_seconds");
+    }
+
+    @Test
+    void clearAudioRejectsNonAudioAndClearedSessions() {
+        when(sessionMapper.selectById(30L)).thenReturn(session(30L, 20L));
+        assertCode(() -> service().clearAudio(30L), ErrorCode.BAD_REQUEST);
+
+        ReviewSession cleared = session(31L, 20L);
+        cleared.setInputType("AUDIO");
+        when(sessionMapper.selectById(31L)).thenReturn(cleared);
+        assertCode(() -> service().clearAudio(31L), ErrorCode.BAD_REQUEST);
+        verify(storage, never()).delete(anyString());
+    }
+
+    @Test
+    void clearAudioRejectsWhileProcessing() {
+        ReviewSession transcribing = session(30L, 20L);
+        transcribing.setInputType("AUDIO");
+        transcribing.setAudioStorageKey("reviews/a.mp3");
+        transcribing.setAsrStatus("PROCESSING");
+        when(sessionMapper.selectById(30L)).thenReturn(transcribing);
+        assertCode(() -> service().clearAudio(30L), ErrorCode.REVIEW_TASK_IN_PROGRESS);
+
+        ReviewSession analyzing = session(31L, 20L);
+        analyzing.setInputType("AUDIO");
+        analyzing.setAudioStorageKey("reviews/b.mp3");
+        analyzing.setAnalyzeStatus("PROCESSING");
+        when(sessionMapper.selectById(31L)).thenReturn(analyzing);
+        assertCode(() -> service().clearAudio(31L), ErrorCode.REVIEW_TASK_IN_PROGRESS);
+        verify(storage, never()).delete(anyString());
+    }
+
+    @Test
+    void clearAudioLosingRaceReportsAlreadyCleared() {
+        ReviewSession audioSession = session(30L, 20L);
+        audioSession.setInputType("AUDIO");
+        audioSession.setAudioStorageKey("reviews/a.mp3");
+        when(sessionMapper.selectById(30L)).thenReturn(audioSession);
+        when(sessionMapper.update(isNull(), any())).thenReturn(0);
+
+        assertCode(() -> service().clearAudio(30L), ErrorCode.BAD_REQUEST);
     }
 
     @Test

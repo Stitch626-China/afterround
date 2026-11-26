@@ -363,6 +363,34 @@ public class ReviewSessionService {
         sessionMapper.deleteById(reviewSessionId);
     }
 
+    /** 清理音频（NFR7）：删除磁盘文件并清空音频元信息，保留转写与分析；执行中禁止清理。 */
+    public void clearAudio(Long reviewSessionId) {
+        ReviewSession session = require(reviewSessionId);
+        if (!"AUDIO".equals(session.getInputType())) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "仅音频复盘支持清理音频");
+        }
+        if (blank(session.getAudioStorageKey())) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "音频已清理或不存在");
+        }
+        if ("PROCESSING".equals(session.getAsrStatus()) || "PROCESSING".equals(session.getAnalyzeStatus())) {
+            throw BizException.of(ErrorCode.REVIEW_TASK_IN_PROGRESS);
+        }
+        String storageKey = session.getAudioStorageKey();
+        // 先删文件再条件清空：条件同时校验 key，避免与删除复盘并发时清掉他人状态
+        deleteAudioQuietly(storageKey);
+        int updated = sessionMapper.update(null, Wrappers.<ReviewSession>lambdaUpdate()
+                .eq(ReviewSession::getId, reviewSessionId)
+                .eq(ReviewSession::getAudioStorageKey, storageKey)
+                .set(ReviewSession::getAudioStorageKey, null)
+                .set(ReviewSession::getAudioFileName, null)
+                .set(ReviewSession::getAudioSize, null)
+                .set(ReviewSession::getAudioDurationSeconds, null)
+                .set(ReviewSession::getUpdatedAt, OffsetDateTime.now()));
+        if (updated == 0) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "音频已清理或不存在");
+        }
+    }
+
     public ReviewSessionStatusResponse status(Long reviewSessionId) {
         ReviewSession session = require(reviewSessionId);
         return new ReviewSessionStatusResponse(session.getId(), session.getStatus(), session.getAsrStatus(),

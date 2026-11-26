@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.20.0
+  version: 1.21.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -30,6 +30,8 @@ info:
       1.9.4 完成复盘会话、结构化分析、受控词表与改进动作（M3 1.9.0 端点全部实现）；
       1.9.5 补充音频转写重试端点（`/review-sessions/{id}/transcribe`），落实 FR4.8 的 ASR 手动重试。
     - **M3 1.10.0（后续）**：跨场洞察（F5）在真实数据形状稳定后追加，避免过早固化聚合口径。
+    - **1.21.0**：复盘音频可选清理（`DELETE /review-sessions/{id}/audio`），落实 NFR7「分析后可选清理音频」，
+      只删除磁盘音频与音频元信息，保留转写与分析。
     - 场景枚举 `LlmScene` 一次性定义全部 7 个场景（含 M2 未落地的预留项），避免后续扩展改动枚举。
       JD 结构化解析与简历对比总结未列入枚举，使用全局默认，不参与场景级绑定。
 
@@ -38,7 +40,8 @@ info:
     后续里程碑新增路径可先用路径级 `x-implemented: false` 标记「已定义、待实现」，
     实现完成后删除标记即自动纳入双向全等校验，无需维护例外清单。
     M3 1.9.0 契约的全部端点已实现（1.9.3 真实面试轮次、1.9.4 复盘 / 分析 / 词表 / 改进动作、1.9.5 ASR 重试），
-    1.10.0 新增跨场洞察端点；当前 88 个端点全部纳入双向全等校验，无待实现标记。
+    1.10.0 新增跨场洞察端点，1.20.0 新增 token 成本统计，1.21.0 新增复盘音频清理；
+    当前 93 个端点全部纳入双向全等校验，无待实现标记。
 
     ## 错误码补充（M2）
     - `40906` 公司名称已存在（`companies.name` UNIQUE）
@@ -2449,6 +2452,37 @@ paths:
                 $ref: '#/components/schemas/ResultVoid'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/review-sessions/{reviewSessionId}/audio:
+    parameters:
+      - $ref: '#/components/parameters/ReviewSessionId'
+    delete:
+      tags: [真实面试复盘]
+      operationId: clearReviewSessionAudio
+      summary: 清理复盘音频（保留转写与分析）
+      description: |
+        - NFR7：分析完成后可按需删除磁盘音频，释放空间；转写文本、结构化分析与改进动作全部保留。
+        - 仅音频复盘且音频仍存在时可用；非音频复盘或已清理返回 400。
+        - 转写 / 分析执行中返回 409（40915）；清理后不可再重试转写。
+      responses:
+        '200':
+          description: 清理成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 复盘任务执行中（40915）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
         '500':
           $ref: '#/components/responses/ServerError'
 

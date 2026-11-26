@@ -7,6 +7,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   analyzeReviewSession,
+  clearReviewAudio,
   deleteReviewSession,
   getReviewSession,
   getReviewSessionStatus,
@@ -51,6 +52,7 @@ const transcriptDraft = ref('')
 const summaryDraft = ref({ overall: '', strengths: '', improvements: '', nextPreparation: '' })
 const actionDrafts = ref<ImprovementActionDraft[]>([])
 const confirmDelete = ref(false)
+const confirmClearAudio = ref(false)
 const eventResult = ref<InterviewResult | null>(null)
 const resultSaving = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
@@ -335,6 +337,22 @@ async function remove(): Promise<void> {
   }
 }
 
+/** 清理音频（NFR7）：成功后重新拉详情，音频名消失、转写与分析保留。 */
+async function clearAudio(): Promise<void> {
+  busy.value = true
+  error.value = ''
+  try {
+    await clearReviewAudio(id)
+    detail.value = await getReviewSession(id)
+    confirmClearAudio.value = false
+    notice.value = '音频已清理，转写与分析保留'
+  } catch (ex) {
+    error.value = ex instanceof Error ? ex.message : '清理音频失败'
+  } finally {
+    busy.value = false
+  }
+}
+
 function formatTime(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '-'
 }
@@ -428,7 +446,25 @@ onBeforeUnmount(stopPolling)
       <section class="card">
         <div class="card-head">
           <h3 class="card-title">转写与面试上下文</h3>
-          <span v-if="detail.audioFileName" class="meta">音频：{{ detail.audioFileName }}</span>
+          <div v-if="detail.audioFileName" class="audio-meta">
+            <span class="meta">音频：{{ detail.audioFileName }}</span>
+            <template v-if="confirmClearAudio">
+              <button type="button" class="btn danger quiet" :disabled="busy" @click="clearAudio">
+                确认清理
+              </button>
+              <button type="button" class="btn ghost quiet" @click="confirmClearAudio = false">取消</button>
+            </template>
+            <button
+              v-else
+              type="button"
+              class="btn ghost quiet"
+              :disabled="busy || processing"
+              @click="confirmClearAudio = true"
+            >
+              清理音频
+            </button>
+          </div>
+          <span v-else-if="detail.inputType === 'AUDIO'" class="meta">音频已清理（转写与分析保留）</span>
         </div>
         <p v-if="detail.inputType === 'NOTES'" class="hint">
           本复盘基于手动笔记创建；如需修正内容，可直接在下方写入转写文本后重新分析。
@@ -600,6 +636,13 @@ onBeforeUnmount(stopPolling)
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+}
+
+.audio-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .back {
