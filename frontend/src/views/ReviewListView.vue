@@ -47,6 +47,7 @@ const saving = ref(false)
 const error = ref('')
 const notice = ref('')
 const statusFilter = ref<ReviewStatus | ''>('')
+const keyword = ref('')
 const formOpen = ref(false)
 const confirmId = ref<number | null>(null)
 const sourceMode = ref<'JOB' | 'APPLICATION' | 'QUICK'>('JOB')
@@ -118,6 +119,7 @@ async function load(silent = false): Promise<void> {
       page: page.value,
       size,
       status: statusFilter.value || undefined,
+      keyword: keyword.value.trim() || undefined,
     })
     items.value = result.items
     total.value = result.total
@@ -424,6 +426,19 @@ function formatTime(value: string): string {
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
 
+/** 命中片段高亮：按关键词切分后再转义，避免 v-html 注入。 */
+function highlight(text: string, term: string): string {
+  const escape = (part: string): string =>
+    part.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`)
+  const value = term.trim()
+  const index = value ? text.toLowerCase().indexOf(value.toLowerCase()) : -1
+  if (index < 0) {
+    return escape(text)
+  }
+  const hit = text.slice(index, index + value.length)
+  return `${escape(text.slice(0, index))}<mark>${escape(hit)}</mark>${escape(text.slice(index + hit.length))}`
+}
+
 onMounted(() => {
   void load()
   void loadOptions()
@@ -666,7 +681,15 @@ onBeforeUnmount(() => {
           {{ text }}
         </option>
       </select>
-      <button type="button" class="btn ghost" @click="search">刷新</button>
+      <input
+        v-model="keyword"
+        type="search"
+        maxlength="64"
+        placeholder="搜索转写 / 笔记 / 公司 / 岗位"
+        aria-label="搜索复盘"
+        @keyup.enter="search"
+      />
+      <button type="button" class="btn ghost" @click="search">查询</button>
       <span v-if="hasProcessing" class="polling">处理中，每 3 秒自动刷新</span>
     </div>
 
@@ -698,6 +721,7 @@ onBeforeUnmount(() => {
               <span class="tag">{{ INPUT_TYPE_TEXT[item.inputType] }}</span>
             </div>
             <p class="row-meta">{{ meta(item) }}</p>
+            <p v-if="item.matchSnippet" class="row-snippet" v-html="highlight(item.matchSnippet, keyword)" />
           </div>
           <div class="row-actions">
             <RouterLink :to="`/reviews/${item.id}`" class="link">查看详情</RouterLink>
@@ -777,7 +801,8 @@ onBeforeUnmount(() => {
 .form select,
 .form input,
 .form textarea,
-.filters select {
+.filters select,
+.filters input {
   height: 34px;
   padding: 0 var(--space-3);
   border: 1px solid var(--border-strong);
@@ -797,7 +822,8 @@ onBeforeUnmount(() => {
 .form select:focus-visible,
 .form input:focus-visible,
 .form textarea:focus-visible,
-.filters select:focus-visible {
+.filters select:focus-visible,
+.filters input:focus-visible {
   outline: 1px solid var(--primary);
   outline-offset: 0;
   box-shadow: 0 0 0 3px var(--primary-soft);
@@ -914,6 +940,20 @@ onBeforeUnmount(() => {
   margin: 4px 0 0;
   color: var(--text-3);
   font-size: 12px;
+}
+
+.row-snippet {
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.row-snippet mark {
+  padding: 0 2px;
+  border-radius: 2px;
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .row-actions {

@@ -4,12 +4,14 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -242,7 +244,7 @@ public class ReviewSessionService {
     }
 
     public PageResult<ReviewSessionListItemResponse> page(Integer page, Integer size, String status,
-                                                           Long applicationId) {
+                                                           Long applicationId, String keyword) {
         int current = PageResult.normalizePage(page);
         int pageSize = PageResult.normalizeSize(size);
         List<Long> eventIds = null;
@@ -254,12 +256,51 @@ public class ReviewSessionService {
                 return PageResult.of(List.of(), 0, current, pageSize);
             }
         }
-        Page<ReviewSession> rows = sessionMapper.selectPage(new Page<>(current, pageSize),
-                Wrappers.<ReviewSession>lambdaQuery()
-                        .eq(!blank(status), ReviewSession::getStatus, status)
-                        .in(eventIds != null, ReviewSession::getEventId, eventIds)
-                        .orderByDesc(ReviewSession::getCreatedAt).orderByDesc(ReviewSession::getId));
-        return PageResult.of(toItems(rows.getRecords()), rows.getTotal(), current, pageSize);
+        String trimmed = keyword == null ? null : keyword.trim();
+        String kw = trimmed == null || trimmed.isEmpty() ? null
+                : trimmed.substring(0, Math.min(64, trimmed.length()));
+        LambdaQueryWrapper<ReviewSession> wrapper = Wrappers.<ReviewSession>lambdaQuery()
+                .eq(!blank(status), ReviewSession::getStatus, status)
+                .in(eventIds != null, ReviewSession::getEventId, eventIds)
+                .orderByDesc(ReviewSession::getCreatedAt).orderByDesc(ReviewSession::getId);
+        if (kw != null) {
+            List<Long> matchedEventIds = eventIdsByKeyword(kw);
+            String like = "%" + escapeLike(kw) + "%";
+            wrapper.and(w -> {
+                w.apply("to_tsvector('simple', coalesce(transcript, '') || ' ' || coalesce(notes, '')) "
+                                + "@@ plainto_tsquery('simple', {0})", kw)
+                        .or().apply("transcript ILIKE {0} ESCAPE '\\'", like)
+                        .or().apply("notes ILIKE {0} ESCAPE '\\'", like);
+                if (!matchedEventIds.isEmpty()) {
+                    w.or().in(ReviewSession::getEventId, matchedEventIds);
+                }
+            });
+        }
+        Page<ReviewSession> rows = sessionMapper.selectPage(new Page<>(current, pageSize), wrapper);
+        return PageResult.of(toItems(rows.getRecords(), kw), rows.getTotal(), current, pageSize);
+    }
+
+    /** 关键词命中的公司 / 岗位反查面试事件（FR5.8），供复盘列表按公司名或岗位名检索。 */
+    private List<Long> eventIdsByKeyword(String keyword) {
+        List<Long> companyIds = companyMapper.selectList(Wrappers.<Company>lambdaQuery()
+                        .like(Company::getName, keyword))
+                .stream().map(Company::getId).toList();
+        List<Long> jobIds = jobMapper.selectList(Wrappers.<JobPosition>lambdaQuery()
+                        .like(JobPosition::getTitle, keyword)
+                        .or(!companyIds.isEmpty(), w -> w.in(JobPosition::getCompanyId, companyIds)))
+                .stream().map(JobPosition::getId).toList();
+        if (jobIds.isEmpty()) {
+            return List.of();
+        }
+        List<Long> applicationIds = applicationMapper.selectList(Wrappers.<JobApplication>lambdaQuery()
+                        .in(JobApplication::getJobPositionId, jobIds))
+                .stream().map(JobApplication::getId).toList();
+        if (applicationIds.isEmpty()) {
+            return List.of();
+        }
+        return eventMapper.selectList(Wrappers.<InterviewEvent>lambdaQuery()
+                        .in(InterviewEvent::getApplicationId, applicationIds))
+                .stream().map(InterviewEvent::getId).toList();
     }
 
     public ReviewSessionDetailResponse detail(Long reviewSessionId) {
@@ -268,7 +309,7 @@ public class ReviewSessionService {
         return new ReviewSessionDetailResponse(item.id(), item.interviewEventId(), item.applicationId(),
                 item.companyName(), item.jobTitle(), item.roundNo(), item.roundType(), item.inputType(),
                 item.status(), item.asrStatus(), item.analyzeStatus(), item.asrRetryCount(),
-                item.analyzeRetryCount(), item.audioDurationSeconds(), item.createdAt(), item.updatedAt(),
+                item.analyzeRetryCount(), item.audioDurationSeconds(), null, item.createdAt(), item.updatedAt(),
                 session.getTranscript(), segmentsOf(session), analysisOf(session),
                 Boolean.TRUE.equals(session.getConfirmed()), session.getAsrError(), session.getAnalyzeError(),
                 session.getAudioFileName());
@@ -771,6 +812,10 @@ public class ReviewSessionService {
     }
 
     private List<ReviewSessionListItemResponse> toItems(List<ReviewSession> sessions) {
+        return toItems(sessions, null);
+    }
+
+    private List<ReviewSessionListItemResponse> toItems(List<ReviewSession> sessions, String keyword) {
         if (sessions.isEmpty()) {
             return List.of();
         }
@@ -797,8 +842,38 @@ public class ReviewSessionService {
                     event == null ? null : event.getRoundNo(), event == null ? null : event.getRoundType(),
                     session.getInputType(), session.getStatus(), session.getAsrStatus(), session.getAnalyzeStatus(),
                     count(session.getAsrRetryCount()), count(session.getAnalyzeRetryCount()),
-                    session.getAudioDurationSeconds(), session.getCreatedAt(), session.getUpdatedAt());
+                    session.getAudioDurationSeconds(), snippet(session, keyword),
+                    session.getCreatedAt(), session.getUpdatedAt());
         }).toList();
+    }
+
+    /** 命中片段（FR5.8）：转写优先、笔记兜底，截取关键词前后各一段并压平空白。 */
+    private static String snippet(ReviewSession session, String keyword) {
+        if (keyword == null) {
+            return null;
+        }
+        String text = session.getTranscript();
+        int index = indexOfIgnoreCase(text, keyword);
+        if (index < 0) {
+            text = session.getNotes();
+            index = indexOfIgnoreCase(text, keyword);
+        }
+        if (index < 0) {
+            return null;
+        }
+        int start = Math.max(0, index - 30);
+        int end = Math.min(text.length(), index + keyword.length() + 60);
+        String part = text.substring(start, end).replaceAll("\\s+", " ").trim();
+        String result = (start > 0 ? "…" : "") + part + (end < text.length() ? "…" : "");
+        return result.length() > 300 ? result.substring(0, 300) : result;
+    }
+
+    private static int indexOfIgnoreCase(String text, String keyword) {
+        return text == null ? -1 : text.toLowerCase(Locale.ROOT).indexOf(keyword.toLowerCase(Locale.ROOT));
+    }
+
+    private static String escapeLike(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     private ReviewAnalysisResponse analysisOf(ReviewSession session) {

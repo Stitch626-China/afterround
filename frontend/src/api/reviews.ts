@@ -52,6 +52,8 @@ export interface ReviewFilters {
   size?: number
   status?: ReviewStatus | ''
   applicationId?: number
+  /** 全文检索：转写 / 笔记 / 公司名 / 岗位名（FR5.8）。 */
+  keyword?: string
 }
 
 export interface InterviewEventFilters {

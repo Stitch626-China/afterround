@@ -152,6 +152,42 @@ test('复盘列表：文本创建、展示状态与删除', async ({ page }) => 
   await expect(page.locator('.list .row')).toHaveCount(1)
 })
 
+test('复盘列表：关键词检索并高亮命中片段', async ({ page }) => {
+  let query = ''
+  let withHit = false
+
+  await page.route(/\/api\/job-positions\?/, (route) =>
+    route.fulfill(ok({ items: [], total: 0, page: 1, size: 100 })),
+  )
+  await page.route(/\/api\/job-applications\?/, (route) =>
+    route.fulfill(ok({ items: [], total: 0, page: 1, size: 100 })),
+  )
+  await page.route(/\/api\/companies\?/, (route) =>
+    route.fulfill(ok({ items: [], total: 0, page: 1, size: 100 })),
+  )
+  await page.route(/\/api\/resumes\?/, (route) =>
+    route.fulfill(ok({ items: [], total: 0, page: 1, size: 100 })),
+  )
+  await page.route(/\/api\/review-sessions(\?|$)/, (route) => {
+    query = route.request().url()
+    const items = withHit
+      ? [listItem({ matchSnippet: '…面试官：讲讲 JVM 内存模型与分区…' })]
+      : [listItem()]
+    return route.fulfill(ok({ items, total: 1, page: 1, size: 20 }))
+  })
+
+  await page.goto('/reviews')
+  await expect(page.getByText('Java 后端开发工程师').first()).toBeVisible()
+
+  withHit = true
+  await page.getByLabel('搜索复盘').fill('JVM')
+  await page.getByRole('button', { name: '查询' }).click()
+
+  await expect.poll(() => query).toContain('keyword=JVM')
+  await expect(page.locator('.row-snippet mark')).toHaveText('JVM')
+  await expect(page.locator('.row-snippet')).toContainText('内存模型')
+})
+
 test('复盘快速新建：无需先建岗位，录入公司与岗位名即可', async ({ page }) => {
   let createBody = ''
 

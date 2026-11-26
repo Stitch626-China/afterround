@@ -44,8 +44,9 @@ public class ReviewSessionController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) Long applicationId) {
-        return Result.ok(reviewService.page(page, size, status, applicationId));
+            @RequestParam(required = false) Long applicationId,
+            @RequestParam(required = false) String keyword) {
+        return Result.ok(reviewService.page(page, size, status, applicationId, keyword));
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

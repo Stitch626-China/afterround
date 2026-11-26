@@ -18,6 +18,7 @@ import static org.mockito.Mockito.when;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jobpilot.LambdaCacheSupport;
 import com.jobpilot.common.api.ErrorCode;
@@ -585,6 +586,27 @@ class ReviewSessionServiceTest {
         assertThat(items).hasSize(1);
         assertThat(items.get(0).companyName()).isEqualTo("字节跳动");
         assertThat(items.get(0).roundNo()).isEqualTo(1);
+    }
+
+    @Test
+    void pageKeywordReturnsSnippetWithNotesFallback() {
+        when(companyMapper.selectList(any())).thenReturn(List.of());
+        when(jobMapper.selectList(any())).thenReturn(List.of());
+        ReviewSession transcriptHit = session(30L, 20L);
+        ReviewSession notesOnly = session(31L, 20L);
+        notesOnly.setTranscript(null);
+        notesOnly.setNotes("复盘笔记：JVM 分区还需补");
+        Page<ReviewSession> page = new Page<>(1, 20);
+        page.setRecords(List.of(transcriptHit, notesOnly));
+        page.setTotal(2);
+        when(sessionMapper.selectPage(any(), any())).thenReturn(page);
+        stubLookups();
+
+        var result = service().page(1, 20, null, null, "jvm");
+
+        assertThat(result.items()).hasSize(2);
+        assertThat(result.items().get(0).matchSnippet()).contains("JVM 内存模型");
+        assertThat(result.items().get(1).matchSnippet()).contains("JVM 分区");
     }
 
     private static ReviewAnalysis analysisRow() {

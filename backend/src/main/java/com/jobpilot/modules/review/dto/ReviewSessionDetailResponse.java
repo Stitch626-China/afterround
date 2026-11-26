@@ -19,6 +19,7 @@ public record ReviewSessionDetailResponse(
         int asrRetryCount,
         int analyzeRetryCount,
         Integer audioDurationSeconds,
+        String matchSnippet,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
         String transcript,

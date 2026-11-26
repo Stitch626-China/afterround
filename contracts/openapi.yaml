@@ -5499,6 +5499,10 @@ components:
         audioDurationSeconds:
           type: [integer, "null"]
           minimum: 0
+        matchSnippet:
+          type: [string, "null"]
+          maxLength: 300
+          description: 关键词命中片段（仅列表带 keyword 且命中转写 / 笔记时返回）
         createdAt:
           type: string
           format: date-time
