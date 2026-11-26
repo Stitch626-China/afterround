@@ -84,3 +84,9 @@
   - 后端全量 **187 tests 全绿**，JaCoCo 门禁通过（含 Testcontainers PostgreSQL 16 + Flyway V9）；新增快速建公司/岗位、查重复用、参数校验、简历关联、Prompt 背景注入共 5 个单测。
   - 前端生产构建（含 `vue-tsc`）通过；Vitest **26** 全过；Playwright **17** 全过（新增快速新建含可选背景 E2E）。
 - 下一步 / 断点：2A 已提交 `5f1e86f`；2B 与文档（需求 v1.17、对照表、PROGRESS）待提交；随后推送分支、开 PR 合入 main。
+
+### 12:05 事件
+
+- 改动：提交 2B + 文档 `c54dc5e`；推送 `feat/review-quick-create` 并创建 PR #8（两个提交，Squash 合并）。
+- 验证：PR CI 三 job 全绿（契约 13s / 前端 54s / 后端 1m2s）；Squash 合并为 `c1221c1`，main push CI 全绿（run 45752419053）。
+- 下一步 / 断点：本地 `/reviews` 「快速新建」可手工体验；远端 feature 分支保留（用户跳过删除命令），如需清理再删。后续按对照表继续 FR5.2 / FR5.3 / FR8.2 / FR8.4 / FR6.7。
