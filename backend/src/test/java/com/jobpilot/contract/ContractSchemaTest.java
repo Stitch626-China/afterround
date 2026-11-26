@@ -55,6 +55,7 @@ import com.jobpilot.modules.llm.dto.CreateProviderRequest;
 import com.jobpilot.modules.llm.dto.GlobalSettingResponse;
 import com.jobpilot.modules.llm.dto.LlmModelResponse;
 import com.jobpilot.modules.llm.dto.LlmProviderResponse;
+import com.jobpilot.modules.llm.dto.LlmUsageResponse;
 import com.jobpilot.modules.llm.dto.SceneBindingResponse;
 import com.jobpilot.modules.llm.dto.TestProviderRequest;
 import com.jobpilot.modules.llm.dto.UpdateGlobalSettingRequest;
@@ -122,7 +123,7 @@ class ContractSchemaTest {
             LlmProviderResponse.class, LlmModelResponse.class, CreateProviderRequest.class,
             UpdateProviderRequest.class, CreateModelRequest.class, UpdateModelRequest.class,
             TestProviderRequest.class, ConnectivityTestResponse.class, UpstreamModelListResponse.class,
-            GlobalSettingResponse.class, UpdateGlobalSettingRequest.class,
+            GlobalSettingResponse.class, UpdateGlobalSettingRequest.class, LlmUsageResponse.class,
             ChatSessionResponse.class, CreateChatSessionRequest.class, SwitchModelRequest.class,
             ChatMessageResponse.class, SendMessageRequest.class, ChatStreamEvent.class,
             ResumeListItemResponse.class, ResumeUploadResponse.class, ResumeDetailResponse.class,

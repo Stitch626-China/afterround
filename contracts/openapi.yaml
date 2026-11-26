@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.21.0
+  version: 1.21.1
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -32,6 +32,8 @@ info:
     - **M3 1.10.0（后续）**：跨场洞察（F5）在真实数据形状稳定后追加，避免过早固化聚合口径。
     - **1.21.0**：复盘音频可选清理（`DELETE /review-sessions/{id}/audio`），落实 NFR7「分析后可选清理音频」，
       只删除磁盘音频与音频元信息，保留转写与分析。
+    - **1.21.1（修订）**：补记 1.19.0 遗漏的复盘列表 `keyword` 查询参数；音频清理限定「分析完成后」；
+      修正洞察 AI 总结的样本不足描述与面试轮次 PATCH 摘要。
     - 场景枚举 `LlmScene` 一次性定义全部 7 个场景（含 M2 未落地的预留项），避免后续扩展改动枚举。
       JD 结构化解析与简历对比总结未列入枚举，使用全局默认，不参与场景级绑定。
 
@@ -390,7 +392,7 @@ paths:
       description: |
         - 聚合 `llm_call_logs`：总调用 / 成功率 / token / 平均耗时，并按场景、模型、按天分组。
         - 只读统计，不修改调用日志；无数据时各数组为空、比例为 null。
-        - `days` 为统计窗口（默认 30 天，7~365）。
+        - `days` 为统计窗口（默认 30 天，7~365）；模型维度按 token 降序最多返回 20 个。
       parameters:
         - name: days
           in: query
@@ -2199,7 +2201,7 @@ paths:
     patch:
       tags: [真实面试复盘]
       operationId: updateInterviewEvent
-      summary: 更新真实面试轮次（结果 / 时间 / 面试官 / 备注）
+      summary: 更新真实面试轮次（结果 / 时间 / 轮次类型 / 面试官 / 形式 / 备注）
       requestBody:
         required: true
         content:
@@ -2247,6 +2249,9 @@ paths:
       tags: [真实面试复盘]
       operationId: listReviewSessions
       summary: 复盘记录分页列表
+      description: |
+        - `keyword` 检索转写 / 笔记（PostgreSQL 全文检索 + 模糊匹配兜底）与公司名 / 岗位名；
+          命中转写 / 笔记时列表项返回 `matchSnippet`（约 300 字上下文），公司 / 岗位命中不返回片段。
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
@@ -2261,6 +2266,13 @@ paths:
           schema:
             type: integer
             format: int64
+        - name: keyword
+          in: query
+          required: false
+          description: 关键词（≤64 字），检索转写 / 笔记 / 公司名 / 岗位名
+          schema:
+            type: string
+            maxLength: 64
       responses:
         '200':
           description: 成功
@@ -2463,8 +2475,9 @@ paths:
       operationId: clearReviewSessionAudio
       summary: 清理复盘音频（保留转写与分析）
       description: |
-        - NFR7：分析完成后可按需删除磁盘音频，释放空间；转写文本、结构化分析与改进动作全部保留。
-        - 仅音频复盘且音频仍存在时可用；非音频复盘或已清理返回 400。
+        - NFR7：分析完成（`analyzeStatus = COMPLETED`）后可删除磁盘音频释放空间；
+          转写文本、结构化分析与改进动作全部保留。
+        - 仅音频复盘且音频仍存在时可用；非音频复盘、已清理或分析未完成返回 400。
         - 转写 / 分析执行中返回 409（40915）；清理后不可再重试转写。
       responses:
         '200':
@@ -2827,7 +2840,8 @@ paths:
         - 基于同一时间窗口的结构化聚合结果调用一次模型生成洞察总结，不引入 RAG。
         - 模型解析优先 `REVIEW_ANALYZE` 场景绑定，未绑定时回落全局默认；调用落 `llm_call_logs`（scene=`INSIGHTS_SUMMARY`）。
         - 模型未配置或调用失败时 `degraded = true`，`content` 回退本地规则总结，接口不报错。
-        - 样本不足（已确认复盘 < 5）时只提示样本不足，不输出因果结论。
+        - 已确认复盘为 0 时不调用模型，直接返回本地总结（`degraded = true`）；
+          1~4 份会正常生成，但需标注样本不足、不输出因果结论。
       requestBody:
         required: false
         content:

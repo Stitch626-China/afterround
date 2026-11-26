@@ -31,6 +31,7 @@ import {
   REVIEW_STATUS_TEXT,
   ROUND_TYPES,
   ROUND_TYPE_TEXT,
+  latestInterviewEvent,
   pendingVerifyActions,
 } from '@/utils/review'
 
@@ -93,9 +94,10 @@ const EVENT_RESULT_TONE: Record<string, string> = {
 const pendingVerifyCount = computed(() =>
   timeline.value ? pendingVerifyActions(timeline.value.actions, timeline.value.events).length : 0,
 )
-const latestRoundNo = computed(() =>
-  timeline.value ? timeline.value.events.reduce((max, event) => Math.max(max, event.roundNo), 0) : 0,
-)
+const latestRoundNo = computed(() => {
+  const latest = timeline.value ? latestInterviewEvent(timeline.value.events) : null
+  return latest?.roundNo ?? 0
+})
 
 const pages = computed(() => Math.max(1, Math.ceil(total.value / size)))
 const STATUSES: JobApplicationStatus[] = ['APPLIED', 'INTERVIEWING', 'OFFERED', 'REJECTED', 'WITHDRAWN']

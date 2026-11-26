@@ -282,11 +282,12 @@ public class ReviewSessionService {
 
     /** 关键词命中的公司 / 岗位反查面试事件（FR5.8），供复盘列表按公司名或岗位名检索。 */
     private List<Long> eventIdsByKeyword(String keyword) {
+        String like = "%" + escapeLike(keyword) + "%";
         List<Long> companyIds = companyMapper.selectList(Wrappers.<Company>lambdaQuery()
-                        .like(Company::getName, keyword))
+                        .apply("name ILIKE {0} ESCAPE '\\'", like))
                 .stream().map(Company::getId).toList();
         List<Long> jobIds = jobMapper.selectList(Wrappers.<JobPosition>lambdaQuery()
-                        .like(JobPosition::getTitle, keyword)
+                        .apply("title ILIKE {0} ESCAPE '\\'", like)
                         .or(!companyIds.isEmpty(), w -> w.in(JobPosition::getCompanyId, companyIds)))
                 .stream().map(JobPosition::getId).toList();
         if (jobIds.isEmpty()) {
@@ -374,6 +375,9 @@ public class ReviewSessionService {
         }
         if ("PROCESSING".equals(session.getAsrStatus()) || "PROCESSING".equals(session.getAnalyzeStatus())) {
             throw BizException.of(ErrorCode.REVIEW_TASK_IN_PROGRESS);
+        }
+        if (!"COMPLETED".equals(session.getAnalyzeStatus())) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "分析完成后才能清理音频");
         }
         String storageKey = session.getAudioStorageKey();
         // 先删文件再条件清空：条件同时校验 key，避免与删除复盘并发时清掉他人状态

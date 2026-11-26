@@ -337,6 +337,18 @@ class ReviewSessionServiceTest {
     }
 
     @Test
+    void clearAudioRequiresCompletedAnalysis() {
+        ReviewSession pendingAnalysis = session(30L, 20L);
+        pendingAnalysis.setInputType("AUDIO");
+        pendingAnalysis.setAudioStorageKey("reviews/a.mp3");
+        pendingAnalysis.setAnalyzeStatus("PENDING");
+        when(sessionMapper.selectById(30L)).thenReturn(pendingAnalysis);
+
+        assertCode(() -> service().clearAudio(30L), ErrorCode.BAD_REQUEST);
+        verify(storage, never()).delete(anyString());
+    }
+
+    @Test
     void createPersistsTranscriptAndReturnsListItem() {
         when(eventService.ensureEvent(eq(7L), isNull(), eq(1), eq("TECH"), isNull(), isNull(), isNull()))
                 .thenReturn(event(20L, 7L));

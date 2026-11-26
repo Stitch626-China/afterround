@@ -155,6 +155,7 @@ test('复盘列表：文本创建、展示状态与删除', async ({ page }) => 
 test('复盘列表：关键词检索并高亮命中片段', async ({ page }) => {
   let query = ''
   let withHit = false
+  let empty = false
 
   await page.route(/\/api\/job-positions\?/, (route) =>
     route.fulfill(ok({ items: [], total: 0, page: 1, size: 100 })),
@@ -170,10 +171,10 @@ test('复盘列表：关键词检索并高亮命中片段', async ({ page }) => 
   )
   await page.route(/\/api\/review-sessions(\?|$)/, (route) => {
     query = route.request().url()
-    const items = withHit
+    const items = empty ? [] : withHit
       ? [listItem({ matchSnippet: '…面试官：讲讲 JVM 内存模型与分区…' })]
       : [listItem()]
-    return route.fulfill(ok({ items, total: 1, page: 1, size: 20 }))
+    return route.fulfill(ok({ items, total: items.length, page: 1, size: 20 }))
   })
 
   await page.goto('/reviews')
@@ -186,6 +187,17 @@ test('复盘列表：关键词检索并高亮命中片段', async ({ page }) => 
   await expect.poll(() => query).toContain('keyword=JVM')
   await expect(page.locator('.row-snippet mark')).toHaveText('JVM')
   await expect(page.locator('.row-snippet')).toContainText('内存模型')
+
+  // 无命中时区分空态，并可一键清空搜索
+  empty = true
+  await page.getByLabel('搜索复盘').fill('不存在的关键词')
+  await page.getByRole('button', { name: '查询' }).click()
+  await expect(page.getByText('没有匹配的复盘')).toBeVisible()
+
+  empty = false
+  withHit = false
+  await page.getByRole('button', { name: '清空搜索' }).click()
+  await expect(page.getByText('Java 后端开发工程师').first()).toBeVisible()
 })
 
 test('复盘快速新建：无需先建岗位，录入公司与岗位名即可', async ({ page }) => {

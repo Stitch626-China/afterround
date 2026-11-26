@@ -8,6 +8,7 @@ import {
   buildAnalysisPayload,
   emptyDraft,
   isProcessing,
+  latestInterviewEvent,
   parseTagList,
   pendingVerifyActions,
 } from './review'
@@ -89,5 +90,20 @@ describe('review utils', () => {
 
     expect(pendingVerifyActions(actions, events).map((action) => action.id)).toEqual([1, 2])
     expect(pendingVerifyActions(actions, [])).toEqual([])
+  })
+
+  it('最近面试按面试时间取，忽略缺失时间的轮次', () => {
+    const events = [
+      { roundNo: 2, interviewTime: '2026-11-04T00:00:00Z' },
+      { roundNo: 3, interviewTime: '2026-11-02T00:00:00Z' },
+      { roundNo: 4, interviewTime: '' },
+    ] as InterviewEventListItem[]
+
+    expect(latestInterviewEvent(events)?.roundNo).toBe(2)
+    expect(latestInterviewEvent([])).toBeNull()
+    const actions = [
+      { id: 1, action: 'a', status: 'TODO', createdAt: '2026-11-01T00:00:00Z' },
+    ] as ImprovementAction[]
+    expect(pendingVerifyActions(actions, [{ interviewTime: '' }] as InterviewEventListItem[])).toEqual([])
   })
 })

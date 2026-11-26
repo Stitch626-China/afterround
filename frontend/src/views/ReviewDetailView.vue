@@ -383,7 +383,7 @@ onBeforeUnmount(stopPolling)
           重新分析
         </button>
         <button
-          v-if="detail.inputType === 'AUDIO' && detail.asrStatus === 'FAILED'"
+          v-if="detail.inputType === 'AUDIO' && detail.asrStatus === 'FAILED' && detail.audioFileName"
           type="button"
           class="btn ghost"
           :disabled="busy"
@@ -455,7 +455,7 @@ onBeforeUnmount(stopPolling)
               <button type="button" class="btn ghost quiet" @click="confirmClearAudio = false">取消</button>
             </template>
             <button
-              v-else
+              v-else-if="detail.analyzeStatus === 'COMPLETED'"
               type="button"
               class="btn ghost quiet"
               :disabled="busy || processing"
@@ -463,6 +463,7 @@ onBeforeUnmount(stopPolling)
             >
               清理音频
             </button>
+            <span v-else class="meta">分析完成后可清理</span>
           </div>
           <span v-else-if="detail.inputType === 'AUDIO'" class="meta">音频已清理（转写与分析保留）</span>
         </div>

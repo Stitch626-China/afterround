@@ -153,6 +153,19 @@ export function emptyDraft(): ImprovementActionDraft {
   return { action: '', category: null, reason: null }
 }
 
+/** 最近一轮面试（按面试时间，忽略空 / 非法时间）；没有有效事件时返回 null。 */
+export function latestInterviewEvent(
+  events: InterviewEventListItem[],
+): InterviewEventListItem | null {
+  return events.reduce<InterviewEventListItem | null>((latest, event) => {
+    const time = Date.parse(event.interviewTime)
+    if (!Number.isFinite(time)) {
+      return latest
+    }
+    return !latest || time > Date.parse(latest.interviewTime) ? event : latest
+  }, null)
+}
+
 /**
  * 下一场面试后的待验证行动（FR5.6）：行动创建早于最近一轮面试，且仍在待开始 / 进行中。
  * 用于投递时间线提示「本轮已记录，旧行动可以验证了」。
@@ -161,10 +174,14 @@ export function pendingVerifyActions(
   actions: ImprovementAction[],
   events: InterviewEventListItem[],
 ): ImprovementAction[] {
-  const latest = events.reduce((max, event) => Math.max(max, Date.parse(event.interviewTime)), 0)
+  const latest = latestInterviewEvent(events)
+  if (!latest) {
+    return []
+  }
+  const latestTime = Date.parse(latest.interviewTime)
   return actions.filter(
     (action) =>
       (action.status === 'TODO' || action.status === 'IN_PROGRESS') &&
-      Date.parse(action.createdAt) < latest,
+      Date.parse(action.createdAt) < latestTime,
   )
 }

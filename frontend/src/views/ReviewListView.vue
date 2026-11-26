@@ -397,6 +397,12 @@ function search(): void {
   void load()
 }
 
+/** 搜索无结果时一键回到全部复盘。 */
+function clearSearch(): void {
+  keyword.value = ''
+  search()
+}
+
 function go(delta: number): void {
   const next = page.value + delta
   if (next < 1 || next > pages.value) {
@@ -700,6 +706,14 @@ onBeforeUnmount(() => {
       <div class="skeleton-row" />
       <div class="skeleton-row" />
     </section>
+
+    <EmptyState
+      v-else-if="!items.length && keyword.trim()"
+      title="没有匹配的复盘"
+      hint="换个关键词试试，或清空搜索查看全部复盘。"
+      action-label="清空搜索"
+      @action="clearSearch"
+    />
 
     <EmptyState
       v-else-if="!items.length"

@@ -19,7 +19,7 @@ import com.jobpilot.modules.job.mapper.JobPositionMapper;
 import org.springframework.stereotype.Service;
 
 /**
- * 行情洞察（FR2.4）：实时聚合已解析完成的 JD，不落快照；JD 增删后立即反映。
+ * 行情洞察（FR2.4）：实时聚合已解析完成且在招（未淘汰、非手动录入）的 JD，不落快照；JD 增删改后立即反映。
  *
  * <p>技能合并必备与加分并小写归一；薪资取 min/max 中位数分桶；
  * 经验与方向保留原文（不做归一化，契约明确接受同义分列）。
@@ -44,7 +44,9 @@ public class JobMarketService {
         List<JobPosition> jobs = jobMapper.selectList(Wrappers.<JobPosition>lambdaQuery()
                 .eq(JobPosition::getParseStatus, "COMPLETED")
                 // 复盘快速录入的手动岗位没有 JD，不参与行情统计
-                .ne(JobPosition::getSourceType, "MANUAL"));
+                .ne(JobPosition::getSourceType, "MANUAL")
+                // 已淘汰岗位不代表在招市场，不参与行情与方向推荐
+                .ne(JobPosition::getStatus, "REJECTED"));
         return new JobMarketInsightsResponse(jobs.size(), OffsetDateTime.now(),
                 skillTop(jobs), salaryDistribution(jobs),
                 counts(jobs, JobPosition::getExperience), counts(jobs, JobPosition::getTitle));
