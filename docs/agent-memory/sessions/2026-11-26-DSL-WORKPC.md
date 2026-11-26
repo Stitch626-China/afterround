@@ -111,3 +111,10 @@
 - 原因：需求 FR8.1 要求投递含时间 / 状态 / 结果备注，FR8.2 要求从岗位库一键记录；原实现创建时固定 APPLIED 且无时间 / 结果入参，历史投递无法补录，岗位详情也没有入口。
 - 验证：契约 lint 0/0；后端 **189 tests 全绿**（新增补录与非法状态 2 个单测，JaCoCo 门禁通过）；前端构建（含 `vue-tsc`）、Vitest **26**、Playwright **17** 全过；对照表 FR2.5 / FR8.1 / FR8.2 转 ✅，README 模块表与 PROGRESS 同步。
 - 下一步 / 断点：提交并推送 main；后续按对照表继续 FR5.2 / FR5.3 / FR8.4 / FR6.7。
+
+### 16:00 事件
+
+- 改动：`docs/LLM评测集语料规范.md` 升 v1.1，补齐为可独立执行的建库指南：快速开始、原始层推荐结构、case 独立性规则、三场景完整 `meta.json` / `expect.json` 示例、面经改写与合成方法、断言键精确定义（路径语法 / 匹配范围 / 对齐方式）、脱敏自查命令、常见错误、完整示例 case。
+- 原因：确保另一台主机只读该文档即可完成建库，不依赖本会话上下文。
+- 验证：断言键与生产 AI DTO（`AiResumeAnalysis` / `AiReviewAnalysis` / `AiJobPositionParse`）、词表与 `ReviewTaxonomyCatalog`、枚举与数据库 CHECK 逐项核对；按 prompt 原文修正——复盘 `evidence` 只要求「尽量引用原文」，不做逐字断言，只有简历 `quote` 做 L1 原文校验。
+- 下一步 / 断点：文档提交推送后，等待另一台主机建好 `review-analyze` 语料并回传路径。
