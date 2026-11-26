@@ -118,3 +118,14 @@
 - 原因：确保另一台主机只读该文档即可完成建库，不依赖本会话上下文。
 - 验证：断言键与生产 AI DTO（`AiResumeAnalysis` / `AiReviewAnalysis` / `AiJobPositionParse`）、词表与 `ReviewTaxonomyCatalog`、枚举与数据库 CHECK 逐项核对；按 prompt 原文修正——复盘 `evidence` 只要求「尽量引用原文」，不做逐字断言，只有简历 `quote` 做 L1 原文校验。
 - 下一步 / 断点：文档提交推送后，等待另一台主机建好 `review-analyze` 语料并回传路径。
+
+### 16:17 事件
+
+- 改动：按对照表依次补齐四个完整性项，每项单独提交：
+  - **FR5.2 面试明细**（契约 `1.14.0`）：`GET /api/insights/interview-events` 分页返回事件 + 复盘知识点，支持公司 / 岗位 / 结果 / 轮次 / 知识点筛选；洞察页新增「面试明细」，按公司 → 岗位 → 轮次分组并可跳转复盘。
+  - **FR5.3 公司联想与手动合并**（`1.15.0`）：复盘快速新建公司名改为远端联想（250ms 防抖，只提示复用）；新增 `POST /api/companies/merge`，岗位与 Offer 归并到目标公司后删除源公司；岗位库新增「合并公司」面板。
+  - **FR8.4 渠道 / 公司类型归因**（`1.16.0`）：`InsightsOverview` 增加 `channels` / `companyTypes`（投递 / 面试 / Offer / 邀约率 / Offer 率，N<5 标记样本不足）；公司类型取公司标签首项；岗位详情新增公司标签维护。
+  - **FR6.7 Offer 决策快照**（`1.17.0` + Flyway `V10__offer_decision_snapshot.sql`）：新增 `decision_priorities` / `final_choice` / `final_choice_reason`，最终选择全局唯一（服务层清除其他 + 部分唯一索引）；Offer 表单与列表展示快照。
+- 原因：需求 FR5.2 / FR5.3 / FR8.4 / FR6.7 明确要求，原实现分别缺入口、缺联想/合并、缺渠道与公司类型对比、缺决策快照；补完后对照表对应项转 ✅。
+- 验证：契约 lint **0 error / 0 warning**（1.14.0 → 1.17.0 逐版校验）；后端全量 **194 tests 全绿**（JaCoCo 门禁通过，新增洞察明细 / 渠道类型 / 公司合并 5 个单测；Flyway V10 在 Testcontainers PG16 执行成功）；前端构建（含 `vue-tsc`）、Vitest **26**、Playwright **17** 全过（洞察 E2E 补新接口 mock 与渠道/类型断言）；对照表、README、PROGRESS 同步。
+- 下一步 / 断点：四个功能提交为 `1a8f2ac` / `6cb90d4` / `423e581` / `bb13a00`，文档随后提交并 push；后续按对照表处理 FR5.1 / FR5.6 / FR5.8 / FR1.7 / NFR6 / NFR7。
