@@ -12,11 +12,14 @@ import {
   getReviewSessionStatus,
   getReviewTaxonomy,
   listImprovementActions,
+  listInterviewEvents,
   transcribeReviewSession,
+  updateInterviewEvent,
   updateReviewAnalysis,
   updateReviewSession,
   type ImprovementAction,
   type ImprovementActionDraft,
+  type InterviewResult,
   type ReviewSessionDetail,
   type ReviewTaxonomy,
 } from '@/api/reviews'
@@ -24,6 +27,7 @@ import {
   ACTION_STATUS_TEXT,
   ACTION_STATUS_TONE,
   INPUT_TYPE_TEXT,
+  INTERVIEW_RESULT_TEXT,
   REVIEW_STATUS_TEXT,
   REVIEW_STATUS_TONE,
   ROUND_TYPE_TEXT,
@@ -47,13 +51,22 @@ const transcriptDraft = ref('')
 const summaryDraft = ref({ overall: '', strengths: '', improvements: '', nextPreparation: '' })
 const actionDrafts = ref<ImprovementActionDraft[]>([])
 const confirmDelete = ref(false)
+const eventResult = ref<InterviewResult | null>(null)
+const resultSaving = ref(false)
 let timer: ReturnType<typeof setInterval> | null = null
 
 const analysis = computed(() => detail.value?.analysis ?? null)
 const processing = computed(() => (detail.value ? isProcessing(detail.value.status) : false))
-const canAnalyze = computed(
-  () => detail.value != null && detail.value.asrStatus === 'COMPLETED' && !processing.value,
-)
+const canAnalyze = computed(() => {
+  if (!detail.value || processing.value) {
+    return false
+  }
+  if (detail.value.inputType !== 'AUDIO') {
+    return true
+  }
+  return detail.value.asrStatus === 'COMPLETED'
+    || (detail.value.asrStatus === 'FAILED' && !!transcriptDraft.value.trim())
+})
 
 const topicLabels = computed(() => new Map((taxonomy.value?.topics ?? []).map((item) => [item.key, item.label])))
 const lossLabels = computed(() => new Map((taxonomy.value?.lossTags ?? []).map((item) => [item.key, item.label])))
@@ -76,6 +89,7 @@ async function load(): Promise<void> {
     syncDrafts()
     error.value = ''
     syncPolling()
+    void loadEventResult(result.applicationId ?? null, result.interviewEventId)
   } catch (ex) {
     error.value = ex instanceof Error ? ex.message : '加载失败'
   } finally {
@@ -90,6 +104,40 @@ async function loadActions(): Promise<void> {
     actions.value = result.items
   } catch {
     // 行动列表失败不阻断详情
+  }
+}
+
+/** 读取本轮面试结果；契约没有单条 GET，按投递筛选后按事件 id 匹配。 */
+async function loadEventResult(applicationId: number | null, eventId: number): Promise<void> {
+  if (!applicationId) {
+    return
+  }
+  try {
+    const page = await listInterviewEvents({ applicationId, page: 1, size: 100 })
+    const event = page.items.find((item) => item.id === eventId)
+    eventResult.value = event?.result ?? 'PENDING'
+  } catch {
+    // 结果读取失败不阻断复盘详情，用户可刷新重试
+  }
+}
+
+async function changeResult(value: InterviewResult): Promise<void> {
+  if (!detail.value || resultSaving.value) {
+    return
+  }
+  const previous = eventResult.value
+  eventResult.value = value
+  resultSaving.value = true
+  error.value = ''
+  try {
+    const updated = await updateInterviewEvent(detail.value.interviewEventId, { result: value })
+    eventResult.value = updated.result
+    notice.value = `本轮结果已标记为「${INTERVIEW_RESULT_TEXT[updated.result] ?? updated.result}」`
+  } catch (ex) {
+    eventResult.value = previous
+    error.value = ex instanceof Error ? ex.message : '更新本轮结果失败'
+  } finally {
+    resultSaving.value = false
   }
 }
 
@@ -199,6 +247,31 @@ async function retryAsr(): Promise<void> {
   }
 }
 
+function onResultChange(event: Event): void {
+  void changeResult((event.target as HTMLSelectElement).value as InterviewResult)
+}
+
+/** ASR 失败时用用户补录的文本继续分析（FR4.1 降级）。 */
+async function useTextFallback(): Promise<void> {
+  if (!transcriptDraft.value.trim()) {
+    error.value = '请先在上方粘贴或填写转写文本'
+    return
+  }
+  busy.value = true
+  error.value = ''
+  try {
+    const updated = await updateReviewSession(id, { transcript: transcriptDraft.value.trim() })
+    detail.value = updated
+    await analyzeReviewSession(id)
+    notice.value = '已改用文本分析'
+    await load()
+  } catch (ex) {
+    error.value = ex instanceof Error ? ex.message : '改用文本分析失败'
+  } finally {
+    busy.value = false
+  }
+}
+
 function addAction(): void {
   if (actionDrafts.value.length >= 3) {
     error.value = '确认时最多保留 3 条改进行动'
@@ -300,6 +373,15 @@ onBeforeUnmount(stopPolling)
         >
           重试转写
         </button>
+        <button
+          v-if="detail.inputType === 'AUDIO' && detail.asrStatus === 'FAILED'"
+          type="button"
+          class="btn ghost"
+          :disabled="busy"
+          @click="useTextFallback"
+        >
+          改用文本分析
+        </button>
         <template v-if="confirmDelete">
           <button type="button" class="btn danger" :disabled="busy" @click="remove">确认删除</button>
           <button type="button" class="btn ghost" @click="confirmDelete = false">取消</button>
@@ -323,6 +405,19 @@ onBeforeUnmount(stopPolling)
         </span>
         <span class="tag">{{ INPUT_TYPE_TEXT[detail.inputType] }}</span>
         <span v-if="detail.confirmed" class="tag success">已确认</span>
+        <label v-if="eventResult" class="result-field">
+          <span>本轮结果</span>
+          <select
+            :value="eventResult"
+            :disabled="resultSaving"
+            aria-label="本轮面试结果"
+            @change="onResultChange"
+          >
+            <option v-for="(text, value) in INTERVIEW_RESULT_TEXT" :key="value" :value="value">
+              {{ text }}
+            </option>
+          </select>
+        </label>
         <span class="meta">创建于 {{ formatTime(detail.createdAt) }}</span>
         <span v-if="processing" class="meta">处理中，自动刷新…</span>
       </div>
@@ -345,6 +440,9 @@ onBeforeUnmount(stopPolling)
           placeholder="转写文本为空；可粘贴完整面试记录"
           :disabled="processing"
         />
+        <p v-if="detail.inputType === 'AUDIO' && detail.asrStatus === 'FAILED'" class="hint">
+          转写失败时可粘贴上面的转写文本，再点「改用文本分析」，不需要删除复盘重来。
+        </p>
         <div class="actions">
           <button type="button" class="btn ghost" :disabled="busy || processing" @click="saveTranscript">
             保存转写
@@ -539,6 +637,25 @@ onBeforeUnmount(stopPolling)
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
+}
+
+.result-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+
+.result-field select {
+  height: 32px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-btn);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
 }
 
 .card textarea,

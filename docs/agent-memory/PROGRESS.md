@@ -11,6 +11,7 @@
 
 ## 当前状态
 
+- **4 个核心闭环缺口已修复（2026-11-26，DSL-WORKPC）**：复盘详情新增「本轮结果」编辑（复用 PATCH `/api/interview-events/{id}`，投递时间线展示各轮结果）；ASR 失败且有补录文本时允许继续分析，并提供「改用文本分析」入口；启动恢复补复盘 ASR / 分析 PROCESSING 回收；复盘分析改为 `REVIEW_ANALYZE` 场景绑定优先、全局默认回落。验证：后端 **182 tests 全绿**（行覆盖 86.08%）、前端构建通过、Vitest **26**、Playwright **16** 全过。改动待提交。
 - **v1.0.0 已发布（2026-11-25，DSL-WORKPC）**：在 `95ffa5d` 打 annotated tag `v1.0.0` 并创建 GitHub Release（https://github.com/Stitch626-China/afterround/releases/tag/v1.0.0），附 4 张截图、README、开发手册、5 分钟演示脚本、接口契约与演示种子脚本说明；Release 非草稿 / 非预发布，raw 截图 URL 200，远端 tag 已确认。PR 实操手册与 Release notes 存放于本地 `.local/`（已加入 `.git/info/exclude`，不提交）。
 - **PR 流程与 CI 手动触发实测（2026-11-25，DSL-WORKPC）**：`.github/workflows/ci.yml` 增加 `workflow_dispatch`，README「测试与 CI」补充手动触发说明；首次完整走通「feature 分支 `ci/workflow-dispatch` → PR #7 → CI 三 job 全绿 → Squash 合并 `9b1e15c` → 删除远端与本地分支」。验证：PR 的两次提交均自动重跑 CI 并全绿；合并后 main push CI 全绿；`gh workflow run ci.yml --ref main` 手动触发 run `45581740790` 三 job 全绿。
 - **main 分支保护已开启（2026-11-25，DSL-WORKPC）**：禁止强制推送与删除分支，管理员同样受限（enforce_admins=true）；未启用「必须 PR」与 CI 推送门槛，保留现有直接推送习惯。过程中发现「CI 三检查 + enforce_admins」会让 GitHub 直接拒绝普通 `git push`（GH006），如后续要 CI 作为门槛，需整体改为「分支 + PR + 检查通过后合并」流程。
@@ -72,14 +73,15 @@
 
 ## 下一步
 
-1. **前端「纸墨」已全量推广（2026-11-24）**：全站页面与设置抽屉均套用共享层，用户评审样板通过后一次完成；构建 / Vitest 26 / Playwright 16 复核通过。后续只在用户提出视觉问题时定点微调，不再批量改样式。
-2. **M3-d 收口（已完成，2026-11-25）**：技术回归、命名、README、脱敏、演示材料与公开仓库均已完成；LICENSE 保持不加（README 已声明保留所有权利），中国商标网未查。
-3. **M2 用户验收（暂停，可继续）**：验收库容器 5433 仍在运行，后端按需启动；M2 两批功能已实现并修复验收问题。F3 模拟面试后续只保留为可选练习。
-4. **公开仓库（已完成，2026-11-25）**：仓库已设为 PUBLIC 并开启 Secret Scanning / Push Protection / Dependabot（自动 Security Updates 关闭）；演示数据种子 `scripts/seed-demo.mjs` 已完成并验证；后续根据反馈迭代 README 与演示材料，可选补 v1.0.0 tag / Release、social preview 与 Pin。
-5. **M2 收口（已完成）**：两批 38 端点、前端页面、Vitest 19 / Playwright 11 与真实链路联调全部通过。
-6. 非阻塞遗留：开源前补 `LICENSE` 并同步契约 `info.license`；CD 待换机稳定手动部署后再做。
-7. M2 改进项：历史消息升级为「完整轮次 + token 预算 + 摘要」；契约类型/required 深度校验；SSE E2E 增量渲染断言。
-8. **测试缺口（2026-11-18 盘点，高价值项已补，剩余非阻塞）**：
+1. **核心闭环修复待提交（2026-11-26）**：4 项修复已完成并全量验证，等待用户确认 commit / push；后续按审查清单继续 FR5.2 / FR5.3 / FR8.2 / FR8.4 / FR6.7 等完整性项。
+2. **前端「纸墨」已全量推广（2026-11-24）**：全站页面与设置抽屉均套用共享层，用户评审样板通过后一次完成；构建 / Vitest 26 / Playwright 16 复核通过。后续只在用户提出视觉问题时定点微调，不再批量改样式。
+3. **M3-d 收口（已完成，2026-11-25）**：技术回归、命名、README、脱敏、演示材料与公开仓库均已完成；LICENSE 保持不加（README 已声明保留所有权利），中国商标网未查。
+4. **M2 用户验收（暂停，可继续）**：验收库容器 5433 仍在运行，后端按需启动；M2 两批功能已实现并修复验收问题。F3 模拟面试后续只保留为可选练习。
+5. **公开仓库（已完成，2026-11-25）**：仓库已设为 PUBLIC 并开启 Secret Scanning / Push Protection / Dependabot（自动 Security Updates 关闭）；演示数据种子 `scripts/seed-demo.mjs` 已完成并验证；后续根据反馈迭代 README 与演示材料，可选补 v1.0.0 tag / Release、social preview 与 Pin。
+6. **M2 收口（已完成）**：两批 38 端点、前端页面、Vitest 19 / Playwright 11 与真实链路联调全部通过。
+7. 非阻塞遗留：开源前补 `LICENSE` 并同步契约 `info.license`；CD 待换机稳定手动部署后再做。
+8. M2 改进项：历史消息升级为「完整轮次 + token 预算 + 摘要」；契约类型/required 深度校验；SSE E2E 增量渲染断言。
+9. **测试缺口（2026-11-18 盘点，高价值项已补，剩余非阻塞）**：
    - 中价值：公司 `create/update` 的并发重复键分支与标签 JSON 兜底；岗位 `importJd/parse` 的 Tika/IO 异常与循环自然退出分支；`JobMatchService.toResponse` 的详情解析失败兜底；JSON 兜底异常（`skillsJson` / `skills` / `parseList` / `write`）；`LlmGlobalSettingService` 部分分支；Provider/Model 删除的 HTTP 层；`GlobalExceptionHandler` 的 413/500。
    - 可接受不补：`LlmBootstrapRunner`（环境变量种子）、`main`、DTO、Prompt 资源缺失异常、`AesGcmCipher.deriveKey` 分支。
 

@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.startsWith;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -33,8 +34,7 @@ import com.jobpilot.modules.company.entity.Company;
 import com.jobpilot.modules.company.mapper.CompanyMapper;
 import com.jobpilot.modules.job.entity.JobPosition;
 import com.jobpilot.modules.job.mapper.JobPositionMapper;
-import com.jobpilot.modules.llm.entity.LlmGlobalSetting;
-import com.jobpilot.modules.llm.mapper.LlmGlobalSettingMapper;
+import com.jobpilot.modules.llm.dto.LlmScene;
 import com.jobpilot.modules.llm.service.LlmSceneService;
 import com.jobpilot.modules.review.dto.ImprovementActionDraftResponse;
 import com.jobpilot.modules.review.dto.ReviewAnalysisResponse;
@@ -81,8 +81,6 @@ class ReviewSessionServiceTest {
     @Mock
     private CompanyMapper companyMapper;
     @Mock
-    private LlmGlobalSettingMapper globalMapper;
-    @Mock
     private LlmSceneService sceneService;
     @Mock
     private ProviderClientRegistry registry;
@@ -109,7 +107,7 @@ class ReviewSessionServiceTest {
 
     private ReviewSessionService service() {
         return new ReviewSessionService(sessionMapper, analysisMapper, eventMapper, eventService, actionService,
-                applicationMapper, jobMapper, companyMapper, globalMapper, sceneService, registry, callLogger,
+                applicationMapper, jobMapper, companyMapper, sceneService, registry, callLogger,
                 prompts, asrClient, storage, executor, asrExecutor);
     }
 
@@ -158,11 +156,8 @@ class ReviewSessionServiceTest {
         when(companyMapper.selectByIds(anyList())).thenReturn(List.of(company));
     }
 
-    private static LlmGlobalSetting global() {
-        LlmGlobalSetting setting = new LlmGlobalSetting();
-        setting.setDefaultProviderKey("deepseek");
-        setting.setDefaultModel("deepseek-flash");
-        return setting;
+    private static LlmSceneService.SceneModel globalModel() {
+        return new LlmSceneService.SceneModel("deepseek", "deepseek-flash");
     }
 
     @Test
@@ -317,8 +312,7 @@ class ReviewSessionServiceTest {
     void analyzeRunsPipelineAndNormalizesOutput() throws Exception {
         ReviewSession session = session(30L, 20L);
         when(sessionMapper.selectById(30L)).thenReturn(session);
-        when(globalMapper.selectById(1)).thenReturn(global());
-        when(sceneService.resolveGlobal()).thenReturn(new LlmSceneService.SceneModel("deepseek", "deepseek-flash"));
+        when(sceneService.resolveGlobal()).thenReturn(globalModel());
         when(registry.get("deepseek")).thenReturn(client);
         when(client.chatJson(eq("deepseek-flash"), any())).thenReturn(new ChatResult("""
                 {"questions":[{"questionIndex":1,"question":"讲讲 JVM 内存模型","answerSummary":"堆与栈",
@@ -375,6 +369,58 @@ class ReviewSessionServiceTest {
         ReviewSession text = session(30L, 20L);
         when(sessionMapper.selectById(30L)).thenReturn(text);
         assertCode(() -> service().analyze(30L), ErrorCode.BAD_REQUEST);
+    }
+
+    @Test
+    void analyzeAllowsManualTextWhenAsrFailed() {
+        ReviewSession audio = session(30L, 20L);
+        audio.setInputType("AUDIO");
+        audio.setAsrStatus("FAILED");
+        audio.setTranscript("手动补充的转写文本");
+        when(sessionMapper.selectById(30L)).thenReturn(audio);
+        when(sceneService.resolveGlobal()).thenReturn(globalModel());
+        when(registry.get("deepseek")).thenReturn(client);
+        when(client.chatJson(eq("deepseek-flash"), any())).thenThrow(new RuntimeException("upstream down"));
+        when(sessionMapper.update(any(), any())).thenAnswer(invocation -> {
+            audio.setAnalyzeStatus("PROCESSING");
+            return 1;
+        });
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+        stubLookups();
+
+        service().analyze(30L);
+
+        verify(executor).execute(any(Runnable.class));
+        verify(callLogger, atLeastOnce()).log(eq("REVIEW_ANALYZE"), eq("deepseek"), eq("deepseek-flash"),
+                isNull(), isNull(), isNull(), anyLong(), eq(false), anyString());
+    }
+
+    @Test
+    void analyzePrefersReviewSceneBinding() {
+        ReviewSession session = session(30L, 20L);
+        when(sessionMapper.selectById(30L)).thenReturn(session);
+        when(sceneService.optionalResolve(LlmScene.REVIEW_ANALYZE))
+                .thenReturn(new LlmSceneService.SceneModel("scene-provider", "scene-model"));
+        when(registry.get("scene-provider")).thenReturn(client);
+        when(client.chatJson(eq("scene-model"), any())).thenThrow(new RuntimeException("upstream down"));
+        when(sessionMapper.update(any(), any())).thenAnswer(invocation -> {
+            session.setAnalyzeStatus("PROCESSING");
+            return 1;
+        });
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+        stubLookups();
+
+        service().analyze(30L);
+
+        verify(callLogger, atLeastOnce()).log(eq("REVIEW_ANALYZE"), eq("scene-provider"), eq("scene-model"),
+                isNull(), isNull(), isNull(), anyLong(), eq(false), anyString());
+        verify(sceneService, never()).resolveGlobal();
     }
 
     @Test

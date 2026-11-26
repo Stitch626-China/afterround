@@ -17,6 +17,8 @@ import com.jobpilot.modules.job.mapper.JobMatchResultMapper;
 import com.jobpilot.modules.job.mapper.JobPositionMapper;
 import com.jobpilot.modules.resume.entity.Resume;
 import com.jobpilot.modules.resume.mapper.ResumeMapper;
+import com.jobpilot.modules.review.entity.ReviewSession;
+import com.jobpilot.modules.review.mapper.ReviewSessionMapper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,10 +43,13 @@ class StartupRecoveryTest {
     @Mock
     private InterviewSessionMapper interviewMapper;
 
+    @Mock
+    private ReviewSessionMapper reviewSessionMapper;
+
     @BeforeAll
     static void initLambdaCache() {
         LambdaCacheSupport.init(ChatSession.class, Resume.class, JobPosition.class, JobMatchResult.class,
-                InterviewSession.class);
+                InterviewSession.class, ReviewSession.class);
     }
 
     @Test
@@ -54,13 +59,16 @@ class StartupRecoveryTest {
         when(jobMapper.update(isNull(), any())).thenReturn(1);
         when(matchMapper.update(isNull(), any())).thenReturn(1);
         when(interviewMapper.update(isNull(), any())).thenReturn(1, 1);
+        when(reviewSessionMapper.update(isNull(), any())).thenReturn(1, 1);
 
-        new StartupRecovery(sessionMapper, resumeMapper, jobMapper, matchMapper, interviewMapper).run(null);
+        new StartupRecovery(sessionMapper, resumeMapper, jobMapper, matchMapper, interviewMapper,
+                reviewSessionMapper).run(null);
 
         verify(sessionMapper).update(isNull(), any());
         verify(resumeMapper).update(isNull(), any());
         verify(jobMapper).update(isNull(), any());
         verify(matchMapper).update(isNull(), any());
         verify(interviewMapper, times(2)).update(isNull(), any());
+        verify(reviewSessionMapper, times(2)).update(isNull(), any());
     }
 }

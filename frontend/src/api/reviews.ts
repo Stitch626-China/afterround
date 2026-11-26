@@ -32,6 +32,15 @@ export type ReviewSessionPage = NonNullable<
   items: ReviewSessionListItem[]
 }
 
+export type InterviewEventListItem = components['schemas']['InterviewEventListItem']
+export type InterviewResult = components['schemas']['InterviewResult']
+export type UpdateInterviewEventRequest = components['schemas']['UpdateInterviewEventRequest']
+export type InterviewEventPage = NonNullable<
+  components['schemas']['ResultInterviewEventPage']['data']
+> & {
+  items: InterviewEventListItem[]
+}
+
 export type ImprovementActionPage = NonNullable<
   components['schemas']['ResultImprovementActionPage']['data']
 > & {
@@ -43,6 +52,14 @@ export interface ReviewFilters {
   size?: number
   status?: ReviewStatus | ''
   applicationId?: number
+}
+
+export interface InterviewEventFilters {
+  page?: number
+  size?: number
+  applicationId?: number
+  result?: InterviewResult
+  roundType?: InterviewRoundType
 }
 
 export interface ImprovementActionFilters {
@@ -79,6 +96,18 @@ function query(params: Record<string, string | number | null | undefined>): stri
 
 export function listReviewSessions(filters: ReviewFilters = {}): Promise<ReviewSessionPage> {
   return get<ReviewSessionPage>(`/review-sessions${query({ ...filters })}`)
+}
+
+/** 真实面试轮次列表：复盘详情用它读取本轮结果（契约暂无单条 GET）。 */
+export function listInterviewEvents(filters: InterviewEventFilters = {}): Promise<InterviewEventPage> {
+  return get<InterviewEventPage>(`/interview-events${query({ ...filters })}`)
+}
+
+export function updateInterviewEvent(
+  id: number,
+  payload: UpdateInterviewEventRequest,
+): Promise<InterviewEventListItem> {
+  return patch<InterviewEventListItem>(`/interview-events/${id}`, payload)
 }
 
 /** 创建复盘：音频与文本 / 笔记互斥；multipart 由浏览器自动设置 boundary。 */

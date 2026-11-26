@@ -166,8 +166,37 @@ test('复盘详情：修正总结与行动并确认，行动同步展示', async
   }
   let confirmed = false
   let putPayload: Record<string, unknown> | null = null
+  let eventResult = 'PENDING'
+  let resultPayload: Record<string, unknown> | null = null
+  const event = {
+    id: 11,
+    applicationId: 5,
+    jobPositionId: 3,
+    companyId: 1,
+    companyName: '字节跳动',
+    jobTitle: 'Java 后端开发工程师',
+    roundNo: 2,
+    roundType: 'TECH',
+    interviewerRole: null,
+    format: null,
+    interviewTime: now,
+    result: eventResult,
+    notes: null,
+    reviewSessionId: 1,
+    reviewStatus: 'READY',
+    createdAt: now,
+    updatedAt: now,
+  }
 
   await page.route('**/api/review-taxonomy', (route) => route.fulfill(ok(taxonomy)))
+  await page.route(/\/api\/interview-events\?/, (route) =>
+    route.fulfill(ok({ items: [{ ...event, result: eventResult }], total: 1, page: 1, size: 100 })),
+  )
+  await page.route('**/api/interview-events/11', (route) => {
+    resultPayload = route.request().postDataJSON() as Record<string, unknown>
+    eventResult = (resultPayload.result as string) ?? eventResult
+    return route.fulfill(ok({ ...event, result: eventResult }))
+  })
   await page.route(/\/api\/improvement-actions\?/, (route) =>
     route.fulfill(
       ok({
@@ -215,6 +244,12 @@ test('复盘详情：修正总结与行动并确认，行动同步展示', async
   await expect(page.getByText('只说了堆和栈。').first()).toBeVisible()
   await expect(page.getByText('深度不足').first()).toBeVisible()
   await expect(page.getByText('JVM').first()).toBeVisible()
+
+  // 本轮结果可编辑（F5 归因依赖该字段）
+  await expect(page.getByLabel('本轮面试结果')).toHaveValue('PENDING')
+  await page.getByLabel('本轮面试结果').selectOption('PASS')
+  await expect.poll(() => resultPayload?.result).toBe('PASS')
+  await expect(page.getByText('本轮结果已标记为「通过」')).toBeVisible()
 
   // 修正总结与行动后确认
   await page.locator('label').filter({ hasText: '整体总结' }).locator('textarea').fill('整体基础一般，需要补深度。')

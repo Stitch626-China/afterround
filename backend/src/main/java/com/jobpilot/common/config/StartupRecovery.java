@@ -13,6 +13,8 @@ import com.jobpilot.modules.job.mapper.JobMatchResultMapper;
 import com.jobpilot.modules.job.mapper.JobPositionMapper;
 import com.jobpilot.modules.resume.entity.Resume;
 import com.jobpilot.modules.resume.mapper.ResumeMapper;
+import com.jobpilot.modules.review.entity.ReviewSession;
+import com.jobpilot.modules.review.mapper.ReviewSessionMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -33,15 +35,17 @@ public class StartupRecovery implements ApplicationRunner {
     private final JobPositionMapper jobMapper;
     private final JobMatchResultMapper matchMapper;
     private final InterviewSessionMapper interviewMapper;
+    private final ReviewSessionMapper reviewSessionMapper;
 
     public StartupRecovery(ChatSessionMapper sessionMapper, ResumeMapper resumeMapper,
                            JobPositionMapper jobMapper, JobMatchResultMapper matchMapper,
-                           InterviewSessionMapper interviewMapper) {
+                           InterviewSessionMapper interviewMapper, ReviewSessionMapper reviewSessionMapper) {
         this.sessionMapper = sessionMapper;
         this.resumeMapper = resumeMapper;
         this.jobMapper = jobMapper;
         this.matchMapper = matchMapper;
         this.interviewMapper = interviewMapper;
+        this.reviewSessionMapper = reviewSessionMapper;
     }
 
     @Override
@@ -75,9 +79,23 @@ public class StartupRecovery implements ApplicationRunner {
                 .set(InterviewSession::getEvaluateStatus, "FAILED")
                 .set(InterviewSession::getEvaluateError, "上次评估因服务重启中断，请重新交卷")
                 .set(InterviewSession::getUpdatedAt, OffsetDateTime.now()));
-        if (sessions + resumes + jobs + matches + interviews + evaluations > 0) {
-            log.warn("启动恢复：回收中断会话 {} 个、简历分析 {} 个、JD 解析 {} 个、匹配 {} 个、面试出题 {} 个、面试评估 {} 个",
-                    sessions, resumes, jobs, matches, interviews, evaluations);
+        // 复盘有 ASR / 分析两套独立状态，任何一套卡在 PROCESSING 都会让复盘永久不可操作
+        int reviewAsr = reviewSessionMapper.update(null, Wrappers.<ReviewSession>lambdaUpdate()
+                .eq(ReviewSession::getAsrStatus, "PROCESSING")
+                .set(ReviewSession::getAsrStatus, "FAILED")
+                .set(ReviewSession::getAsrError, "上次转写因服务重启中断，请重试转写或补充转写文本")
+                .set(ReviewSession::getStatus, "FAILED")
+                .set(ReviewSession::getUpdatedAt, OffsetDateTime.now()));
+        int reviewAnalyze = reviewSessionMapper.update(null, Wrappers.<ReviewSession>lambdaUpdate()
+                .eq(ReviewSession::getAnalyzeStatus, "PROCESSING")
+                .set(ReviewSession::getAnalyzeStatus, "FAILED")
+                .set(ReviewSession::getAnalyzeError, "上次分析因服务重启中断，请重新分析")
+                .set(ReviewSession::getStatus, "FAILED")
+                .set(ReviewSession::getUpdatedAt, OffsetDateTime.now()));
+        if (sessions + resumes + jobs + matches + interviews + evaluations + reviewAsr + reviewAnalyze > 0) {
+            log.warn("启动恢复：回收中断会话 {} 个、简历分析 {} 个、JD 解析 {} 个、匹配 {} 个、面试出题 {} 个、"
+                            + "面试评估 {} 个、复盘转写 {} 个、复盘分析 {} 个",
+                    sessions, resumes, jobs, matches, interviews, evaluations, reviewAsr, reviewAnalyze);
         }
     }
 }

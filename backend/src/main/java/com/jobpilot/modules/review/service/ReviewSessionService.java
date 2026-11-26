@@ -32,8 +32,7 @@ import com.jobpilot.modules.company.entity.Company;
 import com.jobpilot.modules.company.mapper.CompanyMapper;
 import com.jobpilot.modules.job.entity.JobPosition;
 import com.jobpilot.modules.job.mapper.JobPositionMapper;
-import com.jobpilot.modules.llm.entity.LlmGlobalSetting;
-import com.jobpilot.modules.llm.mapper.LlmGlobalSettingMapper;
+import com.jobpilot.modules.llm.dto.LlmScene;
 import com.jobpilot.modules.llm.service.LlmSceneService;
 import com.jobpilot.modules.review.ai.AiReviewAnalysis;
 import com.jobpilot.modules.review.dto.ImprovementActionDraftResponse;
@@ -68,8 +67,9 @@ import org.springframework.web.multipart.MultipartFile;
 /**
  * 真实面试复盘（FR4）：转写 / 笔记 → 异步结构化分析 → 确认并生成改进行动。
  *
- * <p>B2 支持转写文本与手动笔记；音频入口在 B3 接入 ASR 后启用（当前明确报错，不产生无法恢复的任务）。
- * 分析走全局默认模型，自动重试 ≤3 次；分析结果带 Prompt / rubric / 词表版本，重跑覆盖。
+ * <p>支持转写文本、手动笔记与音频三种输入；音频先走 ASR，转写失败可用补录文本降级分析。
+ * <p>分析优先使用 REVIEW_ANALYZE 场景绑定，未绑定时回落全局默认；自动重试 ≤3 次；
+ * 分析结果带 Prompt / rubric / 词表版本，重跑覆盖。
  */
 @Service
 public class ReviewSessionService {
@@ -91,7 +91,6 @@ public class ReviewSessionService {
     private final JobApplicationMapper applicationMapper;
     private final JobPositionMapper jobMapper;
     private final CompanyMapper companyMapper;
-    private final LlmGlobalSettingMapper globalMapper;
     private final LlmSceneService sceneService;
     private final ProviderClientRegistry registry;
     private final LlmCallLogger callLogger;
@@ -105,9 +104,9 @@ public class ReviewSessionService {
                                 InterviewEventMapper eventMapper, InterviewEventService eventService,
                                 ImprovementActionService actionService, JobApplicationMapper applicationMapper,
                                 JobPositionMapper jobMapper, CompanyMapper companyMapper,
-                                LlmGlobalSettingMapper globalMapper, LlmSceneService sceneService,
-                                ProviderClientRegistry registry, LlmCallLogger callLogger,
-                                ReviewPromptFactory prompts, AsrClient asrClient, FileStorage storage,
+                                LlmSceneService sceneService, ProviderClientRegistry registry,
+                                LlmCallLogger callLogger, ReviewPromptFactory prompts, AsrClient asrClient,
+                                FileStorage storage,
                                 @Qualifier("jobpilotTaskExecutor") ThreadPoolTaskExecutor executor,
                                 @Qualifier("asrTaskExecutor") ThreadPoolTaskExecutor asrExecutor) {
         this.sessionMapper = sessionMapper;
@@ -118,7 +117,6 @@ public class ReviewSessionService {
         this.applicationMapper = applicationMapper;
         this.jobMapper = jobMapper;
         this.companyMapper = companyMapper;
-        this.globalMapper = globalMapper;
         this.sceneService = sceneService;
         this.registry = registry;
         this.callLogger = callLogger;
@@ -308,9 +306,16 @@ public class ReviewSessionService {
             throw BizException.of(ErrorCode.REVIEW_TASK_IN_PROGRESS);
         }
         if ("AUDIO".equals(session.getInputType()) && !"COMPLETED".equals(session.getAsrStatus())) {
-            String message = "FAILED".equals(session.getAsrStatus())
-                    ? "转写失败，请先重试转写或补充转写文本" : "转写尚未完成，请稍后再试";
-            throw BizException.of(ErrorCode.REVIEW_TASK_IN_PROGRESS, message);
+            boolean hasManualText = !blank(session.getTranscript()) || !blank(session.getNotes());
+            if (!hasManualText) {
+                String message = "FAILED".equals(session.getAsrStatus())
+                        ? "转写失败，请先重试转写或补充转写文本" : "转写尚未完成，请稍后再试";
+                throw BizException.of(ErrorCode.REVIEW_TASK_IN_PROGRESS, message);
+            }
+            // 转写失败后允许用用户补录的文本继续分析（FR4.1 降级），转写仍在进行时仍禁止，避免并发覆盖
+            if (!"FAILED".equals(session.getAsrStatus())) {
+                throw BizException.of(ErrorCode.REVIEW_TASK_IN_PROGRESS, "转写尚未完成，请稍后再试或补充转写文本");
+            }
         }
         if (blank(session.getTranscript()) && blank(session.getNotes())) {
             throw BizException.of(ErrorCode.BAD_REQUEST, "缺少可分析的转写文本或笔记");
@@ -593,7 +598,7 @@ public class ReviewSessionService {
         LlmSceneService.SceneModel target;
         LlmClient client;
         try {
-            target = sceneService.resolveGlobal();
+            target = resolveModel();
             client = registry.get(target.providerKey());
         } catch (Exception ex) {
             finish(reviewSessionId, "FAILED", truncate(ex.getMessage(), 500), 0);
@@ -956,16 +961,33 @@ public class ReviewSessionService {
         return session;
     }
 
+    /** REVIEW_ANALYZE 场景绑定优先，未绑定时回落全局默认。 */
+    private LlmSceneService.SceneModel resolveModel() {
+        LlmSceneService.SceneModel bound = sceneService.optionalResolve(LlmScene.REVIEW_ANALYZE);
+        if (bound != null) {
+            return bound;
+        }
+        LlmSceneService.SceneModel global = sceneService.resolveGlobal();
+        if (global == null) {
+            throw BizException.of(ErrorCode.BAD_REQUEST,
+                    "尚未设置默认模型：请打开左下角「设置 → 模型服务」，设置全局默认或场景绑定后再试");
+        }
+        return global;
+    }
+
     private boolean hasDefaultModel() {
-        LlmGlobalSetting global = globalMapper.selectById(1);
-        return global != null && !blank(global.getDefaultProviderKey()) && !blank(global.getDefaultModel());
+        if (sceneService.optionalResolve(LlmScene.REVIEW_ANALYZE) != null) {
+            return true;
+        }
+        try {
+            return sceneService.resolveGlobal() != null;
+        } catch (RuntimeException ex) {
+            return false;
+        }
     }
 
     private void requireDefaultModel() {
-        if (!hasDefaultModel()) {
-            throw BizException.of(ErrorCode.BAD_REQUEST,
-                    "尚未设置默认模型：请打开左下角「设置 → 模型服务」，将某个模型设为全局默认后再分析");
-        }
+        resolveModel();
     }
 
     private static <T> Map<Long, T> lookup(List<Long> ids, Function<List<Long>, List<T>> loader,

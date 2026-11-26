@@ -33,6 +33,12 @@ export const FORMAT_TEXT: Record<string, string> = {
   OTHER: '其他',
 }
 
+export const INTERVIEW_RESULT_TEXT: Record<string, string> = {
+  PASS: '通过',
+  FAIL: '淘汰',
+  PENDING: '待定',
+}
+
 export const INPUT_TYPES: ReviewInputType[] = ['AUDIO', 'TEXT', 'NOTES']
 export const INPUT_TYPE_TEXT: Record<string, string> = {
   AUDIO: '录音',

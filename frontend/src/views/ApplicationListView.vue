@@ -17,7 +17,7 @@ import {
 import { listJobPositions, type JobPositionListItem } from '@/api/jobs'
 import { listResumes, type ResumeListItem } from '@/api/resumes'
 import EmptyState from '@/components/EmptyState.vue'
-import { REVIEW_STATUS_TEXT } from '@/utils/review'
+import { INTERVIEW_RESULT_TEXT, REVIEW_STATUS_TEXT, ROUND_TYPE_TEXT } from '@/utils/review'
 
 const items = ref<JobApplicationListItem[]>([])
 const jobs = ref<JobPositionListItem[]>([])
@@ -337,6 +337,12 @@ onMounted(() => {
             <p class="timeline-empty">
               面试轮次 {{ timeline.events.length }} 条、改进行动 {{ timeline.actions.length }} 条。
             </p>
+            <ul v-if="timeline.events.length" class="timeline-reviews">
+              <li v-for="event in timeline.events" :key="event.id">
+                第 {{ event.roundNo }} 轮 · {{ ROUND_TYPE_TEXT[event.roundType] ?? event.roundType }} ·
+                {{ INTERVIEW_RESULT_TEXT[event.result] ?? event.result }}
+              </li>
+            </ul>
             <ul v-if="timeline.reviews.length" class="timeline-reviews">
               <li v-for="review in timeline.reviews" :key="review.id">
                 <RouterLink :to="`/reviews/${review.id}`" class="link">
