@@ -26,6 +26,7 @@ import com.jobpilot.modules.chat.dto.SendMessageRequest;
 import com.jobpilot.modules.chat.dto.SwitchModelRequest;
 import com.jobpilot.modules.company.dto.CompanyResponse;
 import com.jobpilot.modules.company.dto.CreateCompanyRequest;
+import com.jobpilot.modules.company.dto.MergeCompaniesRequest;
 import com.jobpilot.modules.company.dto.UpdateCompanyRequest;
 import com.jobpilot.modules.insights.dto.InsightDtos;
 import com.jobpilot.modules.interview.dto.AnswerInterviewQuestionRequest;
@@ -129,7 +130,7 @@ class ContractSchemaTest {
             AnalysisDimensionResponse.class, ResumeBasicInfoResponse.class, UpdateSalaryRequest.class,
             QuoteItemResponse.class, SuggestionItemResponse.class, CareerDirectionResponse.class,
             SceneBindingResponse.class, BindSceneModelRequest.class,
-            CompanyResponse.class, CreateCompanyRequest.class, UpdateCompanyRequest.class,
+            CompanyResponse.class, CreateCompanyRequest.class, UpdateCompanyRequest.class, MergeCompaniesRequest.class,
             JobPositionListItemResponse.class, JobPositionDetailResponse.class,
             UpdateJobPositionRequest.class, BatchDeleteJobPositionsRequest.class,
             CreateJobMatchRequest.class, MatchDimensionResponse.class, JobMatchDetailResponse.class,

@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.14.0
+  version: 1.15.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -927,6 +927,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/companies/merge:
+    post:
+      tags: [公司]
+      operationId: mergeCompanies
+      summary: 手动合并公司（FR5.3 事后补救）
+      description: |
+        把源公司名下的岗位与 Offer 归并到目标公司，然后硬删除源公司。
+        仅接受用户显式确认后的合并，不做自动合并；源与目标相同返回 **400**。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MergeCompaniesRequest'
+      responses:
+        '200':
+          description: 合并成功，返回合并后的目标公司
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultCompany'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -3763,6 +3791,19 @@ components:
           items:
             type: string
             maxLength: 32
+
+    MergeCompaniesRequest:
+      type: object
+      required: [sourceCompanyId, targetCompanyId]
+      properties:
+        sourceCompanyId:
+          type: integer
+          format: int64
+          description: 被合并的源公司；合并后删除
+        targetCompanyId:
+          type: integer
+          format: int64
+          description: 保留的目标公司
 
     ResultCompany:
       allOf:

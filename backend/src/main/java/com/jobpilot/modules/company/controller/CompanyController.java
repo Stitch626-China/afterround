@@ -4,6 +4,7 @@ import com.jobpilot.common.api.PageResult;
 import com.jobpilot.common.api.Result;
 import com.jobpilot.modules.company.dto.CompanyResponse;
 import com.jobpilot.modules.company.dto.CreateCompanyRequest;
+import com.jobpilot.modules.company.dto.MergeCompaniesRequest;
 import com.jobpilot.modules.company.dto.UpdateCompanyRequest;
 import com.jobpilot.modules.company.service.CompanyService;
 import jakarta.validation.Valid;
@@ -38,6 +39,11 @@ public class CompanyController {
     @PostMapping
     public Result<CompanyResponse> create(@Valid @RequestBody CreateCompanyRequest request) {
         return Result.ok(companyService.create(request));
+    }
+
+    @PostMapping("/merge")
+    public Result<CompanyResponse> merge(@Valid @RequestBody MergeCompaniesRequest request) {
+        return Result.ok(companyService.merge(request));
     }
 
     @PutMapping("/{companyId}")

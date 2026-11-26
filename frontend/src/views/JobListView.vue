@@ -9,9 +9,12 @@ import {
   batchDeleteJobPositions,
   deleteJobPosition,
   importJobPosition,
+  listCompanies,
   listJobPositions,
+  mergeCompanies,
   retryJobParse,
   updateJobPosition,
+  type Company,
   type JobPositionListItem,
   type JobPositionStatus,
 } from '@/api/jobs'
@@ -47,6 +50,13 @@ const importing = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const imageInput = ref<HTMLInputElement | null>(null)
 const importImages = ref<{ file: File; url: string }[]>([])
+
+/** 手动合并公司（FR5.3）：源公司并入目标公司后删除，操作不可撤销。 */
+const mergeOpen = ref(false)
+const mergeSaving = ref(false)
+const mergeSource = ref<number | null>(null)
+const mergeTarget = ref<number | null>(null)
+const companyOptions = ref<Company[]>([])
 
 const pages = computed(() => Math.max(1, Math.ceil(total.value / size)))
 const running = computed(() =>
@@ -368,6 +378,47 @@ function formatTime(value: string): string {
   return new Date(value).toLocaleString('zh-CN', { hour12: false })
 }
 
+async function toggleMerge(): Promise<void> {
+  mergeOpen.value = !mergeOpen.value
+  if (!mergeOpen.value) {
+    return
+  }
+  error.value = ''
+  try {
+    companyOptions.value = (await listCompanies('', 100)).items
+  } catch {
+    companyOptions.value = []
+  }
+}
+
+async function submitMerge(): Promise<void> {
+  if (!mergeSource.value || !mergeTarget.value) {
+    error.value = '请选择源公司与目标公司'
+    return
+  }
+  if (mergeSource.value === mergeTarget.value) {
+    error.value = '不能合并到自身'
+    return
+  }
+  mergeSaving.value = true
+  error.value = ''
+  try {
+    const merged = await mergeCompanies({
+      sourceCompanyId: mergeSource.value,
+      targetCompanyId: mergeTarget.value,
+    })
+    notice.value = `已合并到「${merged.name}」，岗位与 Offer 已同步归并`
+    mergeOpen.value = false
+    mergeSource.value = null
+    mergeTarget.value = null
+    await load()
+  } catch (ex) {
+    error.value = ex instanceof Error ? ex.message : '合并公司失败'
+  } finally {
+    mergeSaving.value = false
+  }
+}
+
 onMounted(load)
 onBeforeUnmount(() => {
   disposed = true
@@ -382,10 +433,50 @@ onBeforeUnmount(() => {
       <p class="lead">
         导入 JD 后自动结构化解析，支持生命周期跟踪、简历匹配与行情统计；解析与匹配都在后台异步执行。
       </p>
-      <button type="button" class="btn" :class="importOpen ? 'ghost' : 'primary'" @click="importOpen = !importOpen">
-        {{ importOpen ? '收起导入' : '导入 JD' }}
-      </button>
+      <div class="head-actions">
+        <button type="button" class="btn ghost" @click="toggleMerge">
+          {{ mergeOpen ? '收起合并' : '合并公司' }}
+        </button>
+        <button type="button" class="btn" :class="importOpen ? 'ghost' : 'primary'" @click="importOpen = !importOpen">
+          {{ importOpen ? '收起导入' : '导入 JD' }}
+        </button>
+      </div>
     </header>
+
+    <section v-if="mergeOpen" class="import">
+      <div class="merge-grid">
+        <label>
+          源公司（合并后删除）
+          <select v-model.number="mergeSource">
+            <option :value="null" disabled>选择源公司</option>
+            <option v-for="company in companyOptions" :key="company.id" :value="company.id">
+              {{ company.name }}
+            </option>
+          </select>
+        </label>
+        <label>
+          目标公司（保留）
+          <select v-model.number="mergeTarget">
+            <option :value="null" disabled>选择目标公司</option>
+            <option v-for="company in companyOptions" :key="company.id" :value="company.id">
+              {{ company.name }}
+            </option>
+          </select>
+        </label>
+      </div>
+      <p class="meta">源公司名下的岗位与 Offer 会归并到目标公司，随后删除源公司；操作不可撤销。</p>
+      <div class="import-actions">
+        <button
+          type="button"
+          class="btn primary"
+          :disabled="mergeSaving || !mergeSource || !mergeTarget"
+          @click="submitMerge"
+        >
+          {{ mergeSaving ? '合并中…' : '确认合并' }}
+        </button>
+        <button type="button" class="btn ghost" @click="mergeOpen = false">取消</button>
+      </div>
+    </section>
 
     <nav class="tabs">
       <button type="button" :class="{ active: tab === 'list' }" @click="tab = 'list'">岗位列表</button>
@@ -708,6 +799,39 @@ onBeforeUnmount(() => {
 .import-actions {
   display: flex;
   gap: var(--space-2);
+}
+
+.head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.merge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.merge-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-3);
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.merge-grid select {
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-btn);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
 }
 
 .shots {

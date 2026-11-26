@@ -15,11 +15,14 @@ import com.jobpilot.LambdaCacheSupport;
 import com.jobpilot.common.api.ErrorCode;
 import com.jobpilot.common.exception.BizException;
 import com.jobpilot.modules.company.dto.CreateCompanyRequest;
+import com.jobpilot.modules.company.dto.MergeCompaniesRequest;
 import com.jobpilot.modules.company.dto.UpdateCompanyRequest;
 import com.jobpilot.modules.company.entity.Company;
 import com.jobpilot.modules.company.mapper.CompanyMapper;
 import com.jobpilot.modules.job.entity.JobPosition;
 import com.jobpilot.modules.job.mapper.JobPositionMapper;
+import com.jobpilot.modules.offer.entity.Offer;
+import com.jobpilot.modules.offer.mapper.OfferMapper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,14 +37,16 @@ class CompanyServiceTest {
     private CompanyMapper companyMapper;
     @Mock
     private JobPositionMapper jobPositionMapper;
+    @Mock
+    private OfferMapper offerMapper;
 
     @BeforeAll
     static void initLambdaCache() {
-        LambdaCacheSupport.init(Company.class, JobPosition.class);
+        LambdaCacheSupport.init(Company.class, JobPosition.class, Offer.class);
     }
 
     private CompanyService service() {
-        return new CompanyService(companyMapper, jobPositionMapper);
+        return new CompanyService(companyMapper, jobPositionMapper, offerMapper);
     }
 
     private static Company company() {
@@ -130,6 +135,33 @@ class CompanyServiceTest {
         service().delete(1L);
 
         verify(companyMapper).deleteById(1L);
+    }
+
+    @Test
+    void mergeMovesJobsAndOffersThenDeletesSource() {
+        Company target = company();
+        target.setId(2L);
+        target.setName("字节");
+        when(companyMapper.selectById(1L)).thenReturn(company());
+        when(companyMapper.selectById(2L)).thenReturn(target);
+        when(jobPositionMapper.selectCount(any())).thenReturn(4L);
+
+        var response = service().merge(new MergeCompaniesRequest(1L, 2L));
+
+        assertThat(response.id()).isEqualTo(2L);
+        assertThat(response.jobPositionCount()).isEqualTo(4);
+        verify(jobPositionMapper).update(any(), any());
+        verify(offerMapper).update(any(), any());
+        verify(companyMapper).deleteById(1L);
+    }
+
+    @Test
+    void mergeRejectsSameCompanyAndMissingTarget() {
+        assertCode(() -> service().merge(new MergeCompaniesRequest(1L, 1L)), ErrorCode.BAD_REQUEST);
+
+        when(companyMapper.selectById(1L)).thenReturn(company());
+        when(companyMapper.selectById(2L)).thenReturn(null);
+        assertCode(() -> service().merge(new MergeCompaniesRequest(1L, 2L)), ErrorCode.NOT_FOUND);
     }
 
     private static void assertCode(Runnable action, ErrorCode expected) {

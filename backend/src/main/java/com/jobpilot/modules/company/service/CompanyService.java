@@ -12,11 +12,14 @@ import com.jobpilot.common.api.PageResult;
 import com.jobpilot.common.exception.BizException;
 import com.jobpilot.modules.company.dto.CompanyResponse;
 import com.jobpilot.modules.company.dto.CreateCompanyRequest;
+import com.jobpilot.modules.company.dto.MergeCompaniesRequest;
 import com.jobpilot.modules.company.dto.UpdateCompanyRequest;
 import com.jobpilot.modules.company.entity.Company;
 import com.jobpilot.modules.company.mapper.CompanyMapper;
 import com.jobpilot.modules.job.entity.JobPosition;
 import com.jobpilot.modules.job.mapper.JobPositionMapper;
+import com.jobpilot.modules.offer.entity.Offer;
+import com.jobpilot.modules.offer.mapper.OfferMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,10 +34,13 @@ public class CompanyService {
 
     private final CompanyMapper companyMapper;
     private final JobPositionMapper jobPositionMapper;
+    private final OfferMapper offerMapper;
 
-    public CompanyService(CompanyMapper companyMapper, JobPositionMapper jobPositionMapper) {
+    public CompanyService(CompanyMapper companyMapper, JobPositionMapper jobPositionMapper,
+                          OfferMapper offerMapper) {
         this.companyMapper = companyMapper;
         this.jobPositionMapper = jobPositionMapper;
+        this.offerMapper = offerMapper;
     }
 
     public PageResult<CompanyResponse> page(Integer page, Integer size, String keyword) {
@@ -111,6 +117,29 @@ public class CompanyService {
                     "公司仍被 " + referenced + " 个岗位引用，请先解除岗位关联");
         }
         companyMapper.deleteById(companyId);
+    }
+
+    /** 手动合并（FR5.3 事后补救）：岗位与 Offer 归并到目标公司，再删除源公司。 */
+    @Transactional
+    public CompanyResponse merge(MergeCompaniesRequest request) {
+        Long sourceId = request.sourceCompanyId();
+        Long targetId = request.targetCompanyId();
+        if (sourceId.equals(targetId)) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "不能合并到自身");
+        }
+        require(sourceId);
+        require(targetId);
+        OffsetDateTime now = OffsetDateTime.now();
+        jobPositionMapper.update(null, Wrappers.<JobPosition>lambdaUpdate()
+                .eq(JobPosition::getCompanyId, sourceId)
+                .set(JobPosition::getCompanyId, targetId)
+                .set(JobPosition::getUpdatedAt, now));
+        offerMapper.update(null, Wrappers.<Offer>lambdaUpdate()
+                .eq(Offer::getCompanyId, sourceId)
+                .set(Offer::getCompanyId, targetId));
+        companyMapper.deleteById(sourceId);
+        return toResponse(companyMapper.selectById(targetId), jobPositionMapper.selectCount(
+                Wrappers.<JobPosition>lambdaQuery().eq(JobPosition::getCompanyId, targetId)));
     }
 
     public Company require(Long companyId) {

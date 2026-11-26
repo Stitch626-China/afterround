@@ -36,6 +36,8 @@ const items = ref<ReviewSessionListItem[]>([])
 const applications = ref<JobApplicationListItem[]>([])
 const jobs = ref<JobPositionListItem[]>([])
 const companies = ref<Company[]>([])
+const companySuggestions = ref<Company[]>([])
+let companyTimer: ReturnType<typeof setTimeout> | undefined
 const resumes = ref<ResumeListItem[]>([])
 const total = ref(0)
 const page = ref(1)
@@ -88,7 +90,11 @@ const matchedRounds = ref<number | null>(null)
 /** 同名公司与岗位都命中时提示复用，避免重复创建。 */
 const matchedCompany = computed(() => {
   const name = quick.companyName.trim()
-  return name ? companies.value.find((company) => company.name === name) ?? null : null
+  if (!name) {
+    return null
+  }
+  return [...companySuggestions.value, ...companies.value]
+    .find((company) => company.name === name) ?? null
 })
 const matchedJob = computed(() => {
   const name = quick.companyName.trim()
@@ -148,10 +154,30 @@ async function loadOptions(): Promise<void> {
   }
   if (companyResult.status === 'fulfilled') {
     companies.value = companyResult.value.items
+    companySuggestions.value = companyResult.value.items
   }
   if (resumeResult.status === 'fulfilled') {
     resumes.value = resumeResult.value.items
   }
+}
+
+/** 公司联想（FR5.3）：输入时远端检索候选，只提示复用，不自动合并。 */
+function searchCompanySuggestions(): void {
+  if (companyTimer) {
+    clearTimeout(companyTimer)
+  }
+  companyTimer = setTimeout(async () => {
+    const keyword = quick.companyName.trim()
+    if (!keyword) {
+      companySuggestions.value = companies.value
+      return
+    }
+    try {
+      companySuggestions.value = (await listCompanies(keyword, 10)).items
+    } catch {
+      // 联想失败保留上一次候选，不阻断手输
+    }
+  }, 250)
 }
 
 function switchSource(mode: 'JOB' | 'APPLICATION' | 'QUICK'): void {
@@ -408,6 +434,9 @@ onBeforeUnmount(() => {
     clearInterval(timer)
     timer = null
   }
+  if (companyTimer) {
+    clearTimeout(companyTimer)
+  }
 })
 </script>
 
@@ -462,9 +491,10 @@ onBeforeUnmount(() => {
               maxlength="128"
               placeholder="输入公司名称，如 字节跳动"
               aria-label="填写公司"
+              @input="searchCompanySuggestions"
             />
             <datalist id="review-company-options">
-              <option v-for="company in companies" :key="company.id" :value="company.name" />
+              <option v-for="company in companySuggestions" :key="company.id" :value="company.name" />
             </datalist>
           </label>
           <label>
