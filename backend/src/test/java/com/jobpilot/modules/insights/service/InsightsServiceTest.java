@@ -19,6 +19,7 @@ import com.jobpilot.modules.insights.mapper.InsightsRows.ActionStatusRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyTagRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.FunnelRow;
+import com.jobpilot.modules.insights.mapper.InsightsRows.FunnelGroupRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.InsightEventRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.LossTagRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.QuestionRow;
@@ -259,6 +260,38 @@ class InsightsServiceTest {
             assertThat(item.action()).isEqualTo("补 JVM 笔记");
             assertThat(item.status()).isEqualTo("TODO");
         });
+    }
+
+    @Test
+    void mapsChannelAndCompanyTypeFunnels() {
+        when(mapper.channelFunnel(any(), any(), any(), any()))
+                .thenReturn(List.of(funnelGroup("BOSS", 10, 6, 2)));
+        when(mapper.companyTypeFunnel(any(), any(), any(), any()))
+                .thenReturn(List.of(funnelGroup("企业服务", 4, 1, 0)));
+
+        var result = service().overview(90, null, null);
+
+        assertThat(result.channels()).singleElement().satisfies(item -> {
+            assertThat(item.label()).isEqualTo("BOSS");
+            assertThat(item.interviewRate()).isEqualTo(0.6);
+            assertThat(item.offerRate()).isEqualTo(0.2);
+            assertThat(item.sufficient()).isTrue();
+        });
+        assertThat(result.companyTypes()).singleElement().satisfies(item -> {
+            assertThat(item.label()).isEqualTo("企业服务");
+            assertThat(item.interviewRate()).isEqualTo(0.25);
+            assertThat(item.offerRate()).isZero();
+            assertThat(item.sufficient()).isFalse();
+        });
+    }
+
+    private static FunnelGroupRow funnelGroup(String label, long applications, long interviews, long offers) {
+        FunnelGroupRow row = new FunnelGroupRow();
+        row.setLabel(label);
+        row.setApplications(applications);
+        row.setInterviews(interviews);
+        row.setOffers(offers);
+        return row;
     }
 
     private static FunnelRow funnel(long applications, long interviews, long offers, long rejected, long withdrawn) {

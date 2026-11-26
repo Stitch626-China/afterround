@@ -85,6 +85,15 @@ public final class InsightsRows {
         private Long confirmedReviews;
     }
 
+    /** 渠道 / 公司类型对比（FR8.4）：按投递来源聚合。 */
+    @Data
+    public static class FunnelGroupRow {
+        private String label;
+        private Long applications;
+        private Long interviews;
+        private Long offers;
+    }
+
     @Data
     public static class ActionStatusRow {
         private String status;

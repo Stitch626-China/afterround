@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.15.0
+  version: 1.16.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -6105,6 +6105,35 @@ components:
         sufficient:
           type: boolean
 
+    InsightFunnelGroup:
+      type: object
+      required: [label, applications, interviews, offers, interviewRate, offerRate, sufficient]
+      properties:
+        label:
+          type: string
+          description: 渠道名 / 公司类型
+          example: BOSS
+        applications:
+          type: integer
+          minimum: 0
+        interviews:
+          type: integer
+          minimum: 0
+        offers:
+          type: integer
+          minimum: 0
+        interviewRate:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+        offerRate:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+        sufficient:
+          type: boolean
+          description: 投递量不少于 5 才视为样本充足
+
     InsightStaleAction:
       type: object
       required: [id, action, status, createdAt]
@@ -6193,7 +6222,7 @@ components:
 
     InsightsOverview:
       type: object
-      required: [sample, summary, topics, lossTags, roundPassRates, companyProfiles, topQuestions, funnel, resumeFunnel, improvements, trend, taxonomyVersion, generatedAt]
+      required: [sample, summary, topics, lossTags, roundPassRates, companyProfiles, topQuestions, funnel, resumeFunnel, channels, companyTypes, improvements, trend, taxonomyVersion, generatedAt]
       properties:
         sample:
           $ref: '#/components/schemas/InsightSample'
@@ -6225,6 +6254,16 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/InsightResumeFunnel'
+        channels:
+          type: array
+          description: 按投递渠道对比（未填写渠道归入「未填写渠道」）
+          items:
+            $ref: '#/components/schemas/InsightFunnelGroup'
+        companyTypes:
+          type: array
+          description: 按公司类型对比；类型取公司标签首项，未标注归入「未标注」
+          items:
+            $ref: '#/components/schemas/InsightFunnelGroup'
         improvements:
           $ref: '#/components/schemas/InsightImprovements'
         trend:

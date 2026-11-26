@@ -3,7 +3,7 @@
  * 岗位详情（F2）：修正结构化字段、调整生命周期、重试解析、发起简历匹配。
  * 匹配走场景 JOB_MATCH 绑定模型；执行中重复发起会返回 409。
  */
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createJobApplication, type JobApplicationStatus } from '@/api/applications'
 import {
@@ -14,6 +14,7 @@ import {
   listCompanies,
   listJobMatches,
   retryJobParse,
+  updateCompany,
   updateJobPosition,
   type Company,
   type JobMatch,
@@ -53,6 +54,14 @@ const form = reactive({
 })
 
 const companies = ref<Company[]>([])
+const companyTags = ref('')
+const savingTags = ref(false)
+const selectedCompany = computed(
+  () => companies.value.find((item) => item.id === form.companyId) ?? null,
+)
+watch(selectedCompany, (company) => {
+  companyTags.value = (company?.tags ?? []).join('、')
+})
 const resumes = ref<ResumeListItem[]>([])
 const selectedResumeId = ref<number | null>(null)
 const matches = ref<JobMatch[]>([])
@@ -244,6 +253,27 @@ async function save(): Promise<void> {
     error.value = ex instanceof Error ? ex.message : '保存失败'
   } finally {
     saving.value = false
+  }
+}
+
+/** 公司类型标签（首项用于洞察分组）；只更新公司，不影响岗位字段。 */
+async function saveCompanyTags(): Promise<void> {
+  const company = selectedCompany.value
+  if (!company) {
+    error.value = '请先选择公司'
+    return
+  }
+  savingTags.value = true
+  error.value = ''
+  notice.value = ''
+  try {
+    const updated = await updateCompany(company.id, { tags: splitSkills(companyTags.value) })
+    companies.value = companies.value.map((item) => (item.id === updated.id ? updated : item))
+    notice.value = '公司标签已保存，洞察的公司类型对比按首项分类'
+  } catch (ex) {
+    error.value = ex instanceof Error ? ex.message : '保存公司标签失败'
+  } finally {
+    savingTags.value = false
   }
 }
 
@@ -454,6 +484,25 @@ onBeforeUnmount(() => {
                   {{ company.name }}
                 </option>
               </select>
+            </label>
+            <label class="full">
+              <span>公司类型标签（顿号或逗号分隔，首项用于洞察分组）</span>
+              <div class="tag-editor">
+                <input
+                  v-model="companyTags"
+                  maxlength="200"
+                  :disabled="!form.companyId"
+                  placeholder="如 互联网、SaaS"
+                />
+                <button
+                  type="button"
+                  class="btn ghost"
+                  :disabled="!form.companyId || savingTags"
+                  @click="saveCompanyTags"
+                >
+                  {{ savingTags ? '保存中…' : '保存标签' }}
+                </button>
+              </div>
             </label>
             <label>
               <span>城市</span>
@@ -709,6 +758,17 @@ onBeforeUnmount(() => {
   height: auto;
   padding: var(--space-2) var(--space-3);
   resize: vertical;
+}
+
+.tag-editor {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tag-editor input {
+  flex: 1;
+  min-width: 0;
 }
 
 .form-grid input:focus-visible,

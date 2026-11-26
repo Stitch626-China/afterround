@@ -16,6 +16,7 @@ export type JobMarketInsights = components['schemas']['JobMarketInsights']
 export type CountItem = components['schemas']['CountItem']
 export type SkillCountItem = components['schemas']['SkillCountItem']
 export type Company = components['schemas']['Company']
+export type UpdateCompanyRequest = components['schemas']['UpdateCompanyRequest']
 export type MergeCompaniesRequest = components['schemas']['MergeCompaniesRequest']
 export type SceneBinding = components['schemas']['SceneBinding']
 export type LlmScene = components['schemas']['LlmScene']
@@ -136,6 +137,10 @@ export function getMarketInsights(): Promise<JobMarketInsights> {
 
 export function listCompanies(keyword = '', size = 100): Promise<CompanyPage> {
   return get<CompanyPage>(`/companies${query({ keyword, size })}`)
+}
+
+export function updateCompany(id: number, payload: UpdateCompanyRequest): Promise<Company> {
+  return put<Company>(`/companies/${id}`, payload)
 }
 
 export function mergeCompanies(payload: MergeCompaniesRequest): Promise<Company> {

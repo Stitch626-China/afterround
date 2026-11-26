@@ -426,6 +426,75 @@ onMounted(() => {
 
       <section class="card">
         <div class="card-head">
+          <h3 class="card-title">渠道 / 公司类型对比</h3>
+          <span class="meta">公司类型取公司标签首项；投递少于 5 视为样本不足</span>
+        </div>
+        <div class="funnel-group">
+          <h4>按渠道</h4>
+          <div v-if="data.channels.length" class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>渠道</th>
+                  <th>投递</th>
+                  <th>面试</th>
+                  <th>Offer</th>
+                  <th>邀约率</th>
+                  <th>Offer 率</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in data.channels" :key="`channel-${row.label}`">
+                  <td>
+                    {{ row.label }}
+                    <span v-if="!row.sufficient" class="tag">样本不足</span>
+                  </td>
+                  <td>{{ row.applications }}</td>
+                  <td>{{ row.interviews }}</td>
+                  <td>{{ row.offers }}</td>
+                  <td>{{ pct(row.interviewRate) }}</td>
+                  <td>{{ pct(row.offerRate) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else class="empty-line">暂无渠道数据。</p>
+        </div>
+        <div class="funnel-group">
+          <h4>按公司类型</h4>
+          <div v-if="data.companyTypes.length" class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>公司类型</th>
+                  <th>投递</th>
+                  <th>面试</th>
+                  <th>Offer</th>
+                  <th>邀约率</th>
+                  <th>Offer 率</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in data.companyTypes" :key="`type-${row.label}`">
+                  <td>
+                    {{ row.label }}
+                    <span v-if="!row.sufficient" class="tag">样本不足</span>
+                  </td>
+                  <td>{{ row.applications }}</td>
+                  <td>{{ row.interviews }}</td>
+                  <td>{{ row.offers }}</td>
+                  <td>{{ pct(row.interviewRate) }}</td>
+                  <td>{{ pct(row.offerRate) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else class="empty-line">暂无公司类型数据；可在岗位详情维护公司标签。</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
           <h3 class="card-title">面试明细</h3>
           <span class="meta">按公司 → 岗位 → 轮次浏览，或按结果 / 轮次 / 知识点筛选</span>
         </div>
@@ -561,6 +630,16 @@ onMounted(() => {
 
 .detail-filters {
   margin-bottom: var(--space-3);
+}
+
+.funnel-group h4 {
+  margin: 0 0 var(--space-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.funnel-group + .funnel-group {
+  margin-top: var(--space-4);
 }
 
 .detail-groups {

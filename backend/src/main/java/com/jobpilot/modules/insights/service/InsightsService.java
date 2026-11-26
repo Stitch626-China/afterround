@@ -19,6 +19,7 @@ import com.jobpilot.modules.insights.dto.InsightDtos.InsightCompanyProfile;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightEventItem;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightEventTopic;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightFunnel;
+import com.jobpilot.modules.insights.dto.InsightDtos.InsightFunnelGroup;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightImprovements;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightLossTagDelta;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightQuestion;
@@ -36,6 +37,7 @@ import com.jobpilot.modules.insights.mapper.InsightsRows.ActionStatusRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyTagRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.FunnelRow;
+import com.jobpilot.modules.insights.mapper.InsightsRows.FunnelGroupRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.InsightEventRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.LossTagRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.QuestionRow;
@@ -93,6 +95,10 @@ public class InsightsService {
         List<InsightResumeFunnel> resumeFunnel = mapper.resumeFunnel(from, now, companyId, jobPositionId).stream()
                 .map(this::resumeFunnel)
                 .toList();
+        List<InsightFunnelGroup> channels = funnelGroups(
+                mapper.channelFunnel(from, now, companyId, jobPositionId));
+        List<InsightFunnelGroup> companyTypes = funnelGroups(
+                mapper.companyTypeFunnel(from, now, companyId, jobPositionId));
         InsightImprovements improvements = improvements(mapper.actionStatusCounts(),
                 mapper.staleActions(now.minusDays(STALE_DAYS)));
 
@@ -105,8 +111,8 @@ public class InsightsService {
 
         InsightTrend trend = trend(days, from, now, previousFrom, confirmed, companyId, jobPositionId);
         return new InsightsOverview(sample, summary(sample, lossTags, rounds, topics, improvements),
-                topics, lossTags, rounds, companies, questions, funnel, resumeFunnel, improvements,
-                trend, ReviewTaxonomyCatalog.TAXONOMY_VERSION, now);
+                topics, lossTags, rounds, companies, questions, funnel, resumeFunnel, channels, companyTypes,
+                improvements, trend, ReviewTaxonomyCatalog.TAXONOMY_VERSION, now);
     }
 
     /** 面试明细（FR5.2）：按事件时间倒序分页，支持结果 / 轮次类型 / 知识点扁平筛选。 */
@@ -237,6 +243,18 @@ public class InsightsService {
                 n(row.getInterviews()), n(row.getOffers()), passed, rejected,
                 rate(n(row.getInterviews()), applications), rate(passed, passed + rejected),
                 applications >= MINIMUM_SAMPLE);
+    }
+
+    /** 渠道 / 公司类型对比（FR8.4）：与漏斗口径一致，样本不足只展示原始统计。 */
+    private List<InsightFunnelGroup> funnelGroups(List<FunnelGroupRow> rows) {
+        return rows.stream().map(row -> {
+            int applications = n(row.getApplications());
+            int interviews = n(row.getInterviews());
+            int offers = n(row.getOffers());
+            return new InsightFunnelGroup(row.getLabel(), applications, interviews, offers,
+                    rate(interviews, applications), rate(offers, applications),
+                    applications >= MINIMUM_SAMPLE);
+        }).toList();
     }
 
     private InsightImprovements improvements(List<ActionStatusRow> rows, List<StaleActionRow> staleRows) {

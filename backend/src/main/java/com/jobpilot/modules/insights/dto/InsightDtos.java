@@ -45,6 +45,10 @@ public final class InsightDtos {
                                       boolean sufficient) {
     }
 
+    public record InsightFunnelGroup(String label, int applications, int interviews, int offers,
+                                     Double interviewRate, Double offerRate, boolean sufficient) {
+    }
+
     public record InsightStaleAction(Long id, String action, String status, OffsetDateTime createdAt) {
     }
 
@@ -73,7 +77,9 @@ public final class InsightDtos {
                                    List<InsightRoundPassRate> roundPassRates,
                                    List<InsightCompanyProfile> companyProfiles,
                                    List<InsightQuestion> topQuestions, InsightFunnel funnel,
-                                   List<InsightResumeFunnel> resumeFunnel, InsightImprovements improvements,
+                                   List<InsightResumeFunnel> resumeFunnel,
+                                   List<InsightFunnelGroup> channels, List<InsightFunnelGroup> companyTypes,
+                                   InsightImprovements improvements,
                                    InsightTrend trend, String taxonomyVersion, OffsetDateTime generatedAt) {
     }
 }

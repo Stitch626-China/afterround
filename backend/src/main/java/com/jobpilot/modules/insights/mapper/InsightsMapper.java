@@ -7,6 +7,7 @@ import com.jobpilot.modules.insights.mapper.InsightsRows.ActionStatusRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyTagRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.FunnelRow;
+import com.jobpilot.modules.insights.mapper.InsightsRows.FunnelGroupRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.InsightEventRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.LossTagRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.QuestionRow;
@@ -247,6 +248,51 @@ public interface InsightsMapper {
                                        @Param("to") OffsetDateTime to,
                                        @Param("companyId") Long companyId,
                                        @Param("jobPositionId") Long jobPositionId);
+
+    @Select("""
+            SELECT COALESCE(NULLIF(btrim(a.channel), ''), '未填写渠道') AS label,
+                   COUNT(*) AS applications,
+                   COUNT(*) FILTER (WHERE EXISTS (
+                       SELECT 1 FROM interview_events e WHERE e.application_id = a.id
+                   )) AS interviews,
+                   COUNT(*) FILTER (WHERE EXISTS (
+                       SELECT 1 FROM offers o WHERE o.application_id = a.id
+                   )) AS offers
+            FROM applications a
+            LEFT JOIN job_positions jp ON jp.id = a.job_position_id
+            WHERE a.applied_at >= #{from} AND a.applied_at < #{to}
+              AND (CAST(#{companyId} AS BIGINT) IS NULL OR jp.company_id = #{companyId})
+              AND (CAST(#{jobPositionId} AS BIGINT) IS NULL OR a.job_position_id = #{jobPositionId})
+            GROUP BY label
+            ORDER BY applications DESC, label
+            """)
+    List<FunnelGroupRow> channelFunnel(@Param("from") OffsetDateTime from,
+                                       @Param("to") OffsetDateTime to,
+                                       @Param("companyId") Long companyId,
+                                       @Param("jobPositionId") Long jobPositionId);
+
+    @Select("""
+            SELECT COALESCE(NULLIF(btrim(c.tags ->> 0), ''), '未标注') AS label,
+                   COUNT(*) AS applications,
+                   COUNT(*) FILTER (WHERE EXISTS (
+                       SELECT 1 FROM interview_events e WHERE e.application_id = a.id
+                   )) AS interviews,
+                   COUNT(*) FILTER (WHERE EXISTS (
+                       SELECT 1 FROM offers o WHERE o.application_id = a.id
+                   )) AS offers
+            FROM applications a
+            JOIN job_positions jp ON jp.id = a.job_position_id
+            LEFT JOIN companies c ON c.id = jp.company_id
+            WHERE a.applied_at >= #{from} AND a.applied_at < #{to}
+              AND (CAST(#{companyId} AS BIGINT) IS NULL OR jp.company_id = #{companyId})
+              AND (CAST(#{jobPositionId} AS BIGINT) IS NULL OR a.job_position_id = #{jobPositionId})
+            GROUP BY label
+            ORDER BY applications DESC, label
+            """)
+    List<FunnelGroupRow> companyTypeFunnel(@Param("from") OffsetDateTime from,
+                                           @Param("to") OffsetDateTime to,
+                                           @Param("companyId") Long companyId,
+                                           @Param("jobPositionId") Long jobPositionId);
 
     @Select("""
             SELECT COUNT(*) AS total_reviews,
