@@ -1,0 +1,6 @@
+{
+  "scene": "jd-parse",
+  "sourceType": "community-rewrite",
+  "sanitized": true,
+  "note": "真实 JD 改写：AI 应用 + Java/Python 后端，含 RAG/Agent 职责"
+}

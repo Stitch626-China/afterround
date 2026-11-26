@@ -1,0 +1,31 @@
+求职意向：云原生运维、SRE 工程师
+
+项目经历
+项目名称：[项目A]（微服务监控平台）| 个人项目
+技术栈：Prometheus + Grafana + Alertmanager + Docker Compose + 企业 IM 机器人
+· 架构：Nginx 网关接入 3 个微服务，MySQL 持久化，Redis 存热点数据与在线状态。
+· 核心亮点：指标不带服务前缀，以 service 标签区分实例，一条 PromQL 覆盖全部服务（3 服务 19 类指标）；自建 downstream_* 指标采集服务间调用的量/失败率/耗时，定位“自身异常还是依赖异常”；Prometheus 用 file_sd，新增服务只加一条 JSON，不重启。
+· 可视化与告警闭环：Grafana 3 大屏 29 面板；Alertmanager 按 P0/P1/P2 分级 + 抑制规则防风暴，P0 10 秒内发出；自建 webhook 对接企业 IM；6 类故障演练验证告警平均 45 秒触发、消息 60 秒送达。
+
+项目名称：[项目B]（云原生 CI/CD 与可观测性平台）| 个人项目
+技术栈：GitLab · Jenkins · Docker · Harbor · SonarQube · Kubernetes · EFK
+· CI/CD 交付：自建 GitLab + Jenkins 声明式流水线，8 个 Stage（拉取代码 → 单测门禁 → 前后端构建 → 镜像构建 → 推 Harbor → kubectl 滚动更新 → 自动验证），实现“一次 push 完成上线”；配 JUnit 5 + SonarQube 双重质量门禁，并修复 surefire 2.17 静默跳过 JUnit 5 的“假通过”隐患。
+· 镜像与回滚：经 JDK → JRE → Alpine 优化，镜像由 570MB 降至 294MB（-48.4%）；Harbor 镜像按构建号打 tag，支持一键回滚，并配置保留策略控制仓库磁盘增长。
+· 集群高可用：3 Master + 3 Worker 集群，自建 HAProxy + Keepalived 双机 VIP 入口，消除 apiserver 与业务接入单点。
+· EFK 日志：Filebeat 采集 → ES Ingest Pipeline 解析 → Kibana 展示。
+
+专业技能
+· 熟悉 Kubernetes 云原生技术，掌握 k8s 核心资源对象，能使用 kubeadm 搭建集群、配置网络插件并排查故障。
+· 熟练使用 Ansible，熟悉 Git/GitLab/Jenkins Pipeline 持续交付，熟练编写 Dockerfile、Docker Compose 多服务编排，掌握 Harbor 私有仓库搭建与镜像管理。
+· 熟悉 Prometheus 和 Zabbix 监控系统，熟悉 ELK 日志分析。
+· 熟悉 Linux 系统管理与 Shell 编程，掌握 TCP/IP、HTTP 协议，能独立排查系统与网络故障。
+· 熟练配置 Nginx、LVS+Keepalived、HAProxy 搭建高可用接入层；熟悉 MySQL、Redis。
+· 了解 KVM 虚拟化、堡垒机运维审计与公有云常用产品；了解 Kafka、Nacos 在微服务体系中的使用。
+
+教育背景
+2023.09 - 2027.06 [学校A] 计算机科学与技术
+
+荣誉证书与经历
+· 计算机技术与软件专业技术资格考试·中级。
+· 校级程序设计大赛一等奖。
+· 计算机协会副会长，带队参加蓝桥杯、ACM 竞赛并开设算法培训班，负责组队、训练与算法辅导。

@@ -1,0 +1,7 @@
+{
+  "requiredFields": ["title", "mustHaveSkills"],
+  "skillsMin": 5,
+  "maxItems": { "mustHaveSkills": 30, "niceToHaveSkills": 30 },
+  "mustMentionAny": ["自动化测试", "接口测试", "性能测试"],
+  "scoreDriftMax": 5
+}

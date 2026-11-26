@@ -1,0 +1,12 @@
+{
+  "scene": "review-analyze",
+  "sourceType": "real-transcript",
+  "sanitized": true,
+  "note": "全栈岗位一面，前端经验空白，Redis 热点与薪资回答偏弱",
+  "companyName": "[公司A]",
+  "jobTitle": "全栈开发工程师",
+  "roundType": "TECH",
+  "interviewerRole": "技术负责人",
+  "format": "PHONE",
+  "inputType": "TEXT"
+}

@@ -1,0 +1,12 @@
+{
+  "scene": "review-analyze",
+  "sourceType": "real-notes",
+  "sanitized": true,
+  "note": "主管面笔记，优势与规划表达空泛，对 AI 替代团队过度附和",
+  "companyName": "[公司A]",
+  "jobTitle": "Java 后端开发",
+  "roundType": "DIRECTOR",
+  "interviewerRole": "技术负责人",
+  "format": "ONSITE",
+  "inputType": "NOTES"
+}

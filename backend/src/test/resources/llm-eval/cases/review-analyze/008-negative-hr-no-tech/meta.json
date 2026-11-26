@@ -1,0 +1,12 @@
+{
+  "scene": "review-analyze",
+  "sourceType": "negative",
+  "sanitized": true,
+  "note": "负样本：纯 HR 轮，无技术内容，期望优雅处理",
+  "companyName": "[公司A]",
+  "jobTitle": "Java 后端开发",
+  "roundType": "HR",
+  "interviewerRole": "HR",
+  "format": "PHONE",
+  "inputType": "NOTES"
+}

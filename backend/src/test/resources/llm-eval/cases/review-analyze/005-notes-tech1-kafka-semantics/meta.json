@@ -1,0 +1,12 @@
+{
+  "scene": "review-analyze",
+  "sourceType": "real-notes",
+  "sanitized": true,
+  "note": "技术一面笔记，Kafka 提交语义与消费并行度答错",
+  "companyName": "[公司A]",
+  "jobTitle": "Java 后端开发",
+  "roundType": "TECH",
+  "interviewerRole": "技术面试官",
+  "format": "VIDEO",
+  "inputType": "NOTES"
+}

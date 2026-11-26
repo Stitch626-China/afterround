@@ -1,0 +1,6 @@
+{
+  "scene": "resume-analysis",
+  "sourceType": "community-rewrite",
+  "sanitized": true,
+  "note": "AI/RAG 方向，含知识库与代码修复 Agent 项目"
+}

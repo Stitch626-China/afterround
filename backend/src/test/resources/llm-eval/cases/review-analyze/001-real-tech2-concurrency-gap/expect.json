@@ -1,0 +1,9 @@
+{
+  "requiredFields": ["questions", "topics", "lossTags", "summary", "actions"],
+  "topicsMustInclude": ["concurrency", "algorithm"],
+  "lossTagsMustInclude": ["knowledge-gap"],
+  "maxItems": { "questions": 25, "actions": 3 },
+  "mustMentionAny": ["AQS", "ConcurrentHashMap", "链表"],
+  "scoreDriftMax": 5,
+  "tagJaccardMin": 0.7
+}

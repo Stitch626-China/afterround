@@ -1,0 +1,6 @@
+{
+  "scene": "jd-parse",
+  "sourceType": "community-rewrite",
+  "sanitized": true,
+  "note": "真实 JD 改写：中级 Java 后端，强调并发、分布式与性能调优"
+}

@@ -1,0 +1,9 @@
+{
+  "requiredFields": ["questions", "topics", "lossTags", "summary", "actions"],
+  "topicsMustInclude": ["concurrency", "spring"],
+  "lossTagsMustInclude": ["knowledge-gap"],
+  "maxItems": { "questions": 25, "actions": 3 },
+  "mustMentionAny": ["AtomicInteger", "线程池", "AOP"],
+  "scoreDriftMax": 5,
+  "tagJaccardMin": 0.7
+}

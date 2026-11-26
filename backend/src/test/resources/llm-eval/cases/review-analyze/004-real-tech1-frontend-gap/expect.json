@@ -1,0 +1,9 @@
+{
+  "requiredFields": ["questions", "topics", "lossTags", "summary", "actions"],
+  "topicsMustInclude": ["project", "redis"],
+  "lossTagsMustInclude": ["no-evidence"],
+  "maxItems": { "questions": 20, "actions": 3 },
+  "mustMentionAny": ["前端", "Redis", "热点"],
+  "scoreDriftMax": 5,
+  "tagJaccardMin": 0.7
+}

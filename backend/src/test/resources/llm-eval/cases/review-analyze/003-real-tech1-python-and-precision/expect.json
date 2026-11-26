@@ -1,0 +1,9 @@
+{
+  "requiredFields": ["questions", "topics", "lossTags", "summary", "actions"],
+  "topicsMustInclude": ["project", "java"],
+  "lossTagsMustInclude": ["knowledge-gap"],
+  "maxItems": { "questions": 25, "actions": 3 },
+  "mustMentionAny": ["BigDecimal", "Python", "MySQL"],
+  "scoreDriftMax": 5,
+  "tagJaccardMin": 0.7
+}

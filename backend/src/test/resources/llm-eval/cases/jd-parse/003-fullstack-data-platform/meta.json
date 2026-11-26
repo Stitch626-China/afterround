@@ -1,0 +1,6 @@
+{
+  "scene": "jd-parse",
+  "sourceType": "community-rewrite",
+  "sanitized": true,
+  "note": "真实 JD 改写：全栈 + 数据平台，含 PostgreSQL/Redis/Leaflet"
+}

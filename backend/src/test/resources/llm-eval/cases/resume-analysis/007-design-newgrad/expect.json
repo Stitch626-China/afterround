@@ -1,0 +1,15 @@
+{
+  "requiredFields": ["technicalDepth", "projectQuality", "engineeringAbility", "expressionStructure", "jobMatchPotential", "basicInfo", "strengths", "weaknesses", "suggestions", "careerDirections"],
+  "quotesMustComeFromInput": true,
+  "scoreRange": {
+    "technicalDepth": [0, 100],
+    "projectQuality": [0, 100],
+    "engineeringAbility": [0, 100],
+    "expressionStructure": [0, 100],
+    "jobMatchPotential": [0, 100]
+  },
+  "maxItems": { "strengths": 5, "weaknesses": 5, "suggestions": 5, "careerDirections": 5 },
+  "overallFormula": "30/25/20/15/10",
+  "mustMentionAny": ["Photoshop", "Illustrator", "海报", "排版"],
+  "scoreDriftMax": 5
+}

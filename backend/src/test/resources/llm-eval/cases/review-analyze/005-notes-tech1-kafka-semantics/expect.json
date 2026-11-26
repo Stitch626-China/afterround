@@ -1,0 +1,9 @@
+{
+  "requiredFields": ["questions", "topics", "lossTags", "summary", "actions"],
+  "topicsMustInclude": ["kafka", "redis"],
+  "lossTagsMustInclude": ["knowledge-gap"],
+  "maxItems": { "questions": 20, "actions": 3 },
+  "mustMentionAny": ["Kafka", "分区", "提交"],
+  "scoreDriftMax": 5,
+  "tagJaccardMin": 0.7
+}

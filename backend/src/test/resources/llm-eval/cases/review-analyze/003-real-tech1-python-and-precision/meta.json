@@ -1,0 +1,12 @@
+{
+  "scene": "review-analyze",
+  "sourceType": "real-transcript",
+  "sanitized": true,
+  "note": "技术一面，主动自曝 Python 短板，金额精度与超时语义说错",
+  "companyName": "[公司A]",
+  "jobTitle": "Java/Python AI 应用开发",
+  "roundType": "TECH",
+  "interviewerRole": "业务与技术联合面试官",
+  "format": "VIDEO",
+  "inputType": "TEXT"
+}

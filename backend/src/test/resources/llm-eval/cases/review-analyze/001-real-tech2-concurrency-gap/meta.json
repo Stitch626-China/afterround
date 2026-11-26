@@ -1,0 +1,12 @@
+{
+  "scene": "review-analyze",
+  "sourceType": "real-transcript",
+  "sanitized": true,
+  "note": "二面，并发、集合与手写链表明显失分，面试官当场质疑基础",
+  "companyName": "[公司A]",
+  "jobTitle": "Java 后端开发",
+  "roundType": "TECH",
+  "interviewerRole": "技术负责人",
+  "format": "VIDEO",
+  "inputType": "TEXT"
+}

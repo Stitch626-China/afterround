@@ -1,0 +1,12 @@
+{
+  "scene": "review-analyze",
+  "sourceType": "real-notes",
+  "sanitized": true,
+  "note": "HR 面笔记，薪资结构与定级未问透，试用期表达焦虑",
+  "companyName": "[公司A]",
+  "jobTitle": "Java 后端开发",
+  "roundType": "HR",
+  "interviewerRole": "HR",
+  "format": "VIDEO",
+  "inputType": "NOTES"
+}

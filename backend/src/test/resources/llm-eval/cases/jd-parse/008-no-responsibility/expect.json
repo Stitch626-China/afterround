@@ -1,0 +1,5 @@
+{
+  "maxItems": { "mustHaveSkills": 5 },
+  "expectGraceful": true,
+  "scoreDriftMax": 5
+}

@@ -1,0 +1,6 @@
+{
+  "scene": "resume-analysis",
+  "sourceType": "synthetic",
+  "sanitized": true,
+  "note": "合成缺陷：项目只写负责 XX 模块开发，无量化"
+}

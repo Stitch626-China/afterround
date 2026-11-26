@@ -1,0 +1,8 @@
+岗位名称：Backend Engineer（后端开发工程师）
+公司：[公司A]
+城市：[地区A]
+薪资：20-35K
+经验：3-5年
+学历：本科
+
+We are hiring a Backend Engineer to design, build and maintain Java microservices for our enterprise platform. 岗位职责包括 API design、业务逻辑实现、数据库设计与优化、服务稳定性建设和 performance tuning；需要与 product、algorithm、frontend team 紧密协作，推动 feature 高质量上线。任职要求：熟悉 Java、Spring Boot、MySQL、Redis、Kafka，了解 Docker、Kubernetes 和 CI/CD；具备良好的 problem solving 能力、代码规范意识和团队沟通能力。3-5 years of backend development experience，本科及以上学历，计算机相关专业优先。

@@ -1,0 +1,12 @@
+{
+  "scene": "review-analyze",
+  "sourceType": "real-transcript",
+  "sanitized": true,
+  "note": "技术一面，i++、原子类、线程池与 Spring 原理连续卡壳",
+  "companyName": "[公司A]",
+  "jobTitle": "Java 后端开发",
+  "roundType": "TECH",
+  "interviewerRole": "技术面试官",
+  "format": "PHONE",
+  "inputType": "TEXT"
+}

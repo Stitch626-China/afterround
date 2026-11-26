@@ -1,0 +1,7 @@
+{
+  "requiredFields": ["title", "mustHaveSkills"],
+  "skillsMin": 6,
+  "maxItems": { "mustHaveSkills": 30, "niceToHaveSkills": 30 },
+  "mustMentionAny": ["PostgreSQL", "Redis", "Leaflet"],
+  "scoreDriftMax": 5
+}

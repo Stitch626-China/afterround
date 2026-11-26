@@ -1,0 +1,6 @@
+{
+  "scene": "resume-analysis",
+  "sourceType": "synthetic",
+  "sanitized": true,
+  "note": "合成缺陷：超短简历（≤200 字）"
+}

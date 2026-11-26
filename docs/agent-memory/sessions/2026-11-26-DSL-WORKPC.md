@@ -186,3 +186,62 @@
 - 原因：用户要求验证本轮全部缺口实现是否偏差、文档是否有误。
 - 验证：契约 lint **0 error / 0 warning**；后端 `clean test` 全量 **210 tests 全绿**（行覆盖 **86.45%**，JaCoCo 门禁通过，新增「分析未完成 400」用例）；前端构建（含 `vue-tsc`）、Vitest **28**、Playwright **20** 全过（检索 E2E 新增空态与清空断言）。
 - 下一步 / 断点：代码与文档分两次提交并推送；对照表无待补缺口。
+
+### 19:30 事件
+
+- 改动：按 `docs/LLM评测集语料规范.md` v1.1 在 `backend/src/test/resources/llm-eval/cases/review-analyze/` 新建 8 份语料：
+  - `001-real-tech2-concurrency-gap`：真实二面转写，AQS / 集合 / 链表失分；
+  - `002-real-tech1-java-basics-gap`：真实一面转写，i++ / 原子类 / 线程池 / Spring 原理失分；
+  - `003-real-tech1-python-and-precision`：真实一面转写，Python 自曝 / 金额精度 / 超时语义失分；
+  - `004-real-tech1-frontend-gap`：真实一面转写，全栈岗位前端空白 / Redis 热点；
+  - `005-notes-tech1-kafka-semantics`：面经改写 NOTES，Kafka 提交语义与消费并行度；
+  - `006-notes-director-ai-boundary`：面经改写 NOTES，主管面优势 / 规划 / AI 边界；
+  - `007-notes-hr-salary-negotiation`：面经改写 NOTES，HR 面薪资与试用期；
+  - `008-negative-hr-no-tech`：纯 HR 负样本，`expectGraceful` + 禁止技术失分标签。
+  - 每份含 `input.txt` / `meta.json` / `expect.json`；真实转写按规范替换人名、公司、学校、项目名、地点与独特指标；断言使用 `taxonomy-v1` key。
+- 原因：完成 PROGRESS 第 10 项的前置语料，供后续实现评测执行器与基线；先冻结语料口径，避免改 prompt 后无法判断退化。
+- 验证：8 份 `meta.json` / `expect.json` 均可解析；`input.txt` 字符数 22,194 / 8,872 / 19,120 / 8,006 / 1,358 / 951 / 726 / 259，均 ≤30,000；全部文件 UTF-8 无 BOM、LF；隐私关键词扫描零命中；每份至少一条 L1 断言；`topics` / `lossTags` 均为词表 key；负样本 `expectGraceful=true` 且 `mustNotContainTags=["knowledge-gap","shallow-depth"]`。
+- 下一步 / 断点：实现评测执行器与基线（复用生产 `PromptFactory` 与 `StructuredOutputInvoker`，默认 `mvn test` 排除 `llm-eval` tag）；本轮语料与文档未提交，等待用户确认后 commit / push。
+
+### 20:10 事件
+
+- 改动：按规范 v1.1 新建 `backend/src/test/resources/llm-eval/cases/jd-parse/` 8 份语料：
+  - `001-java-python-ai-backend`：四家公司 JD 改写，AI 应用 + Java/Python 后端；
+  - `002-mid-java-backend`：中级 Java 后端，覆盖并发、分布式与性能调优；
+  - `003-fullstack-data-platform`：全栈 + 数据平台，覆盖 PostgreSQL / Redis / Leaflet；
+  - `004-backend-ai-product`：1-3 年后端，Java/Python 双栈；
+  - `005-test-development`：测试开发补位样本，覆盖测试族；
+  - `006-benefits-only`：边界样本，只有福利、没有职责与要求；
+  - `007-mixed-language`：边界样本，中英混杂、职责与要求混在一段；
+  - `008-no-responsibility`：负样本，无职责与要求，期望优雅处理。
+  - 每份含 `input.txt` / `meta.json` / `expect.json`；JD 原文来自四家公司目录中的截图，已删除公司名、招聘人、联系方式、办公地点与独特业务描述，替换为 `[公司A]` / `[地区A]`。
+- 原因：补齐 `jd-parse` 场景语料，与 `review-analyze` 一起作为首批 22 份中的 16 份；剩余 `resume-analysis` 6 份待建。
+- 验证：8 份 `meta.json` / `expect.json` 均可解析；`input.txt` 字符数 832 / 566 / 482 / 650 / 500 / 165 / 479 / 68，均 ≤30,000；全部 UTF-8 无 BOM、LF；隐私关键词扫描零命中；正常样本 `requiredFields` + `skillsMin` + `mustMentionAny`，边界与负样本 `expectGraceful` + `maxItems`。
+- 下一步 / 断点：补 `resume-analysis` 6 份；随后实现评测执行器与基线。本轮语料与文档未提交，等待用户确认后 commit / push。
+
+### 20:40 事件
+
+- 改动：从 `C:\Users\admin\Downloads\简历` 的 1 份 PDF + 6 张 PNG 提取并脱敏，新建 `backend/src/test/resources/llm-eval/cases/resume-analysis/` 7 份语料：
+  - `001-backend-java-ai`：Java 后端 + AI 双栈（PDF）；
+  - `002-ai-rag-platform`：AI/RAG 知识库与代码修复 Agent；
+  - `003-newgrad-java-intern`：应届 Java 后端，实习项目量化密集；
+  - `004-sre-cloud-native`：云原生/SRE，Kubernetes + CI/CD + 监控；
+  - `005-ai-agent-newgrad`：AI/Agent 应届，多 Agent 与评测闭环；
+  - `006-frontend-nodejs`：前端/Node.js 应届，含大厂实习与 Electron 项目；
+  - `007-design-newgrad`：非技术/设计应届，测试非技术简历解析与方向推荐。
+  - 每份含 `input.txt` / `meta.json` / `expect.json`；已删除姓名、电话、邮箱、年龄、性别、籍贯、学校、公司、项目名、GitHub/作品集链接与水印；业务规模指标改为量级描述，技术性能指标保留。
+- 原因：用户提供 7 份真实简历，要求整理为 `resume-analysis` 语料；实际 7 份比规范首批 6 份多 1 份，保留设计简历用于非技术多样性。
+- 验证：7 份 `meta.json` / `expect.json` 均可解析；`input.txt` 字符数 2697 / 1932 / 2130 / 1537 / 1659 / 1720 / 766，均 ≤30,000；全部 UTF-8 无 BOM、LF；隐私关键词扫描零命中；`quotesMustComeFromInput=true`、`overallFormula=30/25/20/15/10`、五维 `scoreRange` 与 `careerDirections` 上限已配置。
+- 下一步 / 断点：三个场景共 23 份语料已建（review 8 + jd 8 + resume 7），下一步实现评测执行器与基线；本轮语料与文档未提交，等待用户确认后 commit / push。
+
+### 21:05 事件
+
+- 改动：按用户要求补齐最后 4 份语料，其余不再增加：
+  - `resume-analysis/008-synthetic-no-metrics`：项目只写“负责 XX 模块开发”，无任何量化；
+  - `resume-analysis/009-synthetic-career-gap`：销售转 Java，2021.09-2023.06 空窗；
+  - `resume-analysis/010-synthetic-short`：96 字符超短简历；
+  - `jd-parse/009-client-engineer`：客户端（Android/iOS）岗位，补齐客户端族。
+  - 每份含 `input.txt` / `meta.json` / `expect.json`；断言：无量化用 `mustMentionAny=["量化","指标","数据"]`，空窗用 `["空窗","转行","空档","非科班"]`，超短用 `expectGraceful`，客户端 JD 用 `skillsMin=5` + `Kotlin/Swift/Android/iOS`。
+- 原因：补齐规范中简历 004/005/006 的合成缺陷槽位与 JD 客户端族；用户明确“其他的就不再加了”。
+- 验证：4 份 `meta.json` / `expect.json` 均可解析；input 286 / 438 / 96 / 519 字符，均 ≤30,000；全部 UTF-8 无 BOM、LF；隐私关键词扫描零命中；超短简历 96 字符 ≤200。
+- 下一步 / 断点：三个场景共 27 份语料（review 8 + jd 9 + resume 10），语料阶段结束；下一步实现评测执行器与基线。未提交，等待用户确认后 commit / push。

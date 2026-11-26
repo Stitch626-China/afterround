@@ -1,0 +1,7 @@
+{
+  "requiredFields": ["title", "mustHaveSkills"],
+  "skillsMin": 5,
+  "maxItems": { "mustHaveSkills": 30, "niceToHaveSkills": 30 },
+  "mustMentionAny": ["Java", "Spring Boot", "Kubernetes"],
+  "scoreDriftMax": 5
+}

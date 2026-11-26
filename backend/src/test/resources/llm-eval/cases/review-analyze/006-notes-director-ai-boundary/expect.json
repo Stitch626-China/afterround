@@ -1,0 +1,9 @@
+{
+  "requiredFields": ["questions", "topics", "lossTags", "summary", "actions"],
+  "topicsMustInclude": ["career", "communication"],
+  "lossTagsMustInclude": ["unclear-expression"],
+  "maxItems": { "questions": 20, "actions": 3 },
+  "mustMentionAny": ["优势", "规划", "AI"],
+  "scoreDriftMax": 5,
+  "tagJaccardMin": 0.7
+}
