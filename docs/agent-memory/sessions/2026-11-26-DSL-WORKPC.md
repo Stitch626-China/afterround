@@ -90,3 +90,10 @@
 - 改动：提交 2B + 文档 `c54dc5e`；推送 `feat/review-quick-create` 并创建 PR #8（两个提交，Squash 合并）。
 - 验证：PR CI 三 job 全绿（契约 13s / 前端 54s / 后端 1m2s）；Squash 合并为 `c1221c1`，main push CI 全绿（run 45752419053）。
 - 下一步 / 断点：本地 `/reviews` 「快速新建」可手工体验；远端 feature 分支保留（用户跳过删除命令），如需清理再删。后续按对照表继续 FR5.2 / FR5.3 / FR8.2 / FR8.4 / FR6.7。
+
+### 14:30 事件
+
+- 改动：清理已合并的远端 `feat/review-quick-create` 分支（实际已不存在）；修复 Dependabot 8 条漏洞：Tika `2.9.2 → 3.2.2`、Vitest `3 → 4.1.12`、`@redocly/cli 1.34 → 2.83`、`vue-tsc 2.2 → 3.3.14`，移除未被任何测试引用的 `@vue/test-utils`。
+- 原因：3 critical 分别为 Tika XXE 与 tinypool RCE（测试运行器传递依赖）；其余为同一批测试 / CLI 依赖的传递依赖，升级即可清零，避免每次 push 弹提醒。
+- 验证：`npm audit` **0 漏洞**；后端 **187 tests 全绿**（JaCoCo 门禁通过）、前端构建、Vitest **26**、Playwright **17**、契约 lint 0/0 全过；main CI 全绿（run 45767228114）；GitHub SBOM 已识别 Tika 3.2.2 / Vitest 4.1.12。Dependabot 8 条已全部关闭（3 critical / 1 high / 4 moderate，均按 `fix_started` 附修复说明），当前 open = 0。
+- 下一步 / 断点：依赖升级已提交 `2498f4c` 并推送；后续新告警仍会正常出现，按同样方式评估。
