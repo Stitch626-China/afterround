@@ -85,11 +85,17 @@ public class JobApplicationService {
         return PageResult.of(toItems(result.getRecords()), result.getTotal(), current, pageSize);
     }
 
-    /** 记录投递：岗位必须存在，简历可选；状态固定从 APPLIED 开始并同步岗位。 */
+    /** 记录投递：岗位必须存在，简历可选；状态可指定（补录历史），为空默认 APPLIED 并同步岗位。 */
     public JobApplicationListItemResponse create(CreateJobApplicationRequest request) {
         JobPosition job = requireJob(request.jobPositionId());
         if (request.resumeId() != null) {
             requireResume(request.resumeId());
+        }
+        String status = text(request.status(), 16);
+        if (status == null) {
+            status = "APPLIED";
+        } else if (!STATUSES.contains(status)) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "status 取值非法");
         }
         OffsetDateTime now = OffsetDateTime.now();
         JobApplication entity = new JobApplication();
@@ -98,7 +104,8 @@ public class JobApplicationService {
         entity.setResumeId(request.resumeId());
         entity.setChannel(text(request.channel(), 64));
         entity.setAppliedAt(request.appliedAt() == null ? now : request.appliedAt());
-        entity.setStatus("APPLIED");
+        entity.setStatus(status);
+        entity.setOutcome(text(request.outcome(), 500));
         entity.setNotes(text(request.notes(), 2000));
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);

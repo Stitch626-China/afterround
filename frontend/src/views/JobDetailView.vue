@@ -5,6 +5,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { createJobApplication, type JobApplicationStatus } from '@/api/applications'
 import {
   createJobMatch,
   deleteJobPosition,
@@ -57,6 +58,25 @@ const selectedResumeId = ref<number | null>(null)
 const matches = ref<JobMatch[]>([])
 const currentMatch = ref<JobMatch | null>(null)
 const matching = ref(false)
+
+/** 记录投递：岗位固定为本页岗位，状态可指定用于补录历史。 */
+const applyOpen = ref(false)
+const applySaving = ref(false)
+const applyDraft = reactive<{
+  resumeId: number
+  channel: string
+  appliedAt: string
+  status: JobApplicationStatus
+  outcome: string
+  notes: string
+}>({ resumeId: 0, channel: '', appliedAt: '', status: 'APPLIED', outcome: '', notes: '' })
+const APPLY_STATUSES: { value: JobApplicationStatus; text: string }[] = [
+  { value: 'APPLIED', text: '已投递' },
+  { value: 'INTERVIEWING', text: '面试中' },
+  { value: 'OFFERED', text: '已录用' },
+  { value: 'REJECTED', text: '已淘汰' },
+  { value: 'WITHDRAWN', text: '已撤回' },
+]
 
 const parseRunning = computed(
   () => job.value?.parseStatus === 'PENDING' || job.value?.parseStatus === 'PROCESSING',
@@ -267,6 +287,36 @@ async function refreshMatches(): Promise<void> {
   }
 }
 
+async function submitApply(): Promise<void> {
+  applySaving.value = true
+  error.value = ''
+  notice.value = ''
+  try {
+    await createJobApplication({
+      jobPositionId: jobId,
+      resumeId: applyDraft.resumeId || null,
+      channel: applyDraft.channel.trim() || null,
+      appliedAt: applyDraft.appliedAt ? new Date(applyDraft.appliedAt).toISOString() : null,
+      status: applyDraft.status,
+      outcome: applyDraft.outcome.trim() || null,
+      notes: applyDraft.notes.trim() || null,
+    })
+    applyOpen.value = false
+    applyDraft.resumeId = 0
+    applyDraft.channel = ''
+    applyDraft.appliedAt = ''
+    applyDraft.status = 'APPLIED'
+    applyDraft.outcome = ''
+    applyDraft.notes = ''
+    notice.value = '已记录投递，岗位状态已同步'
+    await load(true)
+  } catch (ex) {
+    error.value = ex instanceof Error ? ex.message : '记录投递失败'
+  } finally {
+    applySaving.value = false
+  }
+}
+
 async function remove(): Promise<void> {
   deleting.value = true
   error.value = ''
@@ -325,6 +375,9 @@ onBeforeUnmount(() => {
           </span>
           <span class="status muted">{{ STATUS_TEXT[job.status] ?? job.status }}</span>
           <span v-if="job.llmProvider" class="tag">{{ job.llmProvider }} · {{ job.llmModel }}</span>
+          <button type="button" class="btn ghost quiet" @click="applyOpen = !applyOpen">
+            {{ applyOpen ? '收起投递' : '记录投递' }}
+          </button>
         </div>
       </header>
 
@@ -336,6 +389,52 @@ onBeforeUnmount(() => {
         <button type="button" class="link" :disabled="retrying" @click="retryParse">重试解析</button>
       </div>
       <div v-else-if="parseRunning" class="banner info">正在解析 JD，完成后可发起匹配；本页会自动刷新。</div>
+
+      <section v-if="applyOpen" class="card">
+        <div class="card-head">
+          <h3 class="card-title">记录投递</h3>
+          <span class="meta">岗位：{{ job.title || '未命名岗位' }}</span>
+        </div>
+        <div class="form-grid">
+          <label>
+            <span>简历版本</span>
+            <select v-model.number="applyDraft.resumeId">
+              <option :value="0">不指定</option>
+              <option v-for="resume in resumes" :key="resume.id" :value="resume.id">
+                {{ resume.fileName }}
+              </option>
+            </select>
+          </label>
+          <label>
+            <span>投递渠道</span>
+            <input v-model="applyDraft.channel" maxlength="64" placeholder="BOSS / 官网 / 内推" />
+          </label>
+          <label>
+            <span>投递时间</span>
+            <input v-model="applyDraft.appliedAt" type="datetime-local" />
+          </label>
+          <label>
+            <span>状态</span>
+            <select v-model="applyDraft.status">
+              <option v-for="item in APPLY_STATUSES" :key="item.value" :value="item.value">{{ item.text }}</option>
+            </select>
+          </label>
+          <label class="full">
+            <span>结果备注</span>
+            <input v-model="applyDraft.outcome" maxlength="500" placeholder="如 简历淘汰 / 面试淘汰（可选）" />
+          </label>
+          <label class="full">
+            <span>备注</span>
+            <input v-model="applyDraft.notes" maxlength="2000" placeholder="备注（可选）" />
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn ghost" :disabled="applySaving" @click="submitApply">
+            {{ applySaving ? '保存中…' : '保存投递' }}
+          </button>
+          <button type="button" class="btn quiet" @click="applyOpen = false">取消</button>
+        </div>
+      </section>
 
       <div class="columns">
         <section class="card">

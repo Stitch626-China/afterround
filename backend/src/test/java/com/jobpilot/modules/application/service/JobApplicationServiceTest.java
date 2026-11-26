@@ -106,7 +106,7 @@ class JobApplicationServiceTest {
         when(companyMapper.selectByIds(anyList())).thenReturn(List.of(company));
         when(jobMapper.update(any(), any())).thenReturn(1);
 
-        var response = service().create(new CreateJobApplicationRequest(1L, null, "BOSS", null, null));
+        var response = service().create(new CreateJobApplicationRequest(1L, null, "BOSS", null, null, null, null));
 
         assertThat(response.status()).isEqualTo("APPLIED");
         assertThat(response.jobTitle()).isEqualTo("Java 后端");
@@ -115,12 +115,38 @@ class JobApplicationServiceTest {
     }
 
     @Test
+    void createAcceptsExplicitStatusAndOutcomeForBackfill() {
+        when(jobMapper.selectById(1L)).thenReturn(job("SAVED"));
+        when(applicationMapper.insert(any(JobApplication.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, JobApplication.class).setId(5L);
+            return 1;
+        });
+        when(jobMapper.selectByIds(anyList())).thenReturn(List.of(job("REJECTED")));
+        when(companyMapper.selectByIds(anyList())).thenReturn(List.of());
+        when(jobMapper.update(any(), any())).thenReturn(1);
+
+        var response = service().create(new CreateJobApplicationRequest(1L, null, "官网", null,
+                "REJECTED", "  简历淘汰  ", null));
+
+        assertThat(response.status()).isEqualTo("REJECTED");
+        assertThat(response.outcome()).isEqualTo("简历淘汰");
+        verify(jobMapper).update(any(), any());
+    }
+
+    @Test
+    void createRejectsInvalidStatus() {
+        when(jobMapper.selectById(1L)).thenReturn(job("SAVED"));
+        assertCode(() -> service().create(new CreateJobApplicationRequest(1L, null, null, null, "DONE", null, null)),
+                ErrorCode.BAD_REQUEST);
+    }
+
+    @Test
     void createRejectsMissingJobOrResume() {
-        assertCode(() -> service().create(new CreateJobApplicationRequest(1L, null, null, null, null)),
+        assertCode(() -> service().create(new CreateJobApplicationRequest(1L, null, null, null, null, null, null)),
                 ErrorCode.NOT_FOUND);
 
         when(jobMapper.selectById(1L)).thenReturn(job("SAVED"));
-        assertCode(() -> service().create(new CreateJobApplicationRequest(1L, 9L, null, null, null)),
+        assertCode(() -> service().create(new CreateJobApplicationRequest(1L, 9L, null, null, null, null, null)),
                 ErrorCode.NOT_FOUND);
     }
 

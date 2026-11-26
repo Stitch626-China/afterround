@@ -35,10 +35,21 @@ const filters = reactive<{ status: JobApplicationStatus | ''; keyword: string }>
 })
 const formOpen = ref(false)
 const saving = ref(false)
-const draft = reactive<{ jobPositionId: number | null; resumeId: number; channel: string; notes: string }>({
+const draft = reactive<{
+  jobPositionId: number | null
+  resumeId: number
+  channel: string
+  appliedAt: string
+  status: JobApplicationStatus
+  outcome: string
+  notes: string
+}>({
   jobPositionId: null,
   resumeId: 0,
   channel: '',
+  appliedAt: '',
+  status: 'APPLIED',
+  outcome: '',
   notes: '',
 })
 const confirmId = ref<number | null>(null)
@@ -126,6 +137,9 @@ async function create(): Promise<void> {
       jobPositionId: draft.jobPositionId,
       resumeId: draft.resumeId || null,
       channel: draft.channel.trim() || null,
+      appliedAt: draft.appliedAt ? new Date(draft.appliedAt).toISOString() : null,
+      status: draft.status,
+      outcome: draft.outcome.trim() || null,
       notes: draft.notes.trim() || null,
     })
     notice.value = '已记录投递，岗位状态已同步'
@@ -133,6 +147,9 @@ async function create(): Promise<void> {
     draft.jobPositionId = null
     draft.resumeId = 0
     draft.channel = ''
+    draft.appliedAt = ''
+    draft.status = 'APPLIED'
+    draft.outcome = ''
     draft.notes = ''
     page.value = 1
     await load()
@@ -248,6 +265,20 @@ onMounted(() => {
         <label>
           投递渠道
           <input v-model="draft.channel" maxlength="64" placeholder="BOSS / 官网 / 内推" />
+        </label>
+        <label>
+          投递时间
+          <input v-model="draft.appliedAt" type="datetime-local" />
+        </label>
+        <label>
+          初始状态
+          <select v-model="draft.status">
+            <option v-for="status in STATUSES" :key="status" :value="status">{{ STATUS_TEXT[status] }}</option>
+          </select>
+        </label>
+        <label>
+          结果备注
+          <input v-model="draft.outcome" maxlength="500" placeholder="如 简历淘汰 / 面试淘汰（可选）" />
         </label>
       </div>
       <textarea v-model="draft.notes" rows="2" maxlength="2000" placeholder="备注（可选）" />

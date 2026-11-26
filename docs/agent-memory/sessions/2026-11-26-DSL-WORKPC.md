@@ -104,3 +104,10 @@
 - 原因：用户将在另一台主机搭建 LLM 回归评测语料库，需要一份跨设备复用的唯一标准；避免语料平铺、隐私进入公开仓库、断言口径漂移。
 - 验证：词表 key 与 `ReviewTaxonomyCatalog`、`roundType` 与 `ck_interview_events_round_type`、`inputType` 与 `ck_review_sessions_input_type` 逐项核对一致；README 导航渲染正常。评测执行器尚未实现。
 - 下一步 / 断点：待用户在另一台主机完成 `review-analyze` 场景 8 份语料并回传路径后，实现评测执行器与基线。
+
+### 15:41 事件
+
+- 改动：补齐投递链路（FR8.1 / FR8.2 / FR2.5）。契约 `1.13.0`：`CreateJobApplicationRequest` 增加可选 `status` / `outcome`；后端 `JobApplicationService.create` 支持指定初始状态（默认 APPLIED，非法值 400）与结果备注（≤500），沿用岗位状态只升不降同步；投递档案表单新增投递时间 / 初始状态 / 结果备注；岗位详情右上角新增「记录投递」内联表单（岗位固定），成功后刷新岗位状态。
+- 原因：需求 FR8.1 要求投递含时间 / 状态 / 结果备注，FR8.2 要求从岗位库一键记录；原实现创建时固定 APPLIED 且无时间 / 结果入参，历史投递无法补录，岗位详情也没有入口。
+- 验证：契约 lint 0/0；后端 **189 tests 全绿**（新增补录与非法状态 2 个单测，JaCoCo 门禁通过）；前端构建（含 `vue-tsc`）、Vitest **26**、Playwright **17** 全过；对照表 FR2.5 / FR8.1 / FR8.2 转 ✅，README 模块表与 PROGRESS 同步。
+- 下一步 / 断点：提交并推送 main；后续按对照表继续 FR5.2 / FR5.3 / FR8.4 / FR6.7。

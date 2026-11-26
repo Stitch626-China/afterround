@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.12.0
+  version: 1.13.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -5178,6 +5178,13 @@ components:
           type: [string, "null"]
           format: date-time
           description: 投递时间；为空时取当前时间
+        status:
+          $ref: '#/components/schemas/JobApplicationStatus'
+          description: 初始状态；为空时默认 APPLIED，用于补录历史投递
+        outcome:
+          type: [string, "null"]
+          maxLength: 500
+          description: 结果备注（如简历淘汰 / 面试淘汰）；补录历史投递时可直接填写
         notes:
           type: [string, "null"]
           maxLength: 2000
