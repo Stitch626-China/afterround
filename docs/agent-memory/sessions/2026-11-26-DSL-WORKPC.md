@@ -97,3 +97,10 @@
 - 原因：3 critical 分别为 Tika XXE 与 tinypool RCE（测试运行器传递依赖）；其余为同一批测试 / CLI 依赖的传递依赖，升级即可清零，避免每次 push 弹提醒。
 - 验证：`npm audit` **0 漏洞**；后端 **187 tests 全绿**（JaCoCo 门禁通过）、前端构建、Vitest **26**、Playwright **17**、契约 lint 0/0 全过；main CI 全绿（run 45767228114）；GitHub SBOM 已识别 Tika 3.2.2 / Vitest 4.1.12。Dependabot 8 条已全部关闭（3 critical / 1 high / 4 moderate，均按 `fix_started` 附修复说明），当前 open = 0。
 - 下一步 / 断点：依赖升级已提交 `2498f4c` 并推送；后续新告警仍会正常出现，按同样方式评估。
+
+### 15:35 事件
+
+- 改动：新增 `docs/LLM评测集语料规范.md`（两层存储、目录结构与命名、`input.txt`/`meta.json`/`expect.json` 三件套、L1/L2/L3 三层断言、首批 22 份配额、脱敏清单、基线与变更规则、跨设备建库流程）；README 文档导航加入该文档；PROGRESS 当前状态与下一步同步。
+- 原因：用户将在另一台主机搭建 LLM 回归评测语料库，需要一份跨设备复用的唯一标准；避免语料平铺、隐私进入公开仓库、断言口径漂移。
+- 验证：词表 key 与 `ReviewTaxonomyCatalog`、`roundType` 与 `ck_interview_events_round_type`、`inputType` 与 `ck_review_sessions_input_type` 逐项核对一致；README 导航渲染正常。评测执行器尚未实现。
+- 下一步 / 断点：待用户在另一台主机完成 `review-analyze` 场景 8 份语料并回传路径后，实现评测执行器与基线。

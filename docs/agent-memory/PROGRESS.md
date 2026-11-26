@@ -88,6 +88,7 @@
 9. **测试缺口（2026-11-18 盘点，高价值项已补，剩余非阻塞）**：
    - 中价值：公司 `create/update` 的并发重复键分支与标签 JSON 兜底；岗位 `importJd/parse` 的 Tika/IO 异常与循环自然退出分支；`JobMatchService.toResponse` 的详情解析失败兜底；JSON 兜底异常（`skillsJson` / `skills` / `parseList` / `write`）；`LlmGlobalSettingService` 部分分支；Provider/Model 删除的 HTTP 层；`GlobalExceptionHandler` 的 413/500。
    - 可接受不补：`LlmBootstrapRunner`（环境变量种子）、`main`、DTO、Prompt 资源缺失异常、`AesGcmCipher.deriveKey` 分支。
+10. **LLM 评测集（规范已定，执行器未实现）**：按 `docs/LLM评测集语料规范.md` 在另一台主机建 `review-analyze` 场景 8 份语料（4 份真实转写 + 3 份面经改写 + 1 份负样本），回传路径后实现评测执行器与基线；复用生产 `PromptFactory` 与 `StructuredOutputInvoker`，默认 `mvn test` 排除 `llm-eval` tag。
 
 ## 关键决策
 
