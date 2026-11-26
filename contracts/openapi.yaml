@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.11.0
+  version: 1.12.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -2222,6 +2222,8 @@ paths:
         - 尚无岗位记录时可快速录入：提供 `companyId` 或 `companyName`（二选一）与 `jobTitle`，
           服务端复用或新建公司，并创建来源为 `MANUAL` 的岗位、投递与面试轮次；手动录入岗位不参与行情统计。
         - `companyId` / `companyName` / `jobTitle` 仅在未提供 `applicationId` 与 `jobPositionId` 时生效。
+        - 可选补充 `companyIntro`、`jdText`、`resumeId` 作为分析背景：公司介绍与 JD 会落库，
+          简历版本会关联到本次投递；不提供也能创建。
         - 创建后返回 `status = UPLOADED`；音频走异步 ASR，随后异步分析；轮询 `/status`。
         - 音频支持 mp3 / wav / m4a，≤100MB 或 2 小时；转写失败可改用文本重新创建。
       requestBody:
@@ -2264,6 +2266,18 @@ paths:
                   type: string
                   maxLength: 128
                   description: 快速新建的岗位名；与 companyId / companyName 配合使用
+                companyIntro:
+                  type: string
+                  maxLength: 10000
+                  description: 公司介绍（可选背景）；新建公司时保存，已有公司为空时补全
+                jdText:
+                  type: string
+                  maxLength: 200000
+                  description: 岗位 JD 文本（可选背景）；快速新建岗位时保存为 JD 原文
+                resumeId:
+                  type: integer
+                  format: int64
+                  description: 本次面试使用的简历版本；关联投递并作为分析背景
                 roundNo:
                   type: integer
                   minimum: 1

@@ -18,6 +18,7 @@ import {
 } from '@/api/reviews'
 import { listJobApplications, type JobApplicationListItem } from '@/api/applications'
 import { listCompanies, listJobPositions, type Company, type JobPositionListItem } from '@/api/jobs'
+import { listResumes, type ResumeListItem } from '@/api/resumes'
 import EmptyState from '@/components/EmptyState.vue'
 import {
   FORMATS,
@@ -35,6 +36,7 @@ const items = ref<ReviewSessionListItem[]>([])
 const applications = ref<JobApplicationListItem[]>([])
 const jobs = ref<JobPositionListItem[]>([])
 const companies = ref<Company[]>([])
+const resumes = ref<ResumeListItem[]>([])
 const total = ref(0)
 const page = ref(1)
 const size = 20
@@ -73,8 +75,14 @@ const draft = reactive<{
   audio: null,
 })
 
-/** 快速新建：公司 + 岗位名，后端按精确同名复用或新建。 */
-const quick = reactive({ companyName: '', jobTitle: '' })
+/** 快速新建：公司 + 岗位名，后端按精确同名复用或新建；可选补充分析背景。 */
+const quick = reactive({
+  companyName: '',
+  jobTitle: '',
+  companyIntro: '',
+  jdText: '',
+  resumeId: 0,
+})
 const matchedRounds = ref<number | null>(null)
 
 /** 同名公司与岗位都命中时提示复用，避免重复创建。 */
@@ -126,10 +134,11 @@ function syncPolling(): void {
 }
 
 async function loadOptions(): Promise<void> {
-  const [applicationResult, jobResult, companyResult] = await Promise.allSettled([
+  const [applicationResult, jobResult, companyResult, resumeResult] = await Promise.allSettled([
     listJobApplications({ page: 1, size: 100 }),
     listJobPositions({ page: 1, size: 100 }),
     listCompanies('', 100),
+    listResumes(1, 100),
   ])
   if (applicationResult.status === 'fulfilled') {
     applications.value = applicationResult.value.items
@@ -139,6 +148,9 @@ async function loadOptions(): Promise<void> {
   }
   if (companyResult.status === 'fulfilled') {
     companies.value = companyResult.value.items
+  }
+  if (resumeResult.status === 'fulfilled') {
+    resumes.value = resumeResult.value.items
   }
 }
 
@@ -239,6 +251,9 @@ function resetDraft(): void {
   draft.audio = null
   quick.companyName = ''
   quick.jobTitle = ''
+  quick.companyIntro = ''
+  quick.jdText = ''
+  quick.resumeId = 0
   matchedRounds.value = null
 }
 
@@ -287,7 +302,10 @@ async function create(): Promise<void> {
       jobPositionId: sourceMode.value === 'JOB' ? draft.jobPositionId : null,
       companyId: quickMode ? matchedCompany.value?.id ?? null : null,
       companyName: quickMode && !matchedCompany.value ? quick.companyName.trim() : undefined,
+      companyIntro: quickMode ? quick.companyIntro.trim() || undefined : undefined,
       jobTitle: quickMode ? quick.jobTitle.trim() : undefined,
+      jdText: quickMode ? quick.jdText.trim() || undefined : undefined,
+      resumeId: quickMode && quick.resumeId ? quick.resumeId : null,
       roundNo: draft.roundNo,
       roundType: draft.roundType,
       interviewerRole: draft.interviewerRole.trim() || undefined,
@@ -530,6 +548,39 @@ onBeforeUnmount(() => {
         </p>
       </div>
 
+      <details v-if="sourceMode === 'QUICK'" class="quick-extra">
+        <summary>补充背景（可选）：公司介绍 / JD / 简历，填了会让分析更有针对性</summary>
+        <div class="form-grid">
+          <label class="full">
+            公司介绍
+            <textarea
+              v-model="quick.companyIntro"
+              rows="3"
+              maxlength="10000"
+              placeholder="公司业务、团队规模、面试风格等"
+            />
+          </label>
+          <label class="full">
+            岗位 JD
+            <textarea
+              v-model="quick.jdText"
+              rows="4"
+              maxlength="200000"
+              placeholder="粘贴 JD 文本；会保存到岗位库并用于本次分析"
+            />
+          </label>
+          <label>
+            简历版本
+            <select v-model.number="quick.resumeId" aria-label="选择简历版本">
+              <option :value="0">不指定</option>
+              <option v-for="resume in resumes" :key="resume.id" :value="resume.id">
+                {{ resume.fileName || `简历 #${resume.id}` }}
+              </option>
+            </select>
+          </label>
+        </div>
+      </details>
+
       <div class="tabs">
         <button
           v-for="type in INPUT_TYPES"
@@ -726,6 +777,20 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.quick-extra summary {
+  cursor: pointer;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.quick-extra summary:hover {
+  color: var(--primary);
 }
 
 .hint,

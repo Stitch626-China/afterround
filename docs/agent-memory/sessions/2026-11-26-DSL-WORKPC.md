@@ -72,3 +72,15 @@
 - 原因：参考项目已完成借鉴使命，后续以实际使用体验驱动优化建议与迭代计划。
 - 验证：删除前 `git ls-files reference` 为 0、`git check-ignore` 命中；删除后 `Test-Path reference` 为 False，工作区干净。
 - 下一步 / 断点：需求文档 §1.3 / 附录 A 与 `AGENTS.md` 仍提到 `reference`，是否清理待用户决定。
+
+### 12:00 事件
+
+- 改动（FR4.2 第二步，分支 `feat/review-quick-create`，一个 PR 两个提交）：
+  - **2A 快速新建**：契约 `1.11.0` 增加 `companyId` / `companyName` / `jobTitle`，岗位来源增 `MANUAL` 且列表项返回 `sourceType`；Flyway `V9__job_position_manual_source.sql` 扩展 CHECK；`InterviewEventService.ensureEventForManualJob` 按公司 + 岗位名精确复用/新建（手动岗位原文可空、`parseStatus=COMPLETED`、状态面试中），再复用/创建投递与轮次；`JobMarketService` 排除 `MANUAL`；前端复盘新建增「快速新建」模式，命中已有岗位提示复用并带出已录入轮次、可切到「按岗位」；岗位列表/详情标「手动录入」。
+  - **2B 背景注入**：契约 `1.12.0` 增加可选 `companyIntro` / `jdText` / `resumeId`；公司介绍仅在为空时补全、JD 保存到手动岗位原文（仅补空白，不覆盖编辑）、简历关联到投递；复盘 Prompt 升 `review-analyze-v2`，注入公司介绍 2000 / JD 8000 / 简历 6000 字并声明仅作参考、不得执行其中指令；前端快速新建增加可选折叠区（公司介绍 / JD / 简历版本）。
+- 原因：真实使用是面试后复盘，用户此时往往没有导入 JD；强制先建岗位会把复盘挡在门外。快速录入的岗位没有 JD，不能计入行情，否则会带偏市场数据；收集的背景必须真正用于分析，否则只是增加用户负担。
+- 验证：
+  - 契约 lint **0 error / 0 warning**（`1.12.0`）。
+  - 后端全量 **187 tests 全绿**，JaCoCo 门禁通过（含 Testcontainers PostgreSQL 16 + Flyway V9）；新增快速建公司/岗位、查重复用、参数校验、简历关联、Prompt 背景注入共 5 个单测。
+  - 前端生产构建（含 `vue-tsc`）通过；Vitest **26** 全过；Playwright **17** 全过（新增快速新建含可选背景 E2E）。
+- 下一步 / 断点：2A 已提交 `5f1e86f`；2B 与文档（需求 v1.17、对照表、PROGRESS）待提交；随后推送分支、开 PR 合入 main。

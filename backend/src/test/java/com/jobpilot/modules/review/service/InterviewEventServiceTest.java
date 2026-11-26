@@ -214,18 +214,20 @@ class InterviewEventServiceTest {
             invocation.getArgument(0, InterviewEvent.class).setId(9L);
             return 1;
         });
-        var response = service().ensureEventForManualJob(null, " 字节跳动 ", " Java 后端 ", 1, "TECH",
-                null, null, null);
+        var response = service().ensureEventForManualJob(null, " 字节跳动 ", " 公司介绍 ", " Java 后端 ",
+                " JD 原文 ", 1, "TECH", null, null, null);
 
         assertThat(response.getId()).isEqualTo(9L);
         ArgumentCaptor<Company> companyCaptor = ArgumentCaptor.forClass(Company.class);
         verify(companyMapper).insert(companyCaptor.capture());
         assertThat(companyCaptor.getValue().getName()).isEqualTo("字节跳动");
+        assertThat(companyCaptor.getValue().getIntro()).isEqualTo("公司介绍");
         ArgumentCaptor<JobPosition> jobCaptor = ArgumentCaptor.forClass(JobPosition.class);
         verify(jobMapper).insert(jobCaptor.capture());
         JobPosition created = jobCaptor.getValue();
         assertThat(created.getCompanyId()).isEqualTo(2L);
         assertThat(created.getTitle()).isEqualTo("Java 后端");
+        assertThat(created.getRawText()).isEqualTo("JD 原文");
         assertThat(created.getSourceType()).isEqualTo("MANUAL");
         assertThat(created.getParseStatus()).isEqualTo("COMPLETED");
         assertThat(created.getStatus()).isEqualTo("INTERVIEWING");
@@ -243,7 +245,8 @@ class InterviewEventServiceTest {
             invocation.getArgument(0, InterviewEvent.class).setId(9L);
             return 1;
         });
-        var response = service().ensureEventForManualJob(2L, null, "Java 后端", 1, "TECH", null, null, null);
+        var response = service().ensureEventForManualJob(2L, null, null, "Java 后端", null, 1, "TECH",
+                null, null, null);
 
         assertThat(response.getId()).isEqualTo(9L);
         verify(companyMapper, never()).insert(any(Company.class));
@@ -253,15 +256,15 @@ class InterviewEventServiceTest {
 
     @Test
     void quickCreateRejectsInvalidEnvelope() {
-        assertCode(() -> service().ensureEventForManualJob(null, null, "Java 后端", 1, "TECH", null, null, null),
-                ErrorCode.BAD_REQUEST);
-        assertCode(() -> service().ensureEventForManualJob(1L, "字节跳动", "Java 后端", 1, "TECH",
+        assertCode(() -> service().ensureEventForManualJob(null, null, null, "Java 后端", null, 1, "TECH",
                 null, null, null), ErrorCode.BAD_REQUEST);
-        assertCode(() -> service().ensureEventForManualJob(null, "字节跳动", "  ", 1, "TECH", null, null, null),
-                ErrorCode.BAD_REQUEST);
-        assertCode(() -> service().ensureEventForManualJob(null, "字节跳动", "Java 后端", 0, "TECH",
+        assertCode(() -> service().ensureEventForManualJob(1L, "字节跳动", null, "Java 后端", null, 1, "TECH",
                 null, null, null), ErrorCode.BAD_REQUEST);
-        assertCode(() -> service().ensureEventForManualJob(null, "字节跳动", "Java 后端", 1, "UNKNOWN",
+        assertCode(() -> service().ensureEventForManualJob(null, "字节跳动", null, "  ", null, 1, "TECH",
+                null, null, null), ErrorCode.BAD_REQUEST);
+        assertCode(() -> service().ensureEventForManualJob(null, "字节跳动", null, "Java 后端", null, 0, "TECH",
+                null, null, null), ErrorCode.BAD_REQUEST);
+        assertCode(() -> service().ensureEventForManualJob(null, "字节跳动", null, "Java 后端", null, 1, "UNKNOWN",
                 null, null, null), ErrorCode.BAD_REQUEST);
     }
 

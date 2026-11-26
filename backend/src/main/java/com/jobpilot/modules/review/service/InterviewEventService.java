@@ -168,8 +168,9 @@ public class InterviewEventService {
 
     /** 快速录入：按公司 + 岗位名复用或新建手动岗位（sourceType=MANUAL），再复用或创建投递与轮次。 */
     @Transactional
-    public InterviewEvent ensureEventForManualJob(Long companyId, String companyName, String jobTitle,
-                                                  Integer roundNo, String roundType, String interviewerRole,
+    public InterviewEvent ensureEventForManualJob(Long companyId, String companyName, String companyIntro,
+                                                  String jobTitle, String jdText, Integer roundNo,
+                                                  String roundType, String interviewerRole,
                                                   String format, OffsetDateTime interviewTime) {
         if ((companyId == null) == blank(companyName)) {
             throw BizException.of(ErrorCode.BAD_REQUEST, "companyId 与 companyName 必须且只能提供一个");
@@ -186,8 +187,8 @@ public class InterviewEventService {
         if (title.length() > 128) {
             throw BizException.of(ErrorCode.BAD_REQUEST, "岗位名不能超过 128 字");
         }
-        Long resolvedCompanyId = resolveCompanyId(companyId, companyName);
-        JobPosition job = resolveManualJob(resolvedCompanyId, title);
+        Long resolvedCompanyId = resolveCompanyId(companyId, companyName, companyIntro);
+        JobPosition job = resolveManualJob(resolvedCompanyId, title, text(jdText, 200000));
         return ensureEvent(null, job.getId(), roundNo, type, interviewerRole, fmt, interviewTime);
     }
 
@@ -296,12 +297,15 @@ public class InterviewEventService {
         return created;
     }
 
-    /** 公司按 ID 校验存在；按名称精确复用，不存在时新建（并发同名以唯一约束兜底）。 */
-    private Long resolveCompanyId(Long companyId, String companyName) {
+    /** 公司按 ID 校验存在；按名称精确复用，不存在时新建；介绍仅在为空时补全，不覆盖用户内容。 */
+    private Long resolveCompanyId(Long companyId, String companyName, String companyIntro) {
+        String intro = text(companyIntro, 10000);
         if (companyId != null) {
-            if (companyMapper.selectById(companyId) == null) {
+            Company company = companyMapper.selectById(companyId);
+            if (company == null) {
                 throw BizException.of(ErrorCode.NOT_FOUND, "公司不存在: " + companyId);
             }
+            fillIntro(company, intro);
             return companyId;
         }
         String name = companyName.trim();
@@ -311,12 +315,14 @@ public class InterviewEventService {
         Company existing = companyMapper.selectOne(Wrappers.<Company>lambdaQuery()
                 .eq(Company::getName, name));
         if (existing != null) {
+            fillIntro(existing, intro);
             return existing.getId();
         }
         OffsetDateTime now = OffsetDateTime.now();
         Company company = new Company();
         company.setUserId(1L);
         company.setName(name);
+        company.setIntro(intro);
         company.setTags("[]");
         company.setCreatedAt(now);
         company.setUpdatedAt(now);
@@ -329,14 +335,28 @@ public class InterviewEventService {
         }
     }
 
-    /** 岗位按公司 + 名称精确复用；不存在时新建手动岗位（无 JD 原文，不参与行情统计）。 */
-    private JobPosition resolveManualJob(Long companyId, String title) {
+    private void fillIntro(Company company, String intro) {
+        if (intro != null && blank(company.getIntro())) {
+            company.setIntro(intro);
+            company.setUpdatedAt(OffsetDateTime.now());
+            companyMapper.updateById(company);
+        }
+    }
+
+    /** 岗位按公司 + 名称精确复用；不存在时新建手动岗位（无 JD 时原文为空，不参与行情统计）。 */
+    private JobPosition resolveManualJob(Long companyId, String title, String jdText) {
         JobPosition existing = jobMapper.selectOne(Wrappers.<JobPosition>lambdaQuery()
                 .eq(JobPosition::getCompanyId, companyId)
                 .eq(JobPosition::getTitle, title)
                 .orderByDesc(JobPosition::getId)
                 .last("LIMIT 1"));
         if (existing != null) {
+            // 手动岗位补录 JD：只补空白原文，避免覆盖用户在岗位库的编辑
+            if (jdText != null && "MANUAL".equals(existing.getSourceType()) && blank(existing.getRawText())) {
+                existing.setRawText(jdText);
+                existing.setUpdatedAt(OffsetDateTime.now());
+                jobMapper.updateById(existing);
+            }
             return existing;
         }
         OffsetDateTime now = OffsetDateTime.now();
@@ -345,7 +365,7 @@ public class InterviewEventService {
         job.setCompanyId(companyId);
         job.setTitle(title);
         job.setSourceType("MANUAL");
-        job.setRawText("（复盘快速录入，未填写岗位 JD）");
+        job.setRawText(jdText == null ? "" : jdText);
         job.setMustHaveSkills("[]");
         job.setNiceToHaveSkills("[]");
         job.setStatus("INTERVIEWING");

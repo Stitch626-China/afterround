@@ -55,6 +55,8 @@ import com.jobpilot.modules.review.mapper.ReviewAnalysisMapper;
 import com.jobpilot.modules.review.mapper.ReviewSessionMapper;
 import com.jobpilot.modules.review.prompt.ReviewPromptFactory;
 import com.jobpilot.modules.review.taxonomy.ReviewTaxonomyCatalog;
+import com.jobpilot.modules.resume.entity.Resume;
+import com.jobpilot.modules.resume.mapper.ResumeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -91,6 +93,7 @@ public class ReviewSessionService {
     private final JobApplicationMapper applicationMapper;
     private final JobPositionMapper jobMapper;
     private final CompanyMapper companyMapper;
+    private final ResumeMapper resumeMapper;
     private final LlmSceneService sceneService;
     private final ProviderClientRegistry registry;
     private final LlmCallLogger callLogger;
@@ -104,6 +107,7 @@ public class ReviewSessionService {
                                 InterviewEventMapper eventMapper, InterviewEventService eventService,
                                 ImprovementActionService actionService, JobApplicationMapper applicationMapper,
                                 JobPositionMapper jobMapper, CompanyMapper companyMapper,
+                                ResumeMapper resumeMapper,
                                 LlmSceneService sceneService, ProviderClientRegistry registry,
                                 LlmCallLogger callLogger, ReviewPromptFactory prompts, AsrClient asrClient,
                                 FileStorage storage,
@@ -117,6 +121,7 @@ public class ReviewSessionService {
         this.applicationMapper = applicationMapper;
         this.jobMapper = jobMapper;
         this.companyMapper = companyMapper;
+        this.resumeMapper = resumeMapper;
         this.sceneService = sceneService;
         this.registry = registry;
         this.callLogger = callLogger;
@@ -134,7 +139,8 @@ public class ReviewSessionService {
      */
     public ReviewSessionListItemResponse create(MultipartFile audio, String transcript, String notes,
                                                 Long applicationId, Long jobPositionId, Long companyId,
-                                                String companyName, String jobTitle, Integer roundNo,
+                                                String companyName, String companyIntro, String jobTitle,
+                                                String jdText, Long resumeId, Integer roundNo,
                                                 String roundType, String interviewerRole, String format,
                                                 OffsetDateTime interviewTime, String idempotencyKey) {
         boolean hasAudio = audio != null && !audio.isEmpty();
@@ -156,8 +162,8 @@ public class ReviewSessionService {
             }
         }
         InterviewEvent event = applicationId == null && jobPositionId == null
-                ? eventService.ensureEventForManualJob(companyId, companyName, jobTitle, roundNo, roundType,
-                        interviewerRole, format, interviewTime)
+                ? eventService.ensureEventForManualJob(companyId, companyName, companyIntro, jobTitle, jdText,
+                        roundNo, roundType, interviewerRole, format, interviewTime)
                 : eventService.ensureEvent(applicationId, jobPositionId, roundNo, roundType,
                         interviewerRole, format, interviewTime);
         Long reviews = sessionMapper.selectCount(Wrappers.<ReviewSession>lambdaQuery()
@@ -165,6 +171,7 @@ public class ReviewSessionService {
         if (reviews != null && reviews > 0) {
             throw BizException.of(ErrorCode.REVIEW_ROUND_EXISTS, "该轮面试已存在复盘记录");
         }
+        linkResume(event, resumeId);
         String storageKey = null;
         if (hasAudio) {
             storageKey = "reviews/" + java.util.UUID.randomUUID() + "." + audioExt;
@@ -214,6 +221,24 @@ public class ReviewSessionService {
             }
         }
         return toItems(List.of(require(entity.getId()))).get(0);
+    }
+
+    /** 记录本次面试使用的简历版本：显式指定时校验存在并写入投递，作为分析背景。 */
+    private void linkResume(InterviewEvent event, Long resumeId) {
+        if (resumeId == null) {
+            return;
+        }
+        Resume resume = resumeMapper.selectById(resumeId);
+        if (resume == null) {
+            throw BizException.of(ErrorCode.NOT_FOUND, "简历不存在: " + resumeId);
+        }
+        JobApplication application = applicationMapper.selectById(event.getApplicationId());
+        if (application == null || resumeId.equals(application.getResumeId())) {
+            return;
+        }
+        application.setResumeId(resumeId);
+        application.setUpdatedAt(OffsetDateTime.now());
+        applicationMapper.updateById(application);
     }
 
     public PageResult<ReviewSessionListItemResponse> page(Integer page, Integer size, String status,
@@ -613,12 +638,17 @@ public class ReviewSessionService {
         JobApplication application = event == null ? null : applicationMapper.selectById(event.getApplicationId());
         JobPosition job = application == null ? null : jobMapper.selectById(application.getJobPositionId());
         Company company = job == null || job.getCompanyId() == null ? null : companyMapper.selectById(job.getCompanyId());
+        Resume resume = application == null || application.getResumeId() == null
+                ? null : resumeMapper.selectById(application.getResumeId());
         String text = blank(session.getTranscript()) ? session.getNotes() : session.getTranscript();
         List<ChatMessage> messages = List.of(
                 ChatMessage.system(prompts.system()),
                 ChatMessage.user(prompts.user(company == null ? null : company.getName(),
                         job == null ? null : job.getTitle(), event == null ? null : event.getRoundType(),
-                        event == null ? null : event.getInterviewerRole(), text)));
+                        event == null ? null : event.getInterviewerRole(),
+                        company == null ? null : truncate(company.getIntro(), 2000),
+                        job == null ? null : truncate(job.getRawText(), 8000),
+                        resume == null ? null : truncate(resume.getResumeText(), 6000), text)));
         StructuredOutputInvoker invoker = new StructuredOutputInvoker(client);
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             if (sessionMapper.selectById(reviewSessionId) == null) {
