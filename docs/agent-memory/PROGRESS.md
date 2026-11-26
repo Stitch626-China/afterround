@@ -11,7 +11,8 @@
 
 ## 当前状态
 
-- **4 个核心闭环缺口已修复 + 实现对照表（2026-11-26，DSL-WORKPC）**：复盘详情新增「本轮结果」编辑（复用 PATCH `/api/interview-events/{id}`，投递时间线展示各轮结果）；ASR 失败且有补录文本时允许继续分析，并提供「改用文本分析」入口；启动恢复补复盘 ASR / 分析 PROCESSING 回收；复盘分析改为 `REVIEW_ANALYZE` 场景绑定优先、全局默认回落。新增 `docs/功能实现对照表.md`（FR 级状态 / 代码位置 / 前端操作 / 缺口 / 音频存放），需求文档升 v1.16 并加附录 B 索引。验证：后端 **182 tests 全绿**（行覆盖 86.08%）、前端构建通过、Vitest **26**、Playwright **16** 全过。改动待提交。
+- **FR4.2 第一步完成（2026-11-26，DSL-WORKPC）**：复盘新建改为「按岗位 / 按投递」双模式，默认按岗位；选岗位后自动按该岗位已有投递计算下一轮次，提交传 `jobPositionId`，后端自动补建/复用投递与面试事件。无需先建投递，不改契约/数据库。验证：前端构建通过、Vitest 26、`reviews.spec.ts` 3 passed。代码与文档分两步提交。产品决策：FR8.2「岗位库记录投递」降为辅助后置；模拟面试保持 P2「练习」。
+- **4 个核心闭环缺口已修复 + 实现对照表（2026-11-26，DSL-WORKPC）**：复盘详情新增「本轮结果」编辑（复用 PATCH `/api/interview-events/{id}`，投递时间线展示各轮结果）；ASR 失败且有补录文本时允许继续分析，并提供「改用文本分析」入口；启动恢复补复盘 ASR / 分析 PROCESSING 回收；复盘分析改为 `REVIEW_ANALYZE` 场景绑定优先、全局默认回落。新增 `docs/功能实现对照表.md`（FR 级状态 / 代码位置 / 前端操作 / 缺口 / 音频存放），需求文档升 v1.16 并加附录 B 索引。验证：后端 **182 tests 全绿**（行覆盖 86.08%）、前端构建通过、Vitest **26**、Playwright **16** 全过。已提交 `dc5561f` / `0605dcb`。
 - **v1.0.0 已发布（2026-11-25，DSL-WORKPC）**：在 `95ffa5d` 打 annotated tag `v1.0.0` 并创建 GitHub Release（https://github.com/Stitch626-China/afterround/releases/tag/v1.0.0），附 4 张截图、README、开发手册、5 分钟演示脚本、接口契约与演示种子脚本说明；Release 非草稿 / 非预发布，raw 截图 URL 200，远端 tag 已确认。PR 实操手册与 Release notes 存放于本地 `.local/`（已加入 `.git/info/exclude`，不提交）。
 - **PR 流程与 CI 手动触发实测（2026-11-25，DSL-WORKPC）**：`.github/workflows/ci.yml` 增加 `workflow_dispatch`，README「测试与 CI」补充手动触发说明；首次完整走通「feature 分支 `ci/workflow-dispatch` → PR #7 → CI 三 job 全绿 → Squash 合并 `9b1e15c` → 删除远端与本地分支」。验证：PR 的两次提交均自动重跑 CI 并全绿；合并后 main push CI 全绿；`gh workflow run ci.yml --ref main` 手动触发 run `45581740790` 三 job 全绿。
 - **main 分支保护已开启（2026-11-25，DSL-WORKPC）**：禁止强制推送与删除分支，管理员同样受限（enforce_admins=true）；未启用「必须 PR」与 CI 推送门槛，保留现有直接推送习惯。过程中发现「CI 三检查 + enforce_admins」会让 GitHub 直接拒绝普通 `git push`（GH006），如后续要 CI 作为门槛，需整体改为「分支 + PR + 检查通过后合并」流程。
@@ -138,3 +139,5 @@
 | 2026-11-17 | JD 解析**回落全局默认**（可绑定场景枚举不含 JD 解析） | FRX.11 只列 7 个场景；`llm_call_logs.scene` 仍记 `jd_parse` 便于成本归因 |
 | 2026-11-24 | 产品更名「面后（AfterRound）」：只改展示层与 GitHub 仓库名，代码坐标（`com.jobpilot` / artifactId / 库名）保留 | 原名「职点 / JobPilot」同领域重名；全量改包名风险大且无用户收益 |
 | 2026-11-24 | 前端视觉定为「纸墨」：暖纸白 + 墨蓝重音 + 墨线分层；共享样式层先做样板再全量 | 解决界面单调、层级弱与 13 份重复 CSS；先样板避免全量返工 |
+| 2026-11-26 | 复盘主入口优先：先支持直接选岗位并自动建/复用投递；FR8.2 岗位库一键记录投递降为辅助、暂缓 | 真实使用是面试后复盘，强制先建投递违背 ≤5 分钟录入；后端已支持只传岗位 |
+| 2026-11-26 | 模拟面试保持 P2 可选练习，放在侧栏「练习」组；与核心复盘/归因冲突时让位 | 模拟面试发生在面试前，但不是产品核心；不能反过来阻塞复盘主流程 |
