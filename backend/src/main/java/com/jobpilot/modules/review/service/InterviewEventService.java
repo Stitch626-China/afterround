@@ -30,6 +30,7 @@ import com.jobpilot.modules.review.mapper.InterviewEventMapper;
 import com.jobpilot.modules.review.mapper.ReviewSessionMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 真实面试轮次（F5.1）：按投递记录归集，同一投递同一轮次唯一。
@@ -165,6 +166,32 @@ public class InterviewEventService {
         }
     }
 
+    /** 快速录入：按公司 + 岗位名复用或新建手动岗位（sourceType=MANUAL），再复用或创建投递与轮次。 */
+    @Transactional
+    public InterviewEvent ensureEventForManualJob(Long companyId, String companyName, String companyIntro,
+                                                  String jobTitle, String jdText, Integer roundNo,
+                                                  String roundType, String interviewerRole,
+                                                  String format, OffsetDateTime interviewTime) {
+        if ((companyId == null) == blank(companyName)) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "companyId 与 companyName 必须且只能提供一个");
+        }
+        if (roundNo == null || roundNo < 1) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "roundNo 至少为 1");
+        }
+        String type = enumValue(roundType, ROUND_TYPES, "roundType", true);
+        String fmt = enumValue(format, FORMATS, "format", false);
+        String title = jobTitle == null ? "" : jobTitle.trim();
+        if (title.isEmpty()) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "jobTitle 不能为空");
+        }
+        if (title.length() > 128) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "岗位名不能超过 128 字");
+        }
+        Long resolvedCompanyId = resolveCompanyId(companyId, companyName, companyIntro);
+        JobPosition job = resolveManualJob(resolvedCompanyId, title, text(jdText, 200000));
+        return ensureEvent(null, job.getId(), roundNo, type, interviewerRole, fmt, interviewTime);
+    }
+
     public InterviewEventListItemResponse update(Long eventId, UpdateInterviewEventRequest request) {
         InterviewEvent entity = require(eventId);
         if (request.roundType() != null) {
@@ -268,6 +295,86 @@ public class InterviewEventService {
                     .set(JobPosition::getUpdatedAt, now));
         }
         return created;
+    }
+
+    /** 公司按 ID 校验存在；按名称精确复用，不存在时新建；介绍仅在为空时补全，不覆盖用户内容。 */
+    private Long resolveCompanyId(Long companyId, String companyName, String companyIntro) {
+        String intro = text(companyIntro, 10000);
+        if (companyId != null) {
+            Company company = companyMapper.selectById(companyId);
+            if (company == null) {
+                throw BizException.of(ErrorCode.NOT_FOUND, "公司不存在: " + companyId);
+            }
+            fillIntro(company, intro);
+            return companyId;
+        }
+        String name = companyName.trim();
+        if (name.length() > 128) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "公司名称不能超过 128 字");
+        }
+        Company existing = companyMapper.selectOne(Wrappers.<Company>lambdaQuery()
+                .eq(Company::getName, name));
+        if (existing != null) {
+            fillIntro(existing, intro);
+            return existing.getId();
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        Company company = new Company();
+        company.setUserId(1L);
+        company.setName(name);
+        company.setIntro(intro);
+        company.setTags("[]");
+        company.setCreatedAt(now);
+        company.setUpdatedAt(now);
+        try {
+            companyMapper.insert(company);
+            return company.getId();
+        } catch (DuplicateKeyException ex) {
+            return companyMapper.selectOne(Wrappers.<Company>lambdaQuery()
+                    .eq(Company::getName, name)).getId();
+        }
+    }
+
+    private void fillIntro(Company company, String intro) {
+        if (intro != null && blank(company.getIntro())) {
+            company.setIntro(intro);
+            company.setUpdatedAt(OffsetDateTime.now());
+            companyMapper.updateById(company);
+        }
+    }
+
+    /** 岗位按公司 + 名称精确复用；不存在时新建手动岗位（无 JD 时原文为空，不参与行情统计）。 */
+    private JobPosition resolveManualJob(Long companyId, String title, String jdText) {
+        JobPosition existing = jobMapper.selectOne(Wrappers.<JobPosition>lambdaQuery()
+                .eq(JobPosition::getCompanyId, companyId)
+                .eq(JobPosition::getTitle, title)
+                .orderByDesc(JobPosition::getId)
+                .last("LIMIT 1"));
+        if (existing != null) {
+            // 手动岗位补录 JD：只补空白原文，避免覆盖用户在岗位库的编辑
+            if (jdText != null && "MANUAL".equals(existing.getSourceType()) && blank(existing.getRawText())) {
+                existing.setRawText(jdText);
+                existing.setUpdatedAt(OffsetDateTime.now());
+                jobMapper.updateById(existing);
+            }
+            return existing;
+        }
+        OffsetDateTime now = OffsetDateTime.now();
+        JobPosition job = new JobPosition();
+        job.setUserId(1L);
+        job.setCompanyId(companyId);
+        job.setTitle(title);
+        job.setSourceType("MANUAL");
+        job.setRawText(jdText == null ? "" : jdText);
+        job.setMustHaveSkills("[]");
+        job.setNiceToHaveSkills("[]");
+        job.setStatus("INTERVIEWING");
+        job.setParseStatus("COMPLETED");
+        job.setRetryCount(0);
+        job.setCreatedAt(now);
+        job.setUpdatedAt(now);
+        jobMapper.insert(job);
+        return job;
     }
 
     private List<InterviewEventListItemResponse> toItems(List<InterviewEvent> events) {

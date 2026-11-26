@@ -42,7 +42,9 @@ public class JobMarketService {
 
     public JobMarketInsightsResponse insights() {
         List<JobPosition> jobs = jobMapper.selectList(Wrappers.<JobPosition>lambdaQuery()
-                .eq(JobPosition::getParseStatus, "COMPLETED"));
+                .eq(JobPosition::getParseStatus, "COMPLETED")
+                // 复盘快速录入的手动岗位没有 JD，不参与行情统计
+                .ne(JobPosition::getSourceType, "MANUAL"));
         return new JobMarketInsightsResponse(jobs.size(), OffsetDateTime.now(),
                 skillTop(jobs), salaryDistribution(jobs),
                 counts(jobs, JobPosition::getExperience), counts(jobs, JobPosition::getTitle));

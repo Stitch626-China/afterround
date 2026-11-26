@@ -75,6 +75,18 @@ export interface CreateReviewInput {
   notes?: string
   applicationId?: number | null
   jobPositionId?: number | null
+  /** 快速新建：已有公司 ID（与 companyName 二选一） */
+  companyId?: number | null
+  /** 快速新建：公司名称，后端按精确同名复用或新建 */
+  companyName?: string
+  /** 快速新建：岗位名称 */
+  jobTitle?: string
+  /** 可选背景：公司介绍 */
+  companyIntro?: string
+  /** 可选背景：岗位 JD 文本 */
+  jdText?: string
+  /** 本次面试使用的简历版本 */
+  resumeId?: number | null
   roundNo: number
   roundType: InterviewRoundType
   interviewerRole?: string
@@ -127,6 +139,24 @@ export function createReviewSession(input: CreateReviewInput): Promise<ReviewSes
   }
   if (input.jobPositionId) {
     form.append('jobPositionId', String(input.jobPositionId))
+  }
+  if (input.companyId) {
+    form.append('companyId', String(input.companyId))
+  }
+  if (input.companyName) {
+    form.append('companyName', input.companyName)
+  }
+  if (input.jobTitle) {
+    form.append('jobTitle', input.jobTitle)
+  }
+  if (input.companyIntro) {
+    form.append('companyIntro', input.companyIntro)
+  }
+  if (input.jdText) {
+    form.append('jdText', input.jdText)
+  }
+  if (input.resumeId) {
+    form.append('resumeId', String(input.resumeId))
   }
   form.append('roundNo', String(input.roundNo))
   form.append('roundType', input.roundType)

@@ -32,6 +32,7 @@ import com.jobpilot.modules.review.mapper.ReviewSessionMapper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -188,6 +189,83 @@ class InterviewEventServiceTest {
                 null, null, null)), ErrorCode.BAD_REQUEST);
         assertCode(() -> service().create(new CreateInterviewEventRequest(7L, null, 1, "TECH", null, null, null,
                 "MAYBE", null)), ErrorCode.BAD_REQUEST);
+    }
+
+    @Test
+    void quickCreateBuildsCompanyManualJobAndRound() {
+        when(companyMapper.selectOne(any())).thenReturn(null);
+        when(companyMapper.insert(any(Company.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, Company.class).setId(2L);
+            return 1;
+        });
+        when(jobMapper.selectOne(any())).thenReturn(null);
+        when(jobMapper.insert(any(JobPosition.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, JobPosition.class).setId(1L);
+            return 1;
+        });
+        when(jobMapper.selectById(1L)).thenReturn(job("INTERVIEWING"));
+        when(applicationMapper.selectList(any())).thenReturn(List.of());
+        when(applicationMapper.insert(any(JobApplication.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, JobApplication.class).setId(7L);
+            return 1;
+        });
+        when(eventMapper.selectOne(any())).thenReturn(null);
+        when(eventMapper.insert(any(InterviewEvent.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, InterviewEvent.class).setId(9L);
+            return 1;
+        });
+        var response = service().ensureEventForManualJob(null, " 字节跳动 ", " 公司介绍 ", " Java 后端 ",
+                " JD 原文 ", 1, "TECH", null, null, null);
+
+        assertThat(response.getId()).isEqualTo(9L);
+        ArgumentCaptor<Company> companyCaptor = ArgumentCaptor.forClass(Company.class);
+        verify(companyMapper).insert(companyCaptor.capture());
+        assertThat(companyCaptor.getValue().getName()).isEqualTo("字节跳动");
+        assertThat(companyCaptor.getValue().getIntro()).isEqualTo("公司介绍");
+        ArgumentCaptor<JobPosition> jobCaptor = ArgumentCaptor.forClass(JobPosition.class);
+        verify(jobMapper).insert(jobCaptor.capture());
+        JobPosition created = jobCaptor.getValue();
+        assertThat(created.getCompanyId()).isEqualTo(2L);
+        assertThat(created.getTitle()).isEqualTo("Java 后端");
+        assertThat(created.getRawText()).isEqualTo("JD 原文");
+        assertThat(created.getSourceType()).isEqualTo("MANUAL");
+        assertThat(created.getParseStatus()).isEqualTo("COMPLETED");
+        assertThat(created.getStatus()).isEqualTo("INTERVIEWING");
+        verify(applicationMapper).insert(any(JobApplication.class));
+    }
+
+    @Test
+    void quickCreateReusesExistingCompanyAndJob() {
+        when(companyMapper.selectById(2L)).thenReturn(company());
+        when(jobMapper.selectOne(any())).thenReturn(job("INTERVIEWING"));
+        when(jobMapper.selectById(1L)).thenReturn(job("INTERVIEWING"));
+        when(applicationMapper.selectList(any())).thenReturn(List.of(application(7L, 1L)));
+        when(eventMapper.selectOne(any())).thenReturn(null);
+        when(eventMapper.insert(any(InterviewEvent.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, InterviewEvent.class).setId(9L);
+            return 1;
+        });
+        var response = service().ensureEventForManualJob(2L, null, null, "Java 后端", null, 1, "TECH",
+                null, null, null);
+
+        assertThat(response.getId()).isEqualTo(9L);
+        verify(companyMapper, never()).insert(any(Company.class));
+        verify(jobMapper, never()).insert(any(JobPosition.class));
+        verify(applicationMapper, never()).insert(any(JobApplication.class));
+    }
+
+    @Test
+    void quickCreateRejectsInvalidEnvelope() {
+        assertCode(() -> service().ensureEventForManualJob(null, null, null, "Java 后端", null, 1, "TECH",
+                null, null, null), ErrorCode.BAD_REQUEST);
+        assertCode(() -> service().ensureEventForManualJob(1L, "字节跳动", null, "Java 后端", null, 1, "TECH",
+                null, null, null), ErrorCode.BAD_REQUEST);
+        assertCode(() -> service().ensureEventForManualJob(null, "字节跳动", null, "  ", null, 1, "TECH",
+                null, null, null), ErrorCode.BAD_REQUEST);
+        assertCode(() -> service().ensureEventForManualJob(null, "字节跳动", null, "Java 后端", null, 0, "TECH",
+                null, null, null), ErrorCode.BAD_REQUEST);
+        assertCode(() -> service().ensureEventForManualJob(null, "字节跳动", null, "Java 后端", null, 1, "UNKNOWN",
+                null, null, null), ErrorCode.BAD_REQUEST);
     }
 
     @Test

@@ -518,6 +518,7 @@ onBeforeUnmount(() => {
             <div class="row-main" @click="openDetail(item)">
               <div class="row-title-line">
                 <strong class="row-title">{{ title(item) }}</strong>
+                <span v-if="item.sourceType === 'MANUAL'" class="tag">手动录入</span>
                 <span class="status" :class="PARSE_TONE[item.parseStatus]">
                   {{ PARSE_TEXT[item.parseStatus] ?? item.parseStatus }}
                 </span>

@@ -319,6 +319,7 @@ onBeforeUnmount(() => {
           </p>
         </div>
         <div class="badges">
+          <span v-if="job.sourceType === 'MANUAL'" class="tag">手动录入</span>
           <span class="status" :class="PARSE_TONE[job.parseStatus]">
             {{ PARSE_TEXT[job.parseStatus] ?? job.parseStatus }}
           </span>
@@ -425,7 +426,10 @@ onBeforeUnmount(() => {
 
           <details class="raw">
             <summary>查看 JD 原文</summary>
-            <pre>{{ job.rawText }}</pre>
+            <p v-if="job.sourceType === 'MANUAL' && !job.rawText" class="hint">
+              该岗位来自复盘快速录入，尚未填写 JD；可在上方编辑或重新导入。
+            </p>
+            <pre v-else>{{ job.rawText }}</pre>
           </details>
         </section>
 

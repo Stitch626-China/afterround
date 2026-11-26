@@ -152,6 +152,61 @@ test('复盘列表：文本创建、展示状态与删除', async ({ page }) => 
   await expect(page.locator('.list .row')).toHaveCount(1)
 })
 
+test('复盘快速新建：无需先建岗位，录入公司与岗位名即可', async ({ page }) => {
+  let createBody = ''
+
+  await page.route(/\/api\/job-positions\?/, (route) =>
+    route.fulfill(ok({ items: [], total: 0, page: 1, size: 100 })),
+  )
+  await page.route(/\/api\/job-applications\?/, (route) =>
+    route.fulfill(ok({ items: [], total: 0, page: 1, size: 100 })),
+  )
+  await page.route(/\/api\/companies\?/, (route) =>
+    route.fulfill(ok({ items: [], total: 0, page: 1, size: 100 })),
+  )
+  await page.route(/\/api\/resumes\?/, (route) =>
+    route.fulfill(
+      ok({
+        items: [{ id: 9, fileName: '简历.pdf', analyzeStatus: 'COMPLETED', createdAt: now }],
+        total: 1,
+        page: 1,
+        size: 100,
+      }),
+    ),
+  )
+  await page.route(/\/api\/review-sessions(\?|$)/, (route) => {
+    if (route.request().method() === 'POST') {
+      createBody = route.request().postData() ?? ''
+      return route.fulfill(ok(listItem({ id: 3 })))
+    }
+    return route.fulfill(ok({ items: [], total: 0, page: 1, size: 20 }))
+  })
+
+  await page.goto('/reviews')
+  await expect(page.getByText('还没有复盘记录')).toBeVisible()
+  await page.getByRole('button', { name: '新建复盘' }).first().click()
+  await page.getByRole('button', { name: '快速新建' }).click()
+  await expect(page.getByText('公司和岗位不存在时会自动新建')).toBeVisible()
+
+  await page.getByLabel('填写公司').fill('小米')
+  await page.getByLabel('填写岗位名称').fill('Java 后端')
+  await page.getByText('补充背景（可选）').click()
+  await page.getByPlaceholder('公司业务、团队规模、面试风格等').fill('手机与 IoT 业务')
+  await page.getByPlaceholder('粘贴 JD 文本；会保存到岗位库并用于本次分析').fill('熟悉 JVM 与并发')
+  await page.getByLabel('选择简历版本').selectOption('9')
+  await page.getByRole('button', { name: '转写文本' }).click()
+  await page.getByPlaceholder('粘贴完整转写文本（建议保留面试官 / 候选人说话人标记）').fill('面试官：介绍项目。')
+  await page.getByRole('button', { name: '创建复盘' }).click()
+
+  await expect.poll(() => createBody).toContain('name="companyName"')
+  await expect.poll(() => createBody).toContain('name="jobTitle"')
+  await expect.poll(() => createBody).toContain('name="companyIntro"')
+  await expect.poll(() => createBody).toContain('name="jdText"')
+  await expect.poll(() => createBody).toContain('name="resumeId"')
+  await expect.poll(() => createBody).not.toContain('name="jobPositionId"')
+  await expect(page.getByText('已创建复盘，分析进行中')).toBeVisible()
+})
+
 test('复盘详情：修正总结与行动并确认，行动同步展示', async ({ page }) => {
   const base = listItem({ id: 1, transcript: '面试官：讲讲 JVM 内存模型。候选人：……', confirmed: false })
   const analysis = {

@@ -50,6 +50,8 @@ import com.jobpilot.modules.review.mapper.InterviewEventMapper;
 import com.jobpilot.modules.review.mapper.ReviewAnalysisMapper;
 import com.jobpilot.modules.review.mapper.ReviewSessionMapper;
 import com.jobpilot.modules.review.prompt.ReviewPromptFactory;
+import com.jobpilot.modules.resume.entity.Resume;
+import com.jobpilot.modules.resume.mapper.ResumeMapper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -81,6 +83,8 @@ class ReviewSessionServiceTest {
     @Mock
     private CompanyMapper companyMapper;
     @Mock
+    private ResumeMapper resumeMapper;
+    @Mock
     private LlmSceneService sceneService;
     @Mock
     private ProviderClientRegistry registry;
@@ -107,7 +111,7 @@ class ReviewSessionServiceTest {
 
     private ReviewSessionService service() {
         return new ReviewSessionService(sessionMapper, analysisMapper, eventMapper, eventService, actionService,
-                applicationMapper, jobMapper, companyMapper, sceneService, registry, callLogger,
+                applicationMapper, jobMapper, companyMapper, resumeMapper, sceneService, registry, callLogger,
                 prompts, asrClient, storage, executor, asrExecutor);
     }
 
@@ -164,9 +168,9 @@ class ReviewSessionServiceTest {
     void createRejectsAudioAndEmptyInput() {
         org.springframework.mock.web.MockMultipartFile audio =
                 new org.springframework.mock.web.MockMultipartFile("audio", "a.mp3", "audio/mpeg", new byte[]{1});
-        assertCode(() -> service().create(audio, null, null, 7L, null, 1, "TECH", null, null, null, null),
+        assertCode(() -> service().create(audio, null, null, 7L, null, null, null, null, null, null, null, 1, "TECH", null, null, null, null),
                 ErrorCode.BAD_REQUEST);
-        assertCode(() -> service().create(null, "  ", null, 7L, null, 1, "TECH", null, null, null, null),
+        assertCode(() -> service().create(null, "  ", null, 7L, null, null, null, null, null, null, null, 1, "TECH", null, null, null, null),
                 ErrorCode.BAD_REQUEST);
     }
 
@@ -175,7 +179,7 @@ class ReviewSessionServiceTest {
         when(asrClient.configured()).thenReturn(true);
         org.springframework.mock.web.MockMultipartFile audio =
                 new org.springframework.mock.web.MockMultipartFile("audio", "a.mp4", "video/mp4", new byte[]{1});
-        assertCode(() -> service().create(audio, null, null, 7L, null, 1, "TECH", null, null, null, null),
+        assertCode(() -> service().create(audio, null, null, 7L, null, null, null, null, null, null, null, 1, "TECH", null, null, null, null),
                 ErrorCode.UNSUPPORTED_MEDIA_TYPE);
     }
 
@@ -208,7 +212,7 @@ class ReviewSessionServiceTest {
         }).when(asrExecutor).execute(any(Runnable.class));
         stubLookups();
 
-        var response = service().create(audio, null, null, 7L, null, 1, "TECH", null, null, null, null);
+        var response = service().create(audio, null, null, 7L, null, null, null, null, null, null, null, 1, "TECH", null, null, null, null);
 
         assertThat(response.inputType()).isEqualTo("AUDIO");
         verify(storage).save(startsWith("reviews/"), any(byte[].class));
@@ -287,8 +291,8 @@ class ReviewSessionServiceTest {
         });
         stubLookups();
 
-        var response = service().create(null, " 问：JVM？答：堆与栈。 ", "备注", 7L, null, 1, "TECH",
-                null, null, null, null);
+        var response = service().create(null, " 问：JVM？答：堆与栈。 ", "备注", 7L, null, null, null, null, null, null, null, 1,
+                "TECH", null, null, null, null);
 
         assertThat(response.id()).isEqualTo(30L);
         assertThat(response.inputType()).isEqualTo("TEXT");
@@ -300,11 +304,83 @@ class ReviewSessionServiceTest {
     }
 
     @Test
+    void createLinksResumeToApplication() {
+        when(eventService.ensureEvent(eq(7L), isNull(), eq(1), eq("TECH"), isNull(), isNull(), isNull()))
+                .thenReturn(event(20L, 7L));
+        when(sessionMapper.selectCount(any())).thenReturn(0L);
+        Resume resume = new Resume();
+        resume.setId(3L);
+        when(resumeMapper.selectById(3L)).thenReturn(resume);
+        JobApplication application = new JobApplication();
+        application.setId(7L);
+        application.setJobPositionId(1L);
+        when(applicationMapper.selectById(7L)).thenReturn(application);
+        when(sessionMapper.insert(any(ReviewSession.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, ReviewSession.class).setId(30L);
+            return 1;
+        });
+        when(sessionMapper.selectById(30L)).thenReturn(session(30L, 20L));
+        stubLookups();
+
+        service().create(null, "文本", null, 7L, null, null, null, null, null, null, 3L, 1, "TECH",
+                null, null, null, null);
+
+        ArgumentCaptor<JobApplication> captor = ArgumentCaptor.forClass(JobApplication.class);
+        verify(applicationMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getResumeId()).isEqualTo(3L);
+    }
+
+    @Test
+    void analyzePromptCarriesCompanyJobAndResumeContext() {
+        ReviewSession session = session(30L, 20L);
+        when(sessionMapper.selectById(30L)).thenReturn(session);
+        when(sceneService.resolveGlobal()).thenReturn(globalModel());
+        when(registry.get("deepseek")).thenReturn(client);
+        when(eventMapper.selectById(20L)).thenReturn(event(20L, 7L));
+        JobApplication application = new JobApplication();
+        application.setId(7L);
+        application.setJobPositionId(1L);
+        application.setResumeId(3L);
+        when(applicationMapper.selectById(7L)).thenReturn(application);
+        JobPosition job = new JobPosition();
+        job.setId(1L);
+        job.setCompanyId(2L);
+        job.setTitle("Java 后端");
+        job.setRawText("JD 原文");
+        when(jobMapper.selectById(1L)).thenReturn(job);
+        Company company = new Company();
+        company.setId(2L);
+        company.setName("字节跳动");
+        company.setIntro("公司介绍");
+        when(companyMapper.selectById(2L)).thenReturn(company);
+        Resume resume = new Resume();
+        resume.setId(3L);
+        resume.setResumeText("简历原文");
+        when(resumeMapper.selectById(3L)).thenReturn(resume);
+        when(client.chatJson(eq("deepseek-flash"), any())).thenThrow(new RuntimeException("stop"));
+        when(sessionMapper.update(any(), any())).thenAnswer(invocation -> {
+            session.setAnalyzeStatus("PROCESSING");
+            return 1;
+        });
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+        stubLookups();
+
+        service().analyze(30L);
+
+        verify(prompts).user("字节跳动", "Java 后端", "TECH", null, "公司介绍", "JD 原文", "简历原文",
+                session.getTranscript());
+    }
+
+    @Test
     void createRejectsDuplicateReviewAndRequiresSource() {
         when(eventService.ensureEvent(eq(7L), isNull(), eq(1), eq("TECH"), isNull(), isNull(), isNull()))
                 .thenReturn(event(20L, 7L));
         when(sessionMapper.selectCount(any())).thenReturn(1L);
-        assertCode(() -> service().create(null, "文本", null, 7L, null, 1, "TECH", null, null, null, null),
+        assertCode(() -> service().create(null, "文本", null, 7L, null, null, null, null, null, null, null, 1, "TECH",
+                        null, null, null, null),
                 ErrorCode.REVIEW_ROUND_EXISTS);
     }
 
