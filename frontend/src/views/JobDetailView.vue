@@ -319,6 +319,7 @@ onBeforeUnmount(() => {
           </p>
         </div>
         <div class="badges">
+          <span v-if="job.sourceType === 'MANUAL'" class="tag">手动录入</span>
           <span class="status" :class="PARSE_TONE[job.parseStatus]">
             {{ PARSE_TEXT[job.parseStatus] ?? job.parseStatus }}
           </span>

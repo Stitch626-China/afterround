@@ -622,7 +622,8 @@ public class JobPositionService {
     }
 
     private JobPositionListItemResponse toListItem(JobPosition job, String companyName) {
-        return new JobPositionListItemResponse(job.getId(), job.getTitle(), job.getCompanyId(), companyName,
+        return new JobPositionListItemResponse(job.getId(), job.getSourceType(), job.getTitle(),
+                job.getCompanyId(), companyName,
                 job.getCity(), job.getSalaryMin(), job.getSalaryMax(), job.getExperience(), job.getEducation(),
                 job.getStatus(), job.getRemark(), job.getParseStatus(), job.getRetryCount(),
                 job.getCreatedAt(), job.getUpdatedAt());

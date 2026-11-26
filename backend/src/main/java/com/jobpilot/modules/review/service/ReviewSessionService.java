@@ -129,10 +129,12 @@ public class ReviewSessionService {
 
     /**
      * 创建复盘：音频、转写、笔记三选一（音频与另两者互斥）。
-     * 仅给岗位时由面试事件服务复用或自动创建轮次；同一轮次只允许一条复盘（40917）。
+     * 已有投递 / 岗位时复用或自动创建轮次；都没有时按公司 + 岗位名快速新建手动岗位。
+     * 同一轮次只允许一条复盘（40917）。
      */
     public ReviewSessionListItemResponse create(MultipartFile audio, String transcript, String notes,
-                                                Long applicationId, Long jobPositionId, Integer roundNo,
+                                                Long applicationId, Long jobPositionId, Long companyId,
+                                                String companyName, String jobTitle, Integer roundNo,
                                                 String roundType, String interviewerRole, String format,
                                                 OffsetDateTime interviewTime, String idempotencyKey) {
         boolean hasAudio = audio != null && !audio.isEmpty();
@@ -153,8 +155,11 @@ public class ReviewSessionService {
                 return toItems(List.of(existing)).get(0);
             }
         }
-        InterviewEvent event = eventService.ensureEvent(applicationId, jobPositionId, roundNo, roundType,
-                interviewerRole, format, interviewTime);
+        InterviewEvent event = applicationId == null && jobPositionId == null
+                ? eventService.ensureEventForManualJob(companyId, companyName, jobTitle, roundNo, roundType,
+                        interviewerRole, format, interviewTime)
+                : eventService.ensureEvent(applicationId, jobPositionId, roundNo, roundType,
+                        interviewerRole, format, interviewTime);
         Long reviews = sessionMapper.selectCount(Wrappers.<ReviewSession>lambdaQuery()
                 .eq(ReviewSession::getEventId, event.getId()));
         if (reviews != null && reviews > 0) {

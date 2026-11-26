@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.10.0
+  version: 1.11.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -2218,7 +2218,10 @@ paths:
       summary: 创建复盘记录（音频 / 转写 / 笔记三选一）
       description: |
         - `audio`、`transcript`、`notes` 三选一，不可同时为空。
-        - `applicationId` 与 `jobPositionId` 至少提供一个；服务端自动创建或复用面试轮次。
+        - 已有投递或岗位时提供 `applicationId` / `jobPositionId`；服务端自动创建或复用面试轮次。
+        - 尚无岗位记录时可快速录入：提供 `companyId` 或 `companyName`（二选一）与 `jobTitle`，
+          服务端复用或新建公司，并创建来源为 `MANUAL` 的岗位、投递与面试轮次；手动录入岗位不参与行情统计。
+        - `companyId` / `companyName` / `jobTitle` 仅在未提供 `applicationId` 与 `jobPositionId` 时生效。
         - 创建后返回 `status = UPLOADED`；音频走异步 ASR，随后异步分析；轮询 `/status`。
         - 音频支持 mp3 / wav / m4a，≤100MB 或 2 小时；转写失败可改用文本重新创建。
       requestBody:
@@ -2249,6 +2252,18 @@ paths:
                   type: integer
                   format: int64
                   description: 岗位 ID；用于没有投递记录时的快速录入
+                companyId:
+                  type: integer
+                  format: int64
+                  description: 已有公司 ID；与 companyName 二选一，仅在快速新建岗位时使用
+                companyName:
+                  type: string
+                  maxLength: 128
+                  description: 公司名称；按精确同名复用，不存在时自动创建
+                jobTitle:
+                  type: string
+                  maxLength: 128
+                  description: 快速新建的岗位名；与 companyId / companyName 配合使用
                 roundNo:
                   type: integer
                   minimum: 1
@@ -3705,11 +3720,15 @@ components:
 
     JobPositionListItem:
       type: object
-      required: [id, status, parseStatus, retryCount, createdAt, updatedAt]
+      required: [id, sourceType, status, parseStatus, retryCount, createdAt, updatedAt]
       properties:
         id:
           type: integer
           format: int64
+        sourceType:
+          type: string
+          enum: [TEXT, FILE, IMAGE, MANUAL]
+          description: 导入来源（IMAGE = 截图视觉识别，原图不落库；MANUAL = 复盘快速录入，无 JD 原文）
         title:
           type: [string, "null"]
           description: 岗位名；解析完成前可能为 null
@@ -3764,10 +3783,6 @@ components:
         - $ref: '#/components/schemas/JobPositionListItem'
         - type: object
           properties:
-            sourceType:
-              type: string
-              enum: [TEXT, FILE, IMAGE]
-              description: 导入来源（IMAGE = 截图视觉识别，原图不落库）
             fileName:
               type: [string, "null"]
               description: 文本 / 截图导入时为 null

@@ -3,7 +3,7 @@
  * 真实面试复盘列表（F4）：录音 / 转写文本 / 手动笔记三种输入，异步转写与分析，失败可重试。
  * 状态轮询只在存在处理中的记录时开启，离开页面即清理。
  */
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   analyzeReviewSession,
   createReviewSession,
@@ -17,7 +17,7 @@ import {
   type ReviewStatus,
 } from '@/api/reviews'
 import { listJobApplications, type JobApplicationListItem } from '@/api/applications'
-import { listJobPositions, type JobPositionListItem } from '@/api/jobs'
+import { listCompanies, listJobPositions, type Company, type JobPositionListItem } from '@/api/jobs'
 import EmptyState from '@/components/EmptyState.vue'
 import {
   FORMATS,
@@ -34,6 +34,7 @@ import {
 const items = ref<ReviewSessionListItem[]>([])
 const applications = ref<JobApplicationListItem[]>([])
 const jobs = ref<JobPositionListItem[]>([])
+const companies = ref<Company[]>([])
 const total = ref(0)
 const page = ref(1)
 const size = 20
@@ -44,7 +45,7 @@ const notice = ref('')
 const statusFilter = ref<ReviewStatus | ''>('')
 const formOpen = ref(false)
 const confirmId = ref<number | null>(null)
-const sourceMode = ref<'JOB' | 'APPLICATION'>('JOB')
+const sourceMode = ref<'JOB' | 'APPLICATION' | 'QUICK'>('JOB')
 
 const draft = reactive<{
   applicationId: number | null
@@ -70,6 +71,24 @@ const draft = reactive<{
   transcript: '',
   notes: '',
   audio: null,
+})
+
+/** 快速新建：公司 + 岗位名，后端按精确同名复用或新建。 */
+const quick = reactive({ companyName: '', jobTitle: '' })
+const matchedRounds = ref<number | null>(null)
+
+/** 同名公司与岗位都命中时提示复用，避免重复创建。 */
+const matchedCompany = computed(() => {
+  const name = quick.companyName.trim()
+  return name ? companies.value.find((company) => company.name === name) ?? null : null
+})
+const matchedJob = computed(() => {
+  const name = quick.companyName.trim()
+  const title = quick.jobTitle.trim()
+  if (!name || !title) {
+    return null
+  }
+  return jobs.value.find((job) => job.title === title && (job.companyName ?? '').trim() === name) ?? null
 })
 
 const pages = computed(() => Math.max(1, Math.ceil(total.value / size)))
@@ -107,9 +126,10 @@ function syncPolling(): void {
 }
 
 async function loadOptions(): Promise<void> {
-  const [applicationResult, jobResult] = await Promise.allSettled([
+  const [applicationResult, jobResult, companyResult] = await Promise.allSettled([
     listJobApplications({ page: 1, size: 100 }),
     listJobPositions({ page: 1, size: 100 }),
+    listCompanies('', 100),
   ])
   if (applicationResult.status === 'fulfilled') {
     applications.value = applicationResult.value.items
@@ -117,9 +137,12 @@ async function loadOptions(): Promise<void> {
   if (jobResult.status === 'fulfilled') {
     jobs.value = jobResult.value.items
   }
+  if (companyResult.status === 'fulfilled') {
+    companies.value = companyResult.value.items
+  }
 }
 
-function switchSource(mode: 'JOB' | 'APPLICATION'): void {
+function switchSource(mode: 'JOB' | 'APPLICATION' | 'QUICK'): void {
   if (sourceMode.value === mode) {
     return
   }
@@ -127,6 +150,42 @@ function switchSource(mode: 'JOB' | 'APPLICATION'): void {
   draft.applicationId = null
   draft.jobPositionId = null
   draft.roundNo = 1
+  matchedRounds.value = null
+}
+
+/** 命中已有岗位时自动带出下一轮；切到「按岗位」后复用同一套轮次逻辑。 */
+watch(
+  () => matchedJob.value?.id,
+  async (jobId) => {
+    matchedRounds.value = null
+    if (!jobId) {
+      return
+    }
+    try {
+      const result = await listJobApplications({ jobPositionId: jobId, page: 1, size: 100 })
+      if (matchedJob.value?.id !== jobId) {
+        return
+      }
+      const latest = result.items.reduce((max, item) => Math.max(max, item.latestRoundNo ?? 0), 0)
+      matchedRounds.value = latest
+      if (sourceMode.value === 'QUICK') {
+        draft.roundNo = latest + 1
+      }
+    } catch {
+      matchedRounds.value = null
+    }
+  },
+)
+
+/** 从快速新建切到已有岗位，保留轮次与输入材料。 */
+function useMatchedJob(): void {
+  const job = matchedJob.value
+  if (!job) {
+    return
+  }
+  sourceMode.value = 'JOB'
+  draft.jobPositionId = job.id
+  void onJobChange()
 }
 
 async function onJobChange(): Promise<void> {
@@ -178,6 +237,9 @@ function resetDraft(): void {
   draft.transcript = ''
   draft.notes = ''
   draft.audio = null
+  quick.companyName = ''
+  quick.jobTitle = ''
+  matchedRounds.value = null
 }
 
 async function create(): Promise<void> {
@@ -187,6 +249,14 @@ async function create(): Promise<void> {
   }
   if (sourceMode.value === 'APPLICATION' && !draft.applicationId) {
     error.value = '请选择投递记录'
+    return
+  }
+  if (sourceMode.value === 'QUICK' && !quick.companyName.trim()) {
+    error.value = '请选择或填写公司'
+    return
+  }
+  if (sourceMode.value === 'QUICK' && !quick.jobTitle.trim()) {
+    error.value = '请填写岗位名称'
     return
   }
   if (!draft.roundNo || draft.roundNo < 1) {
@@ -208,12 +278,16 @@ async function create(): Promise<void> {
   saving.value = true
   error.value = ''
   try {
+    const quickMode = sourceMode.value === 'QUICK'
     await createReviewSession({
       audio: draft.inputType === 'AUDIO' ? draft.audio : null,
       transcript: draft.inputType === 'TEXT' ? draft.transcript.trim() : undefined,
       notes: draft.inputType === 'NOTES' ? draft.notes.trim() : undefined,
       applicationId: sourceMode.value === 'APPLICATION' ? draft.applicationId : null,
       jobPositionId: sourceMode.value === 'JOB' ? draft.jobPositionId : null,
+      companyId: quickMode ? matchedCompany.value?.id ?? null : null,
+      companyName: quickMode && !matchedCompany.value ? quick.companyName.trim() : undefined,
+      jobTitle: quickMode ? quick.jobTitle.trim() : undefined,
       roundNo: draft.roundNo,
       roundType: draft.roundType,
       interviewerRole: draft.interviewerRole.trim() || undefined,
@@ -226,6 +300,7 @@ async function create(): Promise<void> {
     resetDraft()
     page.value = 1
     await load()
+    void loadOptions()
   } catch (ex) {
     // 失败时保留已填写内容，避免用户重输
     error.value = ex instanceof Error ? ex.message : '创建复盘失败'
@@ -330,7 +405,9 @@ onBeforeUnmount(() => {
     </header>
 
     <section v-if="formOpen" class="form">
-      <p class="hint">面试结束后直接选岗位即可，系统会自动补建投递与面试轮次。</p>
+      <p class="hint">
+        面试结束后直接选岗位即可，系统会自动补建投递与面试轮次；岗位还没入库时用「快速新建」，不用先导入 JD。
+      </p>
       <div class="tabs">
         <button
           type="button"
@@ -348,9 +425,41 @@ onBeforeUnmount(() => {
         >
           按投递
         </button>
+        <button
+          type="button"
+          class="tab"
+          :class="{ active: sourceMode === 'QUICK' }"
+          @click="switchSource('QUICK')"
+        >
+          快速新建
+        </button>
       </div>
       <div class="form-grid">
-        <label v-if="sourceMode === 'JOB'">
+        <template v-if="sourceMode === 'QUICK'">
+          <label>
+            公司
+            <input
+              v-model="quick.companyName"
+              list="review-company-options"
+              maxlength="128"
+              placeholder="输入公司名称，如 字节跳动"
+              aria-label="填写公司"
+            />
+            <datalist id="review-company-options">
+              <option v-for="company in companies" :key="company.id" :value="company.name" />
+            </datalist>
+          </label>
+          <label>
+            岗位名称
+            <input
+              v-model="quick.jobTitle"
+              maxlength="128"
+              placeholder="如 Java 后端开发工程师"
+              aria-label="填写岗位名称"
+            />
+          </label>
+        </template>
+        <label v-else-if="sourceMode === 'JOB'">
           岗位
           <select v-model.number="draft.jobPositionId" aria-label="选择岗位" @change="onJobChange">
             <option :value="null" disabled>选择岗位</option>
@@ -402,6 +511,23 @@ onBeforeUnmount(() => {
           面试时间
           <input v-model="draft.interviewTime" type="datetime-local" />
         </label>
+      </div>
+
+      <div v-if="sourceMode === 'QUICK'" class="quick-hint">
+        <div v-if="matchedJob" class="banner info split">
+          <span>
+            已存在岗位「{{ matchedJob.companyName }} · {{ matchedJob.title }}」{{
+              matchedRounds !== null ? `（已录入 ${matchedRounds} 轮）` : ''
+            }}，将复用该岗位并新增下一轮。
+          </span>
+          <button type="button" class="link" @click="useMatchedJob">改用该岗位</button>
+        </div>
+        <p v-else-if="matchedCompany" class="hint">
+          公司「{{ matchedCompany.name }}」已存在，将复用；岗位不存在，将新建并标记「手动录入」。
+        </p>
+        <p v-else class="hint">
+          公司和岗位不存在时会自动新建，岗位标记「手动录入」，不参与行情统计；之后可在岗位库补充 JD。
+        </p>
       </div>
 
       <div class="tabs">

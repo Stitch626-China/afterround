@@ -55,14 +55,18 @@ public class ReviewSessionController {
             @RequestParam(value = "notes", required = false) String notes,
             @RequestParam(value = "applicationId", required = false) Long applicationId,
             @RequestParam(value = "jobPositionId", required = false) Long jobPositionId,
+            @RequestParam(value = "companyId", required = false) Long companyId,
+            @RequestParam(value = "companyName", required = false) String companyName,
+            @RequestParam(value = "jobTitle", required = false) String jobTitle,
             @RequestParam(value = "roundNo", required = false) Integer roundNo,
             @RequestParam(value = "roundType", required = false) String roundType,
             @RequestParam(value = "interviewerRole", required = false) String interviewerRole,
             @RequestParam(value = "format", required = false) String format,
             @RequestParam(value = "interviewTime", required = false) String interviewTime,
             @RequestParam(value = "idempotencyKey", required = false) String idempotencyKey) {
-        return Result.ok(reviewService.create(audio, transcript, notes, applicationId, jobPositionId, roundNo,
-                roundType, interviewerRole, format, time(interviewTime), idempotencyKey));
+        return Result.ok(reviewService.create(audio, transcript, notes, applicationId, jobPositionId, companyId,
+                companyName, jobTitle, roundNo, roundType, interviewerRole, format, time(interviewTime),
+                idempotencyKey));
     }
 
     @GetMapping("/{reviewSessionId}")

@@ -164,9 +164,9 @@ class ReviewSessionServiceTest {
     void createRejectsAudioAndEmptyInput() {
         org.springframework.mock.web.MockMultipartFile audio =
                 new org.springframework.mock.web.MockMultipartFile("audio", "a.mp3", "audio/mpeg", new byte[]{1});
-        assertCode(() -> service().create(audio, null, null, 7L, null, 1, "TECH", null, null, null, null),
+        assertCode(() -> service().create(audio, null, null, 7L, null, null, null, null, 1, "TECH", null, null, null, null),
                 ErrorCode.BAD_REQUEST);
-        assertCode(() -> service().create(null, "  ", null, 7L, null, 1, "TECH", null, null, null, null),
+        assertCode(() -> service().create(null, "  ", null, 7L, null, null, null, null, 1, "TECH", null, null, null, null),
                 ErrorCode.BAD_REQUEST);
     }
 
@@ -175,7 +175,7 @@ class ReviewSessionServiceTest {
         when(asrClient.configured()).thenReturn(true);
         org.springframework.mock.web.MockMultipartFile audio =
                 new org.springframework.mock.web.MockMultipartFile("audio", "a.mp4", "video/mp4", new byte[]{1});
-        assertCode(() -> service().create(audio, null, null, 7L, null, 1, "TECH", null, null, null, null),
+        assertCode(() -> service().create(audio, null, null, 7L, null, null, null, null, 1, "TECH", null, null, null, null),
                 ErrorCode.UNSUPPORTED_MEDIA_TYPE);
     }
 
@@ -208,7 +208,7 @@ class ReviewSessionServiceTest {
         }).when(asrExecutor).execute(any(Runnable.class));
         stubLookups();
 
-        var response = service().create(audio, null, null, 7L, null, 1, "TECH", null, null, null, null);
+        var response = service().create(audio, null, null, 7L, null, null, null, null, 1, "TECH", null, null, null, null);
 
         assertThat(response.inputType()).isEqualTo("AUDIO");
         verify(storage).save(startsWith("reviews/"), any(byte[].class));
@@ -287,8 +287,8 @@ class ReviewSessionServiceTest {
         });
         stubLookups();
 
-        var response = service().create(null, " 问：JVM？答：堆与栈。 ", "备注", 7L, null, 1, "TECH",
-                null, null, null, null);
+        var response = service().create(null, " 问：JVM？答：堆与栈。 ", "备注", 7L, null, null, null, null, 1,
+                "TECH", null, null, null, null);
 
         assertThat(response.id()).isEqualTo(30L);
         assertThat(response.inputType()).isEqualTo("TEXT");
@@ -304,7 +304,8 @@ class ReviewSessionServiceTest {
         when(eventService.ensureEvent(eq(7L), isNull(), eq(1), eq("TECH"), isNull(), isNull(), isNull()))
                 .thenReturn(event(20L, 7L));
         when(sessionMapper.selectCount(any())).thenReturn(1L);
-        assertCode(() -> service().create(null, "文本", null, 7L, null, 1, "TECH", null, null, null, null),
+        assertCode(() -> service().create(null, "文本", null, 7L, null, null, null, null, 1, "TECH",
+                        null, null, null, null),
                 ErrorCode.REVIEW_ROUND_EXISTS);
     }
 
