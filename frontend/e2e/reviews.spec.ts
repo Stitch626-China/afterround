@@ -28,6 +28,23 @@ const listItem = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
+const job = {
+  id: 3,
+  title: 'Java 后端开发工程师',
+  companyId: 1,
+  companyName: '字节跳动',
+  city: '北京',
+  salaryMin: 20,
+  salaryMax: 35,
+  experience: '3-5 年',
+  education: '本科',
+  status: 'APPLIED',
+  parseStatus: 'COMPLETED',
+  retryCount: 0,
+  createdAt: now,
+  updatedAt: now,
+}
+
 const application = {
   id: 5,
   jobPositionId: 3,
@@ -81,6 +98,9 @@ test('复盘列表：文本创建、展示状态与删除', async ({ page }) => 
   let deleteCalled = false
 
   await page.route('**/api/review-taxonomy', (route) => route.fulfill(ok(taxonomy)))
+  await page.route(/\/api\/job-positions\?/, (route) =>
+    route.fulfill(ok({ items: [job], total: 1, page: 1, size: 100 })),
+  )
   await page.route(/\/api\/job-applications\?/, (route) =>
     route.fulfill(ok({ items: [application], total: 1, page: 1, size: 100 })),
   )
@@ -109,9 +129,9 @@ test('复盘列表：文本创建、展示状态与删除', async ({ page }) => 
   await expect(page.locator('.list').getByText('失败')).toBeVisible()
   await expect(page.locator('.list').getByRole('button', { name: '重试转写' })).toBeVisible()
 
-  // 创建复盘：选择投递后轮次自动 +1，切换为转写文本
+  // 创建复盘：默认按岗位，选岗位后轮次自动 +1，切换为转写文本
   await page.locator('.page-head').getByRole('button', { name: '新建复盘' }).click()
-  await page.locator('.form label').filter({ hasText: '投递记录' }).locator('select').selectOption('5')
+  await page.getByLabel('选择岗位').selectOption('3')
   await expect(page.locator('.form label').filter({ hasText: '轮次号' }).locator('input')).toHaveValue('2')
   await page.getByRole('button', { name: '转写文本' }).click()
   await page.getByPlaceholder('粘贴完整转写文本（建议保留面试官 / 候选人说话人标记）').fill('面试官：讲讲 JVM 内存模型。')
@@ -120,6 +140,8 @@ test('复盘列表：文本创建、展示状态与删除', async ({ page }) => 
   await expect.poll(() => createCalled).toBe(true)
   await expect.poll(() => createBody).toContain('name="transcript"')
   await expect.poll(() => createBody).toContain('name="roundNo"')
+  await expect.poll(() => createBody).toContain('name="jobPositionId"')
+  await expect.poll(() => createBody).not.toContain('name="applicationId"')
   await expect(page.getByText('已创建复盘，分析进行中')).toBeVisible()
   await expect(page.locator('.list .row')).toHaveCount(2)
 

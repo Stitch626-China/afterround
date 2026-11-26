@@ -17,6 +17,7 @@ import {
   type ReviewStatus,
 } from '@/api/reviews'
 import { listJobApplications, type JobApplicationListItem } from '@/api/applications'
+import { listJobPositions, type JobPositionListItem } from '@/api/jobs'
 import EmptyState from '@/components/EmptyState.vue'
 import {
   FORMATS,
@@ -32,6 +33,7 @@ import {
 
 const items = ref<ReviewSessionListItem[]>([])
 const applications = ref<JobApplicationListItem[]>([])
+const jobs = ref<JobPositionListItem[]>([])
 const total = ref(0)
 const page = ref(1)
 const size = 20
@@ -42,9 +44,11 @@ const notice = ref('')
 const statusFilter = ref<ReviewStatus | ''>('')
 const formOpen = ref(false)
 const confirmId = ref<number | null>(null)
+const sourceMode = ref<'JOB' | 'APPLICATION'>('JOB')
 
 const draft = reactive<{
   applicationId: number | null
+  jobPositionId: number | null
   roundNo: number
   roundType: InterviewRoundType
   interviewerRole: string
@@ -56,6 +60,7 @@ const draft = reactive<{
   audio: File | null
 }>({
   applicationId: null,
+  jobPositionId: null,
   roundNo: 1,
   roundType: 'TECH',
   interviewerRole: '',
@@ -102,11 +107,43 @@ function syncPolling(): void {
 }
 
 async function loadOptions(): Promise<void> {
+  const [applicationResult, jobResult] = await Promise.allSettled([
+    listJobApplications({ page: 1, size: 100 }),
+    listJobPositions({ page: 1, size: 100 }),
+  ])
+  if (applicationResult.status === 'fulfilled') {
+    applications.value = applicationResult.value.items
+  }
+  if (jobResult.status === 'fulfilled') {
+    jobs.value = jobResult.value.items
+  }
+}
+
+function switchSource(mode: 'JOB' | 'APPLICATION'): void {
+  if (sourceMode.value === mode) {
+    return
+  }
+  sourceMode.value = mode
+  draft.applicationId = null
+  draft.jobPositionId = null
+  draft.roundNo = 1
+}
+
+async function onJobChange(): Promise<void> {
+  const jobPositionId = draft.jobPositionId
+  if (!jobPositionId) {
+    draft.roundNo = 1
+    return
+  }
   try {
-    const result = await listJobApplications({ page: 1, size: 100 })
-    applications.value = result.items
+    const page = await listJobApplications({ jobPositionId, page: 1, size: 100 })
+    if (sourceMode.value !== 'JOB' || draft.jobPositionId !== jobPositionId) {
+      return
+    }
+    const latest = page.items.reduce((max, item) => Math.max(max, item.latestRoundNo ?? 0), 0)
+    draft.roundNo = latest + 1
   } catch {
-    // 下拉选项失败不阻断列表，提交时会给出明确提示
+    draft.roundNo = 1
   }
 }
 
@@ -129,7 +166,9 @@ function onFile(event: Event): void {
 }
 
 function resetDraft(): void {
+  sourceMode.value = 'JOB'
   draft.applicationId = null
+  draft.jobPositionId = null
   draft.roundNo = 1
   draft.roundType = 'TECH'
   draft.interviewerRole = ''
@@ -142,7 +181,11 @@ function resetDraft(): void {
 }
 
 async function create(): Promise<void> {
-  if (!draft.applicationId) {
+  if (sourceMode.value === 'JOB' && !draft.jobPositionId) {
+    error.value = '请选择岗位'
+    return
+  }
+  if (sourceMode.value === 'APPLICATION' && !draft.applicationId) {
     error.value = '请选择投递记录'
     return
   }
@@ -169,7 +212,8 @@ async function create(): Promise<void> {
       audio: draft.inputType === 'AUDIO' ? draft.audio : null,
       transcript: draft.inputType === 'TEXT' ? draft.transcript.trim() : undefined,
       notes: draft.inputType === 'NOTES' ? draft.notes.trim() : undefined,
-      applicationId: draft.applicationId,
+      applicationId: sourceMode.value === 'APPLICATION' ? draft.applicationId : null,
+      jobPositionId: sourceMode.value === 'JOB' ? draft.jobPositionId : null,
       roundNo: draft.roundNo,
       roundType: draft.roundType,
       interviewerRole: draft.interviewerRole.trim() || undefined,
@@ -286,10 +330,42 @@ onBeforeUnmount(() => {
     </header>
 
     <section v-if="formOpen" class="form">
+      <p class="hint">面试结束后直接选岗位即可，系统会自动补建投递与面试轮次。</p>
+      <div class="tabs">
+        <button
+          type="button"
+          class="tab"
+          :class="{ active: sourceMode === 'JOB' }"
+          @click="switchSource('JOB')"
+        >
+          按岗位
+        </button>
+        <button
+          type="button"
+          class="tab"
+          :class="{ active: sourceMode === 'APPLICATION' }"
+          @click="switchSource('APPLICATION')"
+        >
+          按投递
+        </button>
+      </div>
       <div class="form-grid">
-        <label>
+        <label v-if="sourceMode === 'JOB'">
+          岗位
+          <select v-model.number="draft.jobPositionId" aria-label="选择岗位" @change="onJobChange">
+            <option :value="null" disabled>选择岗位</option>
+            <option v-for="job in jobs" :key="job.id" :value="job.id">
+              {{ job.title || '未命名岗位' }}{{ job.companyName ? ` · ${job.companyName}` : '' }}
+            </option>
+          </select>
+        </label>
+        <label v-else>
           投递记录
-          <select v-model.number="draft.applicationId" @change="onApplicationChange">
+          <select
+            v-model.number="draft.applicationId"
+            aria-label="选择投递"
+            @change="onApplicationChange"
+          >
             <option :value="null" disabled>选择投递</option>
             <option v-for="application in applications" :key="application.id" :value="application.id">
               {{ application.jobTitle || '未命名岗位' }}
@@ -360,8 +436,12 @@ onBeforeUnmount(() => {
         placeholder="记录题目、你的回答要点与当场感受"
       />
 
-      <div v-if="!applications.length" class="banner warning">
-        还没有投递记录；请先在「投递档案」记录投递，再创建复盘。
+      <div v-if="sourceMode === 'JOB' && !jobs.length" class="banner warning">
+        还没有岗位；请先到「岗位库」导入 JD，再回来创建复盘。
+        <RouterLink to="/jobs" class="link">去岗位库 →</RouterLink>
+      </div>
+      <div v-else-if="sourceMode === 'APPLICATION' && !applications.length" class="banner warning">
+        还没有投递记录；可以切换到「按岗位」直接创建，或先到「投递档案」记录投递。
       </div>
 
       <div class="actions">
