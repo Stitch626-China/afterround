@@ -168,3 +168,10 @@
 - 验证：契约 lint **0 error / 0 warning**；后端 `clean test` 全量 **205 tests 全绿**（新增 `LlmUsageServiceTest` 3 个单测 + `M1bApiIntegrationTest` 真实 PostgreSQL 聚合与非法窗口集成用例；行覆盖 **86.49%**，JaCoCo 门禁通过）；前端构建（含 `vue-tsc`）、Vitest **27**、Playwright **19** 全过（设置抽屉「调用统计」空态 E2E）。对照表 NFR6 转 ✅，README / PROGRESS 同步。
 - 备注：本轮第二次 `mvn test` 曾出现 Mockito 相关测试批量 `NoClassDefFoundError`，但 `target/classes` 中类文件实际存在，`mvn clean test` 后全部通过，判定为增量编译 / 文件竞态而非代码缺陷；后续改后端代码后优先用 `clean test` 验证。
 - 下一步 / 断点：NFR6 文档提交推送；随后按约定先汇报 **NFR7**（分析完成后音频可选清理）的补前现状 / 方案 / 补后效果，等用户审核再动手。
+
+### 18:25 事件
+
+- 改动：补齐 **NFR7 音频可选清理**（提交 `b7b564c`，用户审核后确认按「只删音频、保留转写与分析」实现）。契约 **1.21.0** 新增 `DELETE /api/review-sessions/{reviewSessionId}/audio`（端点 92 → 93）：仅音频复盘且音频仍存在时可用；先删除磁盘文件，再用「id + audio_storage_key」条件清空 `audio_storage_key` / `audio_file_name` / `audio_size` / `audio_duration_seconds`，保留转写、分析与改进行动；非音频 / 已清理返回 400，转写或分析 PROCESSING 返回 409（40915）。前端复盘详情「转写与面试上下文」卡片头新增「清理音频」→ 二次确认，成功后刷新详情、音频名消失并提示「音频已清理，转写与分析保留」；已清理显示「音频已清理（转写与分析保留）」，非音频复盘无入口。
+- 原因：NFR7 要求「分析完成后音频可选清理」；原实现只能删除整条复盘，音频（单文件上限 100MB）长期累积占磁盘。
+- 验证：契约 lint **0 error / 0 warning**；后端 `clean test` 全量 **209 tests 全绿**（新增 4 个服务层用例：成功删文件并清空四字段、非音频 / 已清理 400、转写 / 分析执行中 409、并发条件更新失败 400；行覆盖 **86.44%**，JaCoCo 门禁通过）；前端构建（含 `vue-tsc`）、Vitest **27**、Playwright **20** 全过（新增清理音频 E2E，断言清理后转写文本仍保留）。对照表 NFR7 转 ✅ 并更新音频生命周期说明，README / PROGRESS 同步。
+- 下一步 / 断点：文档提交推送；对照表已无待补缺口（契约 1.21.0 / 93 端点全部实现），后续转由真实使用反馈驱动迭代。
