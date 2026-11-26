@@ -33,6 +33,9 @@ export interface OfferFormState {
   quarterlyBonus: string
   remark: string
   group: OfferGroup
+  decisionPriorities: string
+  finalChoice: boolean
+  finalChoiceReason: string
 }
 
 export function emptyOfferForm(): OfferFormState {
@@ -55,6 +58,9 @@ export function emptyOfferForm(): OfferFormState {
     quarterlyBonus: '',
     remark: '',
     group: 'KEEP',
+    decisionPriorities: '',
+    finalChoice: false,
+    finalChoiceReason: '',
   }
 }
 
@@ -79,6 +85,9 @@ export function offerToForm(offer: Offer | OfferDetail): OfferFormState {
     quarterlyBonus: offer.quarterlyBonus ?? '',
     remark: offer.remark ?? '',
     group: offer.group,
+    decisionPriorities: offer.decisionPriorities ?? '',
+    finalChoice: offer.finalChoice,
+    finalChoiceReason: offer.finalChoiceReason ?? '',
   }
 }
 
@@ -132,6 +141,9 @@ export function formToPayload(form: OfferFormState): CreateOfferRequest {
     quarterlyBonus: textOrNull(form.quarterlyBonus),
     remark: textOrNull(form.remark),
     group: form.group,
+    decisionPriorities: textOrNull(form.decisionPriorities),
+    finalChoice: form.finalChoice,
+    finalChoiceReason: textOrNull(form.finalChoiceReason),
   }
 }
 

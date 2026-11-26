@@ -41,6 +41,11 @@ public class Offer {
     private String remark;
     private String offerGroup;
 
+    /** 决策依据快照（FR6.7）：当时看重什么、是否最终选择及原因。 */
+    private String decisionPriorities;
+    private Boolean finalChoice;
+    private String finalChoiceReason;
+
     @TableField(typeHandler = JsonbStringTypeHandler.class)
     private String analysis;
 

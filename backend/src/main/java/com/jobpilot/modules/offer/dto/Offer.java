@@ -27,6 +27,9 @@ public record Offer(
         String quarterlyBonus,
         String remark,
         String group,
+        String decisionPriorities,
+        boolean finalChoice,
+        String finalChoiceReason,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt) {
 }

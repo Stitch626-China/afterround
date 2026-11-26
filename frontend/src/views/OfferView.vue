@@ -521,6 +521,26 @@ onMounted(() => {
             <span>备注</span>
             <input v-model="form.remark" maxlength="500" placeholder="如：团队氛围、面试感受、待确认事项" />
           </label>
+          <label class="wide">
+            <span>当时看重什么（决策依据快照）</span>
+            <input
+              v-model="form.decisionPriorities"
+              maxlength="1000"
+              placeholder="如：薪资、稳定性、通勤、成长空间"
+            />
+          </label>
+          <label class="wide">
+            <span>最终选择及原因</span>
+            <input
+              v-model="form.finalChoiceReason"
+              maxlength="1000"
+              placeholder="如：选了 A，薪资更高且通勤更短"
+            />
+          </label>
+          <label class="wide inline">
+            <input v-model="form.finalChoice" type="checkbox" />
+            <span>标记为最终选择（全局只保留一个）</span>
+          </label>
         </div>
 
         <div class="form-actions">
@@ -564,11 +584,18 @@ onMounted(() => {
                 <span class="status" :class="item.group === 'KEEP' ? 'success' : 'muted'">
                   {{ groupText(item.group) }}
                 </span>
+                <span v-if="item.finalChoice" class="tag success">最终选择</span>
               </div>
               <p class="row-salary">{{ salaryText(item) }}</p>
               <p class="row-meta">
                 双休：{{ item.twoDayWeekend == null ? '未填写' : item.twoDayWeekend ? '是' : '否' }}
                 · 更新时间 {{ formatTime(item.updatedAt) }}
+              </p>
+              <p v-if="item.decisionPriorities" class="row-remark">
+                当时看重：{{ item.decisionPriorities }}
+              </p>
+              <p v-if="item.finalChoice && item.finalChoiceReason" class="row-remark">
+                最终选择：{{ item.finalChoiceReason }}
               </p>
               <p v-if="item.remark" class="row-remark">备注：{{ item.remark }}</p>
             </div>
@@ -826,6 +853,16 @@ onMounted(() => {
 
 .form-grid label.wide {
   grid-column: 1 / -1;
+}
+
+.form-grid label.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.form-grid label.inline input {
+  height: auto;
 }
 
 .form-grid span {

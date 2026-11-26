@@ -26,5 +26,8 @@ public record UpdateOfferRequest(
         JsonNode annualBonus,
         JsonNode quarterlyBonus,
         JsonNode remark,
-        JsonNode group) {
+        JsonNode group,
+        JsonNode decisionPriorities,
+        JsonNode finalChoice,
+        JsonNode finalChoiceReason) {
 }

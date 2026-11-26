@@ -32,5 +32,8 @@ public record CreateOfferRequest(
         @Size(max = 64) String annualBonus,
         @Size(max = 64) String quarterlyBonus,
         @Size(max = 500) String remark,
-        @Pattern(regexp = "KEEP|DROP", message = "group 取值非法") String group) {
+        @Pattern(regexp = "KEEP|DROP", message = "group 取值非法") String group,
+        @Size(max = 1000) String decisionPriorities,
+        Boolean finalChoice,
+        @Size(max = 1000) String finalChoiceReason) {
 }

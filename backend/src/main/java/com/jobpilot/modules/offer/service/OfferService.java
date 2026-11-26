@@ -142,6 +142,10 @@ public class OfferService {
         if ("KEEP".equals(group)) {
             requireKeepSlot(null);
         }
+        boolean finalChoice = Boolean.TRUE.equals(request.finalChoice());
+        if (finalChoice) {
+            clearFinalChoice(null);
+        }
         Offer entity = new Offer();
         entity.setUserId(1L);
         entity.setCompanyId(companyId);
@@ -162,6 +166,9 @@ public class OfferService {
         entity.setQuarterlyBonus(text(request.quarterlyBonus(), 64));
         entity.setRemark(text(request.remark(), 500));
         entity.setOfferGroup(group);
+        entity.setDecisionPriorities(text(request.decisionPriorities(), 1000));
+        entity.setFinalChoice(finalChoice);
+        entity.setFinalChoiceReason(text(request.finalChoiceReason(), 1000));
         entity.setCreatedAt(OffsetDateTime.now());
         entity.setUpdatedAt(OffsetDateTime.now());
         offerMapper.insert(entity);
@@ -237,6 +244,16 @@ public class OfferService {
         changed |= setText(update, Offer::getAnnualBonus, request.annualBonus(), 64);
         changed |= setText(update, Offer::getQuarterlyBonus, request.quarterlyBonus(), 64);
         changed |= setText(update, Offer::getRemark, request.remark(), 500);
+        changed |= setText(update, Offer::getDecisionPriorities, request.decisionPriorities(), 1000);
+        if (request.finalChoice() != null) {
+            Boolean value = bool(request.finalChoice());
+            if (Boolean.TRUE.equals(value)) {
+                clearFinalChoice(offerId);
+            }
+            update.set(Offer::getFinalChoice, Boolean.TRUE.equals(value));
+            changed = true;
+        }
+        changed |= setText(update, Offer::getFinalChoiceReason, request.finalChoiceReason(), 1000);
         if (request.group() != null) {
             String group = group(request.group());
             if ("KEEP".equals(group) && !"KEEP".equals(existing.getOfferGroup())) {
@@ -399,6 +416,15 @@ public class OfferService {
         }
     }
 
+    /** 最终选择全局唯一：标记前先清除其他 Offer（FR6.7）。 */
+    private void clearFinalChoice(Long excludeId) {
+        offerMapper.update(null, Wrappers.<Offer>lambdaUpdate()
+                .eq(Offer::getFinalChoice, true)
+                .ne(excludeId != null, Offer::getId, excludeId)
+                .set(Offer::getFinalChoice, false)
+                .set(Offer::getUpdatedAt, OffsetDateTime.now()));
+    }
+
     private Offer require(Long offerId) {
         Offer entity = offerMapper.selectById(offerId);
         if (entity == null) {
@@ -504,6 +530,8 @@ public class OfferService {
                 offer.getHousingFundBase(), offer.getHousingFundRatio(), offer.getTwoDayWeekend(),
                 offer.getWorkHours(), strings(offer.getBenefits()), strings(offer.getAllowances()),
                 offer.getAnnualBonus(), offer.getQuarterlyBonus(), offer.getRemark(), offer.getOfferGroup(),
+                offer.getDecisionPriorities(), Boolean.TRUE.equals(offer.getFinalChoice()),
+                offer.getFinalChoiceReason(),
                 offer.getCreatedAt(), offer.getUpdatedAt(), analysis(offer.getAnalysis()));
     }
 
@@ -514,7 +542,9 @@ public class OfferService {
                 offer.getSocialInsuranceRatio(), offer.getHousingFundBase(), offer.getHousingFundRatio(),
                 offer.getTwoDayWeekend(), offer.getWorkHours(), strings(offer.getBenefits()),
                 strings(offer.getAllowances()), offer.getAnnualBonus(), offer.getQuarterlyBonus(),
-                offer.getRemark(), offer.getOfferGroup(), offer.getCreatedAt(), offer.getUpdatedAt());
+                offer.getRemark(), offer.getOfferGroup(), offer.getDecisionPriorities(),
+                Boolean.TRUE.equals(offer.getFinalChoice()), offer.getFinalChoiceReason(),
+                offer.getCreatedAt(), offer.getUpdatedAt());
     }
 
     /** 投递时间线用：按 applicationId 取关联 Offer（最多一条，重复关联时取最新）。 */

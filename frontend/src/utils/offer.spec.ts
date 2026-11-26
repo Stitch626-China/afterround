@@ -32,6 +32,9 @@ const offer: OfferDetail = {
   quarterlyBonus: null,
   remark: '首选',
   group: 'KEEP',
+  decisionPriorities: '薪资、稳定性',
+  finalChoice: true,
+  finalChoiceReason: '薪资更高且通勤更短',
   createdAt: '2026-11-19T10:00:00Z',
   updatedAt: '2026-11-19T10:00:00Z',
   analysis: null,
@@ -45,6 +48,9 @@ describe('offer utils', () => {
     expect(form.twoDayWeekend).toBe('YES')
     expect(form.benefits).toBe('餐补、班车')
     expect(form.group).toBe('KEEP')
+    expect(form.decisionPriorities).toBe('薪资、稳定性')
+    expect(form.finalChoice).toBe(true)
+    expect(form.finalChoiceReason).toBe('薪资更高且通勤更短')
     expect(offerToForm({ ...offer, twoDayWeekend: false }).twoDayWeekend).toBe('NO')
     expect(offerToForm({ ...offer, twoDayWeekend: null }).twoDayWeekend).toBe('UNSET')
   })
@@ -64,6 +70,9 @@ describe('offer utils', () => {
     expect(payload.twoDayWeekend).toBe(false)
     expect(payload.benefits).toEqual(['餐补', '班车', '房补'])
     expect(payload.remark).toBeNull()
+    expect(payload.decisionPriorities).toBeNull()
+    expect(payload.finalChoice).toBe(false)
+    expect(payload.finalChoiceReason).toBeNull()
   })
 
   it('提取结果覆盖可编辑字段但保留已选公司/岗位', () => {

@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.16.0
+  version: 1.17.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -4752,7 +4752,7 @@ components:
 
     Offer:
       type: object
-      required: [id, group, benefits, allowances, createdAt, updatedAt]
+      required: [id, group, benefits, allowances, finalChoice, createdAt, updatedAt]
       properties:
         id:
           type: integer
@@ -4841,6 +4841,17 @@ components:
           maxLength: 500
         group:
           $ref: '#/components/schemas/OfferGroup'
+        decisionPriorities:
+          type: [string, "null"]
+          maxLength: 1000
+          description: 决策依据快照：当时看重什么
+        finalChoice:
+          type: boolean
+          description: 是否为最终选择；标记后其他 Offer 自动取消
+        finalChoiceReason:
+          type: [string, "null"]
+          maxLength: 1000
+          description: 最终选择及原因
         createdAt:
           type: string
           format: date-time
@@ -4924,6 +4935,14 @@ components:
           maxLength: 500
         group:
           $ref: '#/components/schemas/OfferGroup'
+        decisionPriorities:
+          type: [string, "null"]
+          maxLength: 1000
+        finalChoice:
+          type: [boolean, "null"]
+        finalChoiceReason:
+          type: [string, "null"]
+          maxLength: 1000
 
     UpdateOfferRequest:
       type: object
@@ -4990,6 +5009,14 @@ components:
           maxLength: 500
         group:
           $ref: '#/components/schemas/OfferGroup'
+        decisionPriorities:
+          type: [string, "null"]
+          maxLength: 1000
+        finalChoice:
+          type: [boolean, "null"]
+        finalChoiceReason:
+          type: [string, "null"]
+          maxLength: 1000
 
     OfferExtraction:
       type: object
