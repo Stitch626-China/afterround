@@ -3,6 +3,7 @@ package com.jobpilot.modules.resume.service;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -16,6 +17,9 @@ import com.jobpilot.common.llm.LlmClient;
 import com.jobpilot.common.llm.StructuredOutputInvoker;
 import com.jobpilot.infrastructure.llm.LlmCallLogger;
 import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
+import com.jobpilot.modules.job.dto.CountItemResponse;
+import com.jobpilot.modules.job.dto.JobMarketInsightsResponse;
+import com.jobpilot.modules.job.service.JobMarketService;
 import com.jobpilot.modules.llm.entity.LlmGlobalSetting;
 import com.jobpilot.modules.llm.mapper.LlmGlobalSettingMapper;
 import com.jobpilot.modules.resume.ai.AiResumeAnalysis;
@@ -58,11 +62,13 @@ public class ResumeAnalysisService {
     private final ProviderClientRegistry registry;
     private final LlmCallLogger callLogger;
     private final ResumePromptFactory prompts;
+    private final JobMarketService marketService;
     private final ThreadPoolTaskExecutor executor;
 
     public ResumeAnalysisService(ResumeMapper resumeMapper, ResumeAnalysisMapper analysisMapper,
                                  LlmGlobalSettingMapper globalMapper, ProviderClientRegistry registry,
                                  LlmCallLogger callLogger, ResumePromptFactory prompts,
+                                 JobMarketService marketService,
                                  @Qualifier("jobpilotTaskExecutor") ThreadPoolTaskExecutor executor) {
         this.resumeMapper = resumeMapper;
         this.analysisMapper = analysisMapper;
@@ -70,6 +76,7 @@ public class ResumeAnalysisService {
         this.registry = registry;
         this.callLogger = callLogger;
         this.prompts = prompts;
+        this.marketService = marketService;
         this.executor = executor;
     }
 
@@ -173,7 +180,7 @@ public class ResumeAnalysisService {
         StructuredOutputInvoker invoker = new StructuredOutputInvoker(client);
         List<ChatMessage> messages = List.of(
                 ChatMessage.system(prompts.system()),
-                ChatMessage.user(prompts.user(resume.getResumeText())));
+                ChatMessage.user(prompts.user(resume.getResumeText(), marketDirections())));
 
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             if (resumeMapper.selectById(resumeId) == null) {
@@ -209,6 +216,47 @@ public class ResumeAnalysisService {
                 log.warn("简历分析失败 resumeId={} 第 {} 次: {}", resumeId, attempt + 1, ex.getMessage());
             }
         }
+    }
+
+    /**
+     * 岗位库方向图谱（FR1.7 轨二）：复用行情聚合，压成 Prompt 可读文本；
+     * 手动录入岗位已被行情服务排除；读取失败时降级为空，不阻塞简历分析。
+     */
+    private String marketDirections() {
+        try {
+            JobMarketInsightsResponse market = marketService.insights();
+            if (market.sampleSize() == null || market.sampleSize() == 0) {
+                return "";
+            }
+            StringBuilder text = new StringBuilder("在招岗位样本：").append(market.sampleSize()).append('\n');
+            appendCounts(text, "岗位方向", market.directionDistribution(), 10);
+            if (!market.skillTop().isEmpty()) {
+                text.append("高频技能：").append(market.skillTop().stream().limit(15)
+                        .map(item -> item.skill() + "(" + item.count() + ")")
+                        .collect(java.util.stream.Collectors.joining("、"))).append('\n');
+            }
+            String salary = market.salaryDistribution().stream()
+                    .filter(item -> item.count() != null && item.count() > 0)
+                    .map(item -> item.label() + " " + item.count() + " 个")
+                    .collect(java.util.stream.Collectors.joining("、"));
+            if (!salary.isEmpty()) {
+                text.append("薪资分布：").append(salary).append('\n');
+            }
+            return text.toString().trim();
+        } catch (Exception ex) {
+            log.warn("读取岗位库方向图谱失败，本次方向推荐仅依据简历: {}", ex.getMessage());
+            return "";
+        }
+    }
+
+    private static void appendCounts(StringBuilder text, String label,
+                                     List<CountItemResponse> items, int limit) {
+        if (items.isEmpty()) {
+            return;
+        }
+        text.append(label).append('：').append(items.stream().limit(limit)
+                .map(item -> item.label() + "(" + item.count() + ")")
+                .collect(Collectors.joining("、"))).append('\n');
     }
 
     private void saveAnalysis(Long resumeId, AiResumeAnalysis ai, DefaultModel target) throws Exception {

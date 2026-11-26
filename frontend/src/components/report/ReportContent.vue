@@ -180,6 +180,7 @@ watch(() => props.saving, (now, before) => {
     <!-- 岗位方向推荐 -->
     <section class="card">
       <h3 class="card-title">岗位方向推荐</h3>
+      <p class="muted">方向推荐在分析时参考岗位库在招行情（岗位名 / 高频技能 / 薪资分布）；手动录入岗位不计入市场统计。</p>
       <div v-if="report.careerDirections?.length" class="directions">
         <article v-for="(item, index) in report.careerDirections" :key="index" class="direction">
           <h4 class="direction-title">{{ item.direction }}</h4>

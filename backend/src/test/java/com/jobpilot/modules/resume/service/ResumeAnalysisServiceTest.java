@@ -14,6 +14,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
 
@@ -26,6 +27,10 @@ import com.jobpilot.common.llm.LlmClient;
 import com.jobpilot.common.llm.StreamChunk;
 import com.jobpilot.infrastructure.llm.LlmCallLogger;
 import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
+import com.jobpilot.modules.job.dto.CountItemResponse;
+import com.jobpilot.modules.job.dto.JobMarketInsightsResponse;
+import com.jobpilot.modules.job.dto.SkillCountItemResponse;
+import com.jobpilot.modules.job.service.JobMarketService;
 import com.jobpilot.modules.llm.entity.LlmGlobalSetting;
 import com.jobpilot.modules.llm.mapper.LlmGlobalSettingMapper;
 import com.jobpilot.modules.resume.entity.Resume;
@@ -36,6 +41,7 @@ import com.jobpilot.modules.resume.prompt.ResumePromptFactory;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -68,6 +74,9 @@ class ResumeAnalysisServiceTest {
     private ResumePromptFactory prompts;
 
     @Mock
+    private JobMarketService marketService;
+
+    @Mock
     private ThreadPoolTaskExecutor executor;
 
     @BeforeAll
@@ -77,7 +86,7 @@ class ResumeAnalysisServiceTest {
 
     private ResumeAnalysisService service() {
         return new ResumeAnalysisService(
-                resumeMapper, analysisMapper, globalMapper, registry, callLogger, prompts, executor);
+                resumeMapper, analysisMapper, globalMapper, registry, callLogger, prompts, marketService, executor);
     }
 
     private static Resume resume(Long id, String status) {
@@ -102,6 +111,18 @@ class ResumeAnalysisServiceTest {
             ((Runnable) invocation.getArgument(0)).run();
             return null;
         }).when(executor).execute(any());
+    }
+
+    /** 一次性 stub 一次可成功完成的简历分析。 */
+    private void stubAnalysisRun() {
+        when(globalMapper.selectById(1)).thenReturn(global("p", "m"));
+        when(resumeMapper.update(isNull(), any())).thenReturn(1);
+        when(resumeMapper.selectById(1L)).thenReturn(resume(1L, "PROCESSING"));
+        when(registry.get("p")).thenReturn(clientReturning(EMPTY_OPTIONAL_JSON));
+        when(prompts.system()).thenReturn("system");
+        when(prompts.user(anyString(), anyString())).thenReturn("user");
+        when(analysisMapper.selectOne(any())).thenReturn(null);
+        runInline();
     }
 
     private static LlmClient clientReturning(String json) {
@@ -185,7 +206,7 @@ class ResumeAnalysisServiceTest {
         when(resumeMapper.selectById(1L)).thenReturn(resume(1L, "PROCESSING"));
         when(registry.get("p")).thenReturn(clientReturning(EMPTY_OPTIONAL_JSON));
         when(prompts.system()).thenReturn("system");
-        when(prompts.user(anyString())).thenReturn("user");
+        when(prompts.user(anyString(), anyString())).thenReturn("user");
         when(analysisMapper.selectOne(any())).thenReturn(null);
         runInline();
 
@@ -196,13 +217,59 @@ class ResumeAnalysisServiceTest {
     }
 
     @Test
+    void analysisInjectsMarketDirectionsIntoPrompt() {
+        stubAnalysisRun();
+        when(marketService.insights()).thenReturn(new JobMarketInsightsResponse(3, OffsetDateTime.now(),
+                List.of(new SkillCountItemResponse("java", 3)),
+                List.of(new CountItemResponse("20-30K", 2)),
+                List.of(new CountItemResponse("3-5 年", 2)),
+                List.of(new CountItemResponse("Java 后端", 3))));
+
+        service().autoTrigger(1L);
+
+        ArgumentCaptor<String> market = ArgumentCaptor.forClass(String.class);
+        verify(prompts).user(eq("一段简历文本"), market.capture());
+        assertThat(market.getValue())
+                .contains("在招岗位样本：3")
+                .contains("Java 后端(3)")
+                .contains("java(3)")
+                .contains("20-30K 2 个");
+    }
+
+    @Test
+    void analysisSkipsMarketDirectionsWhenNoJobs() {
+        stubAnalysisRun();
+        when(marketService.insights()).thenReturn(new JobMarketInsightsResponse(0, OffsetDateTime.now(),
+                List.of(), List.of(), List.of(), List.of()));
+
+        service().autoTrigger(1L);
+
+        ArgumentCaptor<String> market = ArgumentCaptor.forClass(String.class);
+        verify(prompts).user(eq("一段简历文本"), market.capture());
+        assertThat(market.getValue()).isEmpty();
+    }
+
+    @Test
+    void analysisKeepsSampleWhenMarketListsAreEmpty() {
+        stubAnalysisRun();
+        when(marketService.insights()).thenReturn(new JobMarketInsightsResponse(1, OffsetDateTime.now(),
+                List.of(), List.of(), List.of(), List.of()));
+
+        service().autoTrigger(1L);
+
+        ArgumentCaptor<String> market = ArgumentCaptor.forClass(String.class);
+        verify(prompts).user(eq("一段简历文本"), market.capture());
+        assertThat(market.getValue()).contains("在招岗位样本：1").doesNotContain("高频技能");
+    }
+
+    @Test
     void analysisMissingScoreFailsAfterRetries() {
         when(globalMapper.selectById(1)).thenReturn(global("p", "m"));
         when(resumeMapper.update(isNull(), any())).thenReturn(1);
         when(resumeMapper.selectById(1L)).thenReturn(resume(1L, "PROCESSING"));
         when(registry.get("p")).thenReturn(clientReturning("{\"projectQuality\":70}"));
         when(prompts.system()).thenReturn("system");
-        when(prompts.user(anyString())).thenReturn("user");
+        when(prompts.user(anyString(), anyString())).thenReturn("user");
         runInline();
 
         service().autoTrigger(1L);

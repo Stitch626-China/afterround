@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 public class ResumePromptFactory {
 
     /** 简历分析 Prompt 版本，随模板语义变化递增；F7 对比据此判定结果可比性。 */
-    public static final String VERSION = "resume-analysis-v1";
+    public static final String VERSION = "resume-analysis-v2";
 
     private final String systemTemplate;
     private final String userTemplate;
@@ -27,8 +27,14 @@ public class ResumePromptFactory {
         return systemTemplate;
     }
 
-    public String user(String resumeText) {
-        return userTemplate.replace("{{resumeText}}", resumeText);
+    /** 岗位库在招方向图谱（FR1.7 轨二）；为空时明确告知模型按简历判断，不得编造岗位。 */
+    public String user(String resumeText, String marketDirections) {
+        String market = marketDirections == null || marketDirections.isBlank()
+                ? "（岗位库暂无可统计的在招岗位，按简历本身判断）"
+                : marketDirections;
+        return userTemplate
+                .replace("{{marketDirections}}", market)
+                .replace("{{resumeText}}", resumeText);
     }
 
     private static String read(String path) {
