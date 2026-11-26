@@ -99,6 +99,28 @@ const overview = {
       sufficient: true,
     },
   ],
+  channels: [
+    {
+      label: 'BOSS',
+      applications: 6,
+      interviews: 4,
+      offers: 2,
+      interviewRate: 0.6667,
+      offerRate: 0.3333,
+      sufficient: true,
+    },
+  ],
+  companyTypes: [
+    {
+      label: '企业服务',
+      applications: 4,
+      interviews: 2,
+      offers: 1,
+      interviewRate: 0.5,
+      offerRate: 0.25,
+      sufficient: false,
+    },
+  ],
   improvements: {
     total: 4,
     todo: 1,
@@ -134,6 +156,21 @@ test('求职洞察：样本不足提示、聚合区块与窗口筛选', async ({
     lastQuery = route.request().url()
     return route.fulfill(ok(overview))
   })
+  await page.route('**/api/insights/interview-events?*', (route) =>
+    route.fulfill(ok({ items: [], total: 0, page: 1, size: 8 })),
+  )
+  await page.route('**/api/review-taxonomy', (route) =>
+    route.fulfill(
+      ok({
+        topics: [{ key: 'jvm', label: 'JVM 与 GC', description: null }],
+        lossTags: [],
+        dimensions: [],
+        taxonomyVersion: 'taxonomy-v1',
+        rubricVersion: 'rubric-v1',
+        updatedAt: null,
+      }),
+    ),
+  )
 
   await page.goto('/insights')
   await expect(page.getByText('已确认复盘 3 份 · 门槛 5 份')).toBeVisible()
@@ -143,12 +180,16 @@ test('求职洞察：样本不足提示、聚合区块与窗口筛选', async ({
   await expect(page.getByText('JVM 与 GC').first()).toBeVisible()
   await expect(page.getByText('67%').first()).toBeVisible()
   await expect(page.getByText('深度不足').first()).toBeVisible()
-  await expect(page.getByText('技术面')).toBeVisible()
+  await expect(page.locator('.metric-row').filter({ hasText: '技术面' })).toBeVisible()
   await expect(page.getByText('33%').first()).toBeVisible()
   await expect(page.locator('.company strong').filter({ hasText: '字节跳动' })).toBeVisible()
   await expect(page.getByText('讲讲 JVM 内存模型')).toBeVisible()
   await expect(page.getByText('面试邀约率 60%', { exact: false })).toBeVisible()
   await expect(page.getByText('resume-v3.pdf')).toBeVisible()
+  await expect(page.getByText('按渠道')).toBeVisible()
+  await expect(page.getByText('BOSS')).toBeVisible()
+  await expect(page.getByText('企业服务')).toBeVisible()
+  await expect(page.getByText('所选条件下没有面试记录。')).toBeVisible()
   await expect(page.getByText('验证率 33%', { exact: false })).toBeVisible()
   await expect(page.getByText('补 JVM 笔记')).toBeVisible()
   await expect(page.getByText('+2')).toBeVisible()
@@ -160,6 +201,9 @@ test('求职洞察：样本不足提示、聚合区块与窗口筛选', async ({
 test('求职洞察：无已确认复盘时引导去新建复盘', async ({ page }) => {
   await page.route('**/api/companies?*', (route) =>
     route.fulfill(ok({ items: [], total: 0, page: 1, size: 100 })),
+  )
+  await page.route('**/api/insights/interview-events?*', (route) =>
+    route.fulfill(ok({ items: [], total: 0, page: 1, size: 8 })),
   )
   await page.route('**/api/insights?*', (route) =>
     route.fulfill(
