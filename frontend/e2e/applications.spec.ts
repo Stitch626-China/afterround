@@ -46,6 +46,22 @@ let event = {
   updatedAt: now,
 }
 
+/** FR5.6：创建早于最近一轮面试、且未验证的行动应触发时间线提示。 */
+const action = {
+  id: 7,
+  sourceReviewId: 1,
+  sourceEventId: 9,
+  applicationId: 5,
+  action: '整理 JVM 内存模型笔记',
+  category: '知识点补强',
+  status: 'TODO',
+  dueAt: null,
+  verifiedEventId: null,
+  evidence: null,
+  createdAt: '2026-11-20T10:00:00Z',
+  updatedAt: now,
+}
+
 test('投递时间线：编辑并删除无复盘的面试轮次', async ({ page }) => {
   let patchBody = ''
   let deleteCalled = false
@@ -55,7 +71,7 @@ test('投递时间线：编辑并删除无复盘的面试轮次', async ({ page 
     route.fulfill(ok({ items: [application], total: 1, page: 1, size: 20 })),
   )
   await page.route('**/api/job-applications/5/timeline', (route) =>
-    route.fulfill(ok({ application, events: [event], reviews: [], offer: null, actions: [] })),
+    route.fulfill(ok({ application, events: [event], reviews: [], offer: null, actions: [action] })),
   )
   await page.route('**/api/interview-events/9', (route) => {
     if (route.request().method() === 'PATCH') {
@@ -71,6 +87,8 @@ test('投递时间线：编辑并删除无复盘的面试轮次', async ({ page 
   await page.getByRole('button', { name: '时间线' }).click()
 
   const timeline = page.locator('.timeline')
+  await expect(timeline.getByText('第 1 轮面试已记录，有 1 条旧行动待验证')).toBeVisible()
+  await expect(timeline.getByRole('link', { name: '去验证 →' })).toBeVisible()
   await expect(timeline.getByText('技术负责人')).toBeVisible()
   await timeline.getByRole('button', { name: '编辑' }).click()
   await page.getByPlaceholder('如 技术负责人').fill('HRBP')

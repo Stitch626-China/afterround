@@ -31,6 +31,7 @@ import {
   REVIEW_STATUS_TEXT,
   ROUND_TYPES,
   ROUND_TYPE_TEXT,
+  pendingVerifyActions,
 } from '@/utils/review'
 
 const items = ref<JobApplicationListItem[]>([])
@@ -87,6 +88,14 @@ const EVENT_RESULT_TONE: Record<string, string> = {
   FAIL: 'danger',
   PENDING: 'muted',
 }
+
+/** FR5.6：最近一轮面试后仍未验证的旧行动，用于时间线提示。 */
+const pendingVerifyCount = computed(() =>
+  timeline.value ? pendingVerifyActions(timeline.value.actions, timeline.value.events).length : 0,
+)
+const latestRoundNo = computed(() =>
+  timeline.value ? timeline.value.events.reduce((max, event) => Math.max(max, event.roundNo), 0) : 0,
+)
 
 const pages = computed(() => Math.max(1, Math.ceil(total.value / size)))
 const STATUSES: JobApplicationStatus[] = ['APPLIED', 'INTERVIEWING', 'OFFERED', 'REJECTED', 'WITHDRAWN']
@@ -452,6 +461,10 @@ onMounted(() => {
             <button v-else type="button" class="link danger" @click="confirmId = item.id">删除</button>
           </div>
           <div v-if="timelineId === item.id && timeline" class="timeline">
+            <div v-if="pendingVerifyCount" class="banner warning">
+              第 {{ latestRoundNo }} 轮面试已记录，有 {{ pendingVerifyCount }} 条旧行动待验证
+              <RouterLink to="/improvements" class="link">去验证 →</RouterLink>
+            </div>
             <p class="timeline-line">
               投递于 {{ formatTime(timeline.application.appliedAt) }}
               <span v-if="timeline.application.channel"> · {{ timeline.application.channel }}</span>

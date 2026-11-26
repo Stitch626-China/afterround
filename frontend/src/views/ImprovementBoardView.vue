@@ -7,11 +7,18 @@ import {
   createImprovementAction,
   deleteImprovementAction,
   listImprovementActions,
+  listInterviewEvents,
   updateImprovementAction,
   type ImprovementAction,
   type ImprovementActionStatus,
+  type InterviewEventListItem,
 } from '@/api/reviews'
-import { ACTION_STATUSES, ACTION_STATUS_TEXT, ACTION_STATUS_TONE } from '@/utils/review'
+import {
+  ACTION_STATUSES,
+  ACTION_STATUS_TEXT,
+  ACTION_STATUS_TONE,
+  ROUND_TYPE_TEXT,
+} from '@/utils/review'
 import EmptyState from '@/components/EmptyState.vue'
 
 const items = ref<ImprovementAction[]>([])
@@ -27,6 +34,9 @@ const formOpen = ref(false)
 const confirmId = ref<number | null>(null)
 const evidenceId = ref<number | null>(null)
 const evidenceDraft = ref('')
+const verifyEventId = ref<number | null>(null)
+/** FR5.6：按投递缓存的面试轮次，用于「验证于第 N 轮」展示与下拉选择。 */
+const eventsByApp = reactive<Record<number, InterviewEventListItem[]>>({})
 
 const draft = reactive<{ action: string; category: string; dueAt: string; sourceReviewId: number | null }>({
   action: '',
@@ -47,11 +57,28 @@ async function load(): Promise<void> {
     })
     items.value = result.items
     total.value = result.total
+    items.value.forEach((item) => {
+      if (item.verifiedEventId && item.applicationId) {
+        void loadEvents(item.applicationId)
+      }
+    })
     error.value = ''
   } catch (ex) {
     error.value = ex instanceof Error ? ex.message : '加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+/** 按投递懒加载面试轮次（缓存），失败降级为空列表不影响看板。 */
+async function loadEvents(applicationId: number | null): Promise<void> {
+  if (!applicationId || eventsByApp[applicationId]) {
+    return
+  }
+  try {
+    eventsByApp[applicationId] = (await listInterviewEvents({ applicationId, size: 100 })).items
+  } catch {
+    eventsByApp[applicationId] = []
   }
 }
 
@@ -100,18 +127,41 @@ async function changeStatus(item: ImprovementAction, event: Event): Promise<void
 function editEvidence(item: ImprovementAction): void {
   evidenceId.value = item.id
   evidenceDraft.value = item.evidence ?? ''
+  verifyEventId.value = item.verifiedEventId ?? null
+  void loadEvents(item.applicationId ?? null)
 }
 
 async function saveEvidence(item: ImprovementAction): Promise<void> {
   error.value = ''
   try {
-    await updateImprovementAction(item.id, { evidence: evidenceDraft.value.trim() || null })
+    await updateImprovementAction(item.id, {
+      evidence: evidenceDraft.value.trim() || null,
+      verifiedEventId: verifyEventId.value,
+    })
     evidenceId.value = null
     notice.value = '验证证据已保存'
     await load()
   } catch (ex) {
     error.value = ex instanceof Error ? ex.message : '保存证据失败'
   }
+}
+
+/** 已关联的验证轮次：事件尚未加载或已删除时回退显示事件 ID。 */
+const verifiedEvents = computed(() => {
+  const map: Record<number, InterviewEventListItem> = {}
+  items.value.forEach((item) => {
+    const event = item.applicationId
+      ? eventsByApp[item.applicationId]?.find((candidate) => candidate.id === item.verifiedEventId)
+      : undefined
+    if (event) {
+      map[item.id] = event
+    }
+  })
+  return map
+})
+
+function dayText(value: string): string {
+  return new Date(value).toLocaleDateString('zh-CN')
 }
 
 async function remove(item: ImprovementAction): Promise<void> {
@@ -228,7 +278,35 @@ onMounted(load)
               </RouterLink>
             </p>
             <p v-if="item.evidence" class="row-evidence">证据：{{ item.evidence }}</p>
+            <p v-if="item.verifiedEventId" class="row-evidence">
+              <template v-if="verifiedEvents[item.id]">
+                验证于 第 {{ verifiedEvents[item.id].roundNo }} 轮 ·
+                {{ dayText(verifiedEvents[item.id].interviewTime) }}
+                <RouterLink
+                  v-if="verifiedEvents[item.id].reviewSessionId"
+                  :to="`/reviews/${verifiedEvents[item.id].reviewSessionId}`"
+                  class="link"
+                >
+                  复盘 →
+                </RouterLink>
+              </template>
+              <template v-else>验证于面试 #{{ item.verifiedEventId }}</template>
+            </p>
             <div v-if="evidenceId === item.id" class="evidence-editor">
+              <label class="verify-pick">
+                验证面试
+                <select v-model.number="verifyEventId" aria-label="验证面试">
+                  <option :value="null">不关联</option>
+                  <option
+                    v-for="event in eventsByApp[item.applicationId ?? 0] ?? []"
+                    :key="event.id"
+                    :value="event.id"
+                  >
+                    第 {{ event.roundNo }} 轮 · {{ ROUND_TYPE_TEXT[event.roundType] ?? event.roundType }} ·
+                    {{ dayText(event.interviewTime) }}
+                  </option>
+                </select>
+              </label>
               <textarea v-model="evidenceDraft" rows="2" maxlength="2000" placeholder="写下验证方式与结果" />
               <div class="actions">
                 <button type="button" class="btn primary" @click="saveEvidence(item)">保存证据</button>
@@ -305,6 +383,7 @@ onMounted(load)
 .form textarea,
 .filters select,
 .row-actions select,
+.evidence-editor select,
 .evidence-editor textarea {
   height: 34px;
   padding: 0 var(--space-3);
@@ -328,6 +407,7 @@ onMounted(load)
 .form textarea:focus-visible,
 .filters select:focus-visible,
 .row-actions select:focus-visible,
+.evidence-editor select:focus-visible,
 .evidence-editor textarea:focus-visible {
   outline: 1px solid var(--primary);
   outline-offset: 0;
@@ -420,6 +500,16 @@ onMounted(load)
   flex-direction: column;
   gap: var(--space-2);
   margin-top: var(--space-2);
+}
+
+.verify-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-3);
+  font-size: var(--fs-overline);
+  font-weight: 500;
+  letter-spacing: 0.04em;
 }
 
 .pager {

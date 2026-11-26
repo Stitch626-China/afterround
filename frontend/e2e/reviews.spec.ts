@@ -344,13 +344,47 @@ test('复盘详情：修正总结与行动并确认，行动同步展示', async
 
 test('改进看板：状态流转、新增行动与验证证据', async ({ page }) => {
   let status = 'TODO'
+  let verifiedEventId: number | null = null
   let patchPayload: Record<string, unknown> | null = null
   let createPayload: Record<string, unknown> | null = null
 
+  await page.route(/\/api\/interview-events\?/, (route) =>
+    route.fulfill(
+      ok({
+        items: [
+          {
+            id: 11,
+            applicationId: 5,
+            jobPositionId: 3,
+            companyId: 1,
+            companyName: '字节跳动',
+            jobTitle: 'Java 后端开发工程师',
+            roundNo: 2,
+            roundType: 'TECH',
+            interviewerRole: null,
+            format: null,
+            interviewTime: now,
+            result: 'PENDING',
+            notes: null,
+            reviewSessionId: 1,
+            reviewStatus: 'READY',
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+        total: 1,
+        page: 1,
+        size: 100,
+      }),
+    ),
+  )
   await page.route('**/api/improvement-actions/7', (route) => {
     patchPayload = route.request().postDataJSON() as Record<string, unknown>
     if (patchPayload.status) {
       status = patchPayload.status as string
+    }
+    if ('verifiedEventId' in patchPayload) {
+      verifiedEventId = patchPayload.verifiedEventId as number | null
     }
     return route.fulfill(
       ok({
@@ -362,7 +396,7 @@ test('改进看板：状态流转、新增行动与验证证据', async ({ page 
         category: '知识点补强',
         status,
         dueAt: null,
-        verifiedEventId: null,
+        verifiedEventId,
         evidence: (patchPayload.evidence as string) ?? null,
         createdAt: now,
         updatedAt: now,
@@ -401,7 +435,7 @@ test('改进看板：状态流转、新增行动与验证证据', async ({ page 
             category: '知识点补强',
             status,
             dueAt: null,
-            verifiedEventId: null,
+            verifiedEventId,
             evidence: status === 'VERIFIED' ? '二面能完整说出分区' : null,
             createdAt: now,
             updatedAt: now,
@@ -423,12 +457,15 @@ test('改进看板：状态流转、新增行动与验证证据', async ({ page 
   await expect.poll(() => patchPayload?.status).toBe('IN_PROGRESS')
   await expect(page.getByText('已更新为「进行中」')).toBeVisible()
 
-  // 验证证据
+  // 验证证据 + 关联验证轮次（FR5.6）
   await page.getByRole('button', { name: '验证证据' }).click()
   await page.getByPlaceholder('写下验证方式与结果').fill('二面能完整说出分区')
+  await page.getByLabel('验证面试').selectOption('11')
   await page.getByRole('button', { name: '保存证据' }).click()
   await expect.poll(() => patchPayload?.evidence).toBe('二面能完整说出分区')
+  await expect.poll(() => patchPayload?.verifiedEventId).toBe(11)
   await expect(page.getByText('验证证据已保存')).toBeVisible()
+  await expect(page.getByText('验证于 第 2 轮')).toBeVisible()
 
   // 新增行动
   await page.locator('.page-head').getByRole('button', { name: '新增行动' }).click()

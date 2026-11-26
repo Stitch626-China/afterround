@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ImprovementAction, InterviewEventListItem } from '@/api/reviews'
 import {
   ACTION_STATUS_TEXT,
   INPUT_TYPE_TEXT,
@@ -8,6 +9,7 @@ import {
   emptyDraft,
   isProcessing,
   parseTagList,
+  pendingVerifyActions,
 } from './review'
 
 describe('review utils', () => {
@@ -70,5 +72,22 @@ describe('review utils', () => {
     expect(INPUT_TYPE_TEXT.AUDIO).toBe('录音')
     expect(REVIEW_STATUS_TEXT.READY).toBe('已就绪')
     expect(ACTION_STATUS_TEXT.VERIFIED).toBe('已验证')
+  })
+
+  it('下一轮面试后只提示创建更早且未验证的行动', () => {
+    const actions = [
+      { id: 1, action: 'a', status: 'TODO', createdAt: '2026-11-01T00:00:00Z' },
+      { id: 2, action: 'b', status: 'IN_PROGRESS', createdAt: '2026-11-03T00:00:00Z' },
+      { id: 3, action: 'c', status: 'VERIFIED', createdAt: '2026-11-01T00:00:00Z' },
+      { id: 4, action: 'd', status: 'TODO', createdAt: '2026-11-05T00:00:00Z' },
+      { id: 5, action: 'e', status: 'DROPPED', createdAt: '2026-11-01T00:00:00Z' },
+    ] as ImprovementAction[]
+    const events = [
+      { interviewTime: '2026-11-02T00:00:00Z' },
+      { interviewTime: '2026-11-04T00:00:00Z' },
+    ] as InterviewEventListItem[]
+
+    expect(pendingVerifyActions(actions, events).map((action) => action.id)).toEqual([1, 2])
+    expect(pendingVerifyActions(actions, [])).toEqual([])
   })
 })

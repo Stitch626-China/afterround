@@ -3,8 +3,10 @@
  * 所有 key 与 contracts/openapi.yaml 的枚举、受控词表保持一致。
  */
 import type {
+  ImprovementAction,
   ImprovementActionDraft,
   ImprovementActionStatus,
+  InterviewEventListItem,
   InterviewFormat,
   InterviewRoundType,
   ReviewAnalysisUpdateRequest,
@@ -149,4 +151,20 @@ export function buildAnalysisPayload(input: {
 /** 行动草稿编辑态：新增一条空行动供用户补写。 */
 export function emptyDraft(): ImprovementActionDraft {
   return { action: '', category: null, reason: null }
+}
+
+/**
+ * 下一场面试后的待验证行动（FR5.6）：行动创建早于最近一轮面试，且仍在待开始 / 进行中。
+ * 用于投递时间线提示「本轮已记录，旧行动可以验证了」。
+ */
+export function pendingVerifyActions(
+  actions: ImprovementAction[],
+  events: InterviewEventListItem[],
+): ImprovementAction[] {
+  const latest = events.reduce((max, event) => Math.max(max, Date.parse(event.interviewTime)), 0)
+  return actions.filter(
+    (action) =>
+      (action.status === 'TODO' || action.status === 'IN_PROGRESS') &&
+      Date.parse(action.createdAt) < latest,
+  )
 }
