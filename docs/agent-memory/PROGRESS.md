@@ -7,11 +7,11 @@
 
 - 产品：面后（AfterRound），个人求职档案与决策系统（真实面试复盘 → 跨场归因 → 改进闭环 → Offer 决策）
 - 形态：个人自用版，免登录、单用户，本地 Docker Compose
-- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.15** 已确认（纸墨视觉规范）；契约 **1.10.0**（M3-a / M3-b / M3-c 全部完成，**88 端点全部实现**）；M3-d 技术收口完成，产品已定名「面后（AfterRound）」
+- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.16**（v1.15 纸墨视觉 + v1.16 实现状态索引）；契约 **1.10.0**（M3-a / M3-b / M3-c 全部完成，**88 端点全部实现**）；M3-d 技术收口完成，产品已定名「面后（AfterRound）」
 
 ## 当前状态
 
-- **4 个核心闭环缺口已修复（2026-11-26，DSL-WORKPC）**：复盘详情新增「本轮结果」编辑（复用 PATCH `/api/interview-events/{id}`，投递时间线展示各轮结果）；ASR 失败且有补录文本时允许继续分析，并提供「改用文本分析」入口；启动恢复补复盘 ASR / 分析 PROCESSING 回收；复盘分析改为 `REVIEW_ANALYZE` 场景绑定优先、全局默认回落。验证：后端 **182 tests 全绿**（行覆盖 86.08%）、前端构建通过、Vitest **26**、Playwright **16** 全过。改动待提交。
+- **4 个核心闭环缺口已修复 + 实现对照表（2026-11-26，DSL-WORKPC）**：复盘详情新增「本轮结果」编辑（复用 PATCH `/api/interview-events/{id}`，投递时间线展示各轮结果）；ASR 失败且有补录文本时允许继续分析，并提供「改用文本分析」入口；启动恢复补复盘 ASR / 分析 PROCESSING 回收；复盘分析改为 `REVIEW_ANALYZE` 场景绑定优先、全局默认回落。新增 `docs/功能实现对照表.md`（FR 级状态 / 代码位置 / 前端操作 / 缺口 / 音频存放），需求文档升 v1.16 并加附录 B 索引。验证：后端 **182 tests 全绿**（行覆盖 86.08%）、前端构建通过、Vitest **26**、Playwright **16** 全过。改动待提交。
 - **v1.0.0 已发布（2026-11-25，DSL-WORKPC）**：在 `95ffa5d` 打 annotated tag `v1.0.0` 并创建 GitHub Release（https://github.com/Stitch626-China/afterround/releases/tag/v1.0.0），附 4 张截图、README、开发手册、5 分钟演示脚本、接口契约与演示种子脚本说明；Release 非草稿 / 非预发布，raw 截图 URL 200，远端 tag 已确认。PR 实操手册与 Release notes 存放于本地 `.local/`（已加入 `.git/info/exclude`，不提交）。
 - **PR 流程与 CI 手动触发实测（2026-11-25，DSL-WORKPC）**：`.github/workflows/ci.yml` 增加 `workflow_dispatch`，README「测试与 CI」补充手动触发说明；首次完整走通「feature 分支 `ci/workflow-dispatch` → PR #7 → CI 三 job 全绿 → Squash 合并 `9b1e15c` → 删除远端与本地分支」。验证：PR 的两次提交均自动重跑 CI 并全绿；合并后 main push CI 全绿；`gh workflow run ci.yml --ref main` 手动触发 run `45581740790` 三 job 全绿。
 - **main 分支保护已开启（2026-11-25，DSL-WORKPC）**：禁止强制推送与删除分支，管理员同样受限（enforce_admins=true）；未启用「必须 PR」与 CI 推送门槛，保留现有直接推送习惯。过程中发现「CI 三检查 + enforce_admins」会让 GitHub 直接拒绝普通 `git push`（GH006），如后续要 CI 作为门槛，需整体改为「分支 + PR + 检查通过后合并」流程。
