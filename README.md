@@ -193,9 +193,9 @@ CI 在 push 到 `main` 或创建 / 更新 PR 时自动运行；也可在 Actions
 
 | 指标 | 当前 |
 |---|---|
-| 后端测试 | 180 tests，JaCoCo 行覆盖 ≥85% 门禁 |
-| 前端测试 | Vitest 26 + Playwright 16 E2E |
-| 契约 | 88 端点，lint 0 error / 0 warning |
+| 后端测试 | 210 tests，JaCoCo 行覆盖 ≥85% 门禁 |
+| 前端测试 | Vitest 28 + Playwright 20 E2E |
+| 契约 | 93 端点，lint 0 error / 0 warning |
 | CI | GitHub Actions 三 job：契约 / 后端 / 前端，全绿 |
 
 ## 目录结构
