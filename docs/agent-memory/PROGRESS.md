@@ -11,6 +11,7 @@
 
 ## 当前状态
 
+- **本地参考目录已删除（2026-11-26，DSL-WORKPC）**：`reference/interview-guide`（476 文件 / 17.52MB，未跟踪、已在 `.gitignore`）已删除；后续以实际体验驱动的优化建议与迭代为主。需求文档 §1.3 / 附录 A 与 `AGENTS.md` 仍保留历史表述，是否清理待用户决定。
 - **FR4.2 第一步完成（2026-11-26，DSL-WORKPC）**：复盘新建改为「按岗位 / 按投递」双模式，默认按岗位；选岗位后自动按该岗位已有投递计算下一轮次，提交传 `jobPositionId`，后端自动补建/复用投递与面试事件。无需先建投递，不改契约/数据库。验证：前端构建通过、Vitest 26、`reviews.spec.ts` 3 passed。代码与文档分两步提交。产品决策：FR8.2「岗位库记录投递」降为辅助后置；模拟面试保持 P2「练习」。
 - **4 个核心闭环缺口已修复 + 实现对照表（2026-11-26，DSL-WORKPC）**：复盘详情新增「本轮结果」编辑（复用 PATCH `/api/interview-events/{id}`，投递时间线展示各轮结果）；ASR 失败且有补录文本时允许继续分析，并提供「改用文本分析」入口；启动恢复补复盘 ASR / 分析 PROCESSING 回收；复盘分析改为 `REVIEW_ANALYZE` 场景绑定优先、全局默认回落。新增 `docs/功能实现对照表.md`（FR 级状态 / 代码位置 / 前端操作 / 缺口 / 音频存放），需求文档升 v1.16 并加附录 B 索引。验证：后端 **182 tests 全绿**（行覆盖 86.08%）、前端构建通过、Vitest **26**、Playwright **16** 全过。已提交 `dc5561f` / `0605dcb`。
 - **v1.0.0 已发布（2026-11-25，DSL-WORKPC）**：在 `95ffa5d` 打 annotated tag `v1.0.0` 并创建 GitHub Release（https://github.com/Stitch626-China/afterround/releases/tag/v1.0.0），附 4 张截图、README、开发手册、5 分钟演示脚本、接口契约与演示种子脚本说明；Release 非草稿 / 非预发布，raw 截图 URL 200，远端 tag 已确认。PR 实操手册与 Release notes 存放于本地 `.local/`（已加入 `.git/info/exclude`，不提交）。

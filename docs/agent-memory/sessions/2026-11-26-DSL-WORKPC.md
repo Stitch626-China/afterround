@@ -65,3 +65,10 @@
 - 原因：去掉「必须先建投递」的前置步骤，让面试后可以直接选岗位录入复盘；不改契约和数据库。
 - 验证：前端生产构建（含 `vue-tsc`）通过；Vitest **26** 全过；`reviews.spec.ts` **3 passed**，断言创建请求包含 `jobPositionId` 且不包含 `applicationId`。
 - 下一步 / 断点：代码与文档分两步提交；下一步可做“没有 JD 时快速新建公司/岗位 + 查重 + 可选 JD/公司介绍”，需改契约与数据库，建议走 PR。
+
+### 11:24 事件
+
+- 改动：删除本地 `reference/interview-guide` 目录（476 文件 / 17.52MB，未被 Git 跟踪、`.gitignore` 已忽略）；更新 `docs/agent-memory/PROGRESS.md` 当前状态。
+- 原因：参考项目已完成借鉴使命，后续以实际使用体验驱动优化建议与迭代计划。
+- 验证：删除前 `git ls-files reference` 为 0、`git check-ignore` 命中；删除后 `Test-Path reference` 为 False，工作区干净。
+- 下一步 / 断点：需求文档 §1.3 / 附录 A 与 `AGENTS.md` 仍提到 `reference`，是否清理待用户决定。
