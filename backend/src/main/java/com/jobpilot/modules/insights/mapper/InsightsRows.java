@@ -98,4 +98,21 @@ public final class InsightsRows {
         private String status;
         private OffsetDateTime createdAt;
     }
+
+    /** 面试明细（FR5.2）：一条事件 + 最近一次复盘分析原文。 */
+    @Data
+    public static class InsightEventRow {
+        private Long id;
+        private Long applicationId;
+        private Long companyId;
+        private String companyName;
+        private Long jobPositionId;
+        private String jobTitle;
+        private Integer roundNo;
+        private String roundType;
+        private String result;
+        private OffsetDateTime interviewTime;
+        private Long reviewSessionId;
+        private String analysisJson;
+    }
 }

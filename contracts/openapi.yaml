@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.13.0
+  version: 1.14.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -2659,6 +2659,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResultInsightsOverview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/insights/interview-events:
+    get:
+      tags: [跨场洞察]
+      operationId: listInsightInterviewEvents
+      summary: 面试明细（FR5.2 三层聚合浏览与扁平筛选）
+      description: |
+        按面试时间倒序返回事件明细，前端据此按「公司 → 岗位 → 轮次」分组钻取；
+        同时支持按结果 / 轮次类型 / 知识点标签扁平筛选。
+        知识点标签取自该轮次最近一次复盘分析；未复盘时为 null。
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: days
+          in: query
+          required: false
+          description: 统计窗口（天），按面试时间过滤
+          schema:
+            type: integer
+            minimum: 7
+            maximum: 365
+            default: 90
+        - name: companyId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: jobPositionId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: result
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/InterviewResult'
+        - name: roundType
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/InterviewRoundType'
+        - name: topic
+          in: query
+          required: false
+          description: 知识点标签 key（来自复盘词表）
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultInsightEventPage'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -6133,6 +6195,59 @@ components:
           type: string
           format: date-time
 
+    InsightEventTopic:
+      type: object
+      required: [tag]
+      properties:
+        tag:
+          type: string
+          example: mysql-index
+        label:
+          type: [string, "null"]
+          example: MySQL 索引
+
+    InsightEventItem:
+      type: object
+      required: [id, applicationId, roundNo, roundType, result, interviewTime]
+      properties:
+        id:
+          type: integer
+          format: int64
+        applicationId:
+          type: integer
+          format: int64
+        companyId:
+          type: [integer, "null"]
+          format: int64
+        companyName:
+          type: [string, "null"]
+          example: 字节跳动
+        jobPositionId:
+          type: [integer, "null"]
+          format: int64
+        jobTitle:
+          type: [string, "null"]
+          example: Java 后端开发工程师
+        roundNo:
+          type: integer
+          minimum: 1
+        roundType:
+          $ref: '#/components/schemas/InterviewRoundType'
+        result:
+          $ref: '#/components/schemas/InterviewResult'
+        interviewTime:
+          type: string
+          format: date-time
+        reviewSessionId:
+          type: [integer, "null"]
+          format: int64
+          description: 关联复盘；未复盘时为 null
+        topics:
+          type: array
+          description: 该轮次最近一次复盘分析中的知识点标签
+          items:
+            $ref: '#/components/schemas/InsightEventTopic'
+
     JobApplicationTimeline:
       type: object
       required: [application, events, reviews, actions]
@@ -6287,3 +6402,18 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/InsightsOverview'
+
+    ResultInsightEventPage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/InsightEventItem'

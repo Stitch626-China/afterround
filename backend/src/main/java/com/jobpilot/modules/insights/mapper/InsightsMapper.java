@@ -7,6 +7,7 @@ import com.jobpilot.modules.insights.mapper.InsightsRows.ActionStatusRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyTagRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.FunnelRow;
+import com.jobpilot.modules.insights.mapper.InsightsRows.InsightEventRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.LossTagRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.QuestionRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.ResumeFunnelRow;
@@ -278,4 +279,70 @@ public interface InsightsMapper {
             LIMIT 5
             """)
     List<StaleActionRow> staleActions(@Param("staleBefore") OffsetDateTime staleBefore);
+
+    @Select("""
+            SELECT e.id AS id,
+                   e.application_id AS application_id,
+                   jp.company_id AS company_id,
+                   c.name AS company_name,
+                   jp.id AS job_position_id,
+                   jp.title AS job_title,
+                   e.round_no AS round_no,
+                   e.round_type AS round_type,
+                   e.result AS result,
+                   e.interview_time AS interview_time,
+                   rs.id AS review_session_id,
+                   CAST(ra.analysis AS TEXT) AS analysis_json
+            FROM interview_events e
+            JOIN applications a ON a.id = e.application_id
+            JOIN job_positions jp ON jp.id = a.job_position_id
+            LEFT JOIN companies c ON c.id = jp.company_id
+            LEFT JOIN review_sessions rs ON rs.event_id = e.id
+            LEFT JOIN review_analyses ra ON ra.review_session_id = rs.id
+            WHERE e.interview_time >= #{from} AND e.interview_time < #{to}
+              AND (CAST(#{companyId} AS BIGINT) IS NULL OR jp.company_id = #{companyId})
+              AND (CAST(#{jobPositionId} AS BIGINT) IS NULL OR a.job_position_id = #{jobPositionId})
+              AND (CAST(#{result} AS TEXT) IS NULL OR e.result = #{result})
+              AND (CAST(#{roundType} AS TEXT) IS NULL OR e.round_type = #{roundType})
+              AND (CAST(#{topic} AS TEXT) IS NULL OR EXISTS (
+                  SELECT 1 FROM jsonb_array_elements(COALESCE(ra.analysis -> 'topics', '[]'::jsonb)) t
+                  WHERE t->>'tag' = #{topic}
+              ))
+            ORDER BY e.interview_time DESC, e.id DESC
+            LIMIT #{limit} OFFSET #{offset}
+            """)
+    List<InsightEventRow> interviewEvents(@Param("from") OffsetDateTime from,
+                                          @Param("to") OffsetDateTime to,
+                                          @Param("companyId") Long companyId,
+                                          @Param("jobPositionId") Long jobPositionId,
+                                          @Param("result") String result,
+                                          @Param("roundType") String roundType,
+                                          @Param("topic") String topic,
+                                          @Param("offset") int offset,
+                                          @Param("limit") int limit);
+
+    @Select("""
+            SELECT COUNT(*)
+            FROM interview_events e
+            JOIN applications a ON a.id = e.application_id
+            JOIN job_positions jp ON jp.id = a.job_position_id
+            LEFT JOIN review_sessions rs ON rs.event_id = e.id
+            LEFT JOIN review_analyses ra ON ra.review_session_id = rs.id
+            WHERE e.interview_time >= #{from} AND e.interview_time < #{to}
+              AND (CAST(#{companyId} AS BIGINT) IS NULL OR jp.company_id = #{companyId})
+              AND (CAST(#{jobPositionId} AS BIGINT) IS NULL OR a.job_position_id = #{jobPositionId})
+              AND (CAST(#{result} AS TEXT) IS NULL OR e.result = #{result})
+              AND (CAST(#{roundType} AS TEXT) IS NULL OR e.round_type = #{roundType})
+              AND (CAST(#{topic} AS TEXT) IS NULL OR EXISTS (
+                  SELECT 1 FROM jsonb_array_elements(COALESCE(ra.analysis -> 'topics', '[]'::jsonb)) t
+                  WHERE t->>'tag' = #{topic}
+              ))
+            """)
+    long interviewEventCount(@Param("from") OffsetDateTime from,
+                             @Param("to") OffsetDateTime to,
+                             @Param("companyId") Long companyId,
+                             @Param("jobPositionId") Long jobPositionId,
+                             @Param("result") String result,
+                             @Param("roundType") String roundType,
+                             @Param("topic") String topic);
 }

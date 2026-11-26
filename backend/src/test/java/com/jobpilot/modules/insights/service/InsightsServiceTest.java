@@ -3,6 +3,9 @@ package com.jobpilot.modules.insights.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
@@ -16,6 +19,7 @@ import com.jobpilot.modules.insights.mapper.InsightsRows.ActionStatusRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyTagRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.FunnelRow;
+import com.jobpilot.modules.insights.mapper.InsightsRows.InsightEventRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.LossTagRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.QuestionRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.ResumeFunnelRow;
@@ -163,6 +167,52 @@ class InsightsServiceTest {
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).errorCode())
                 .isEqualTo(ErrorCode.BAD_REQUEST);
+    }
+
+    @Test
+    void mapsInterviewEventsWithTopicsAndForwardsFilters() {
+        InsightEventRow row = new InsightEventRow();
+        row.setId(11L);
+        row.setApplicationId(3L);
+        row.setCompanyId(9L);
+        row.setCompanyName("字节跳动");
+        row.setJobPositionId(4L);
+        row.setJobTitle("Java 后端");
+        row.setRoundNo(2);
+        row.setRoundType("TECH");
+        row.setResult("FAIL");
+        row.setInterviewTime(OffsetDateTime.parse("2026-11-20T10:00:00+08:00"));
+        row.setReviewSessionId(7L);
+        row.setAnalysisJson("{\"topics\":[{\"tag\":\"jvm\"},{\"tag\":\"unknown-topic\"},{\"tag\":\"\"}]}");
+        when(mapper.interviewEventCount(any(), any(), any(), any(), any(), any(), any())).thenReturn(1L);
+        when(mapper.interviewEvents(any(), any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
+                .thenReturn(List.of(row));
+
+        var result = service().events(90, 1L, 2L, "FAIL", "TECH", "jvm", 2, 10);
+
+        assertThat(result.total()).isEqualTo(1);
+        assertThat(result.page()).isEqualTo(2);
+        assertThat(result.size()).isEqualTo(10);
+        assertThat(result.items()).singleElement().satisfies(item -> {
+            assertThat(item.companyName()).isEqualTo("字节跳动");
+            assertThat(item.reviewSessionId()).isEqualTo(7L);
+            assertThat(item.topics()).extracting("tag").containsExactly("jvm", "unknown-topic");
+            assertThat(item.topics().get(0).label()).isEqualTo("JVM 与 GC");
+            assertThat(item.topics().get(1).label()).isEqualTo("unknown-topic");
+        });
+        verify(mapper).interviewEvents(any(), any(), eq(1L), eq(2L), eq("FAIL"), eq("TECH"), eq("jvm"),
+                eq(10), eq(10));
+    }
+
+    @Test
+    void returnsEmptyEventPageWithoutQueryingRows() {
+        when(mapper.interviewEventCount(any(), any(), any(), any(), any(), any(), any())).thenReturn(0L);
+
+        var result = service().events(90, null, null, null, null, null, null, 500);
+
+        assertThat(result.items()).isEmpty();
+        assertThat(result.total()).isZero();
+        assertThat(result.size()).isEqualTo(100);
     }
 
     @Test

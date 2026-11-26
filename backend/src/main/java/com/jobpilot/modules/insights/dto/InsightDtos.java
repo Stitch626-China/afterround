@@ -59,6 +59,15 @@ public final class InsightDtos {
                                List<InsightLossTagDelta> lossTagDeltas, Double passRateDelta) {
     }
 
+    public record InsightEventTopic(String tag, String label) {
+    }
+
+    public record InsightEventItem(Long id, Long applicationId, Long companyId, String companyName,
+                                   Long jobPositionId, String jobTitle, Integer roundNo, String roundType,
+                                   String result, OffsetDateTime interviewTime, Long reviewSessionId,
+                                   List<InsightEventTopic> topics) {
+    }
+
     public record InsightsOverview(InsightSample sample, InsightSummary summary,
                                    List<InsightTopicOutcome> topics, List<InsightTagCount> lossTags,
                                    List<InsightRoundPassRate> roundPassRates,

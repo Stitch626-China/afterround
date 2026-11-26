@@ -5,8 +5,14 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { getInsights, type InsightsOverview } from '@/api/insights'
+import {
+  getInsights,
+  listInsightInterviewEvents,
+  type InsightEventItem,
+  type InsightsOverview,
+} from '@/api/insights'
 import { listCompanies, type Company } from '@/api/jobs'
+import { getReviewTaxonomy, type ReviewTaxonomy } from '@/api/reviews'
 import EmptyState from '@/components/EmptyState.vue'
 import {
   INSIGHT_WINDOWS,
@@ -16,7 +22,7 @@ import {
   sampleHint,
   sampleText,
 } from '@/utils/insights'
-import { ACTION_STATUS_TEXT } from '@/utils/review'
+import { ACTION_STATUS_TEXT, INTERVIEW_RESULT_TEXT, ROUND_TYPE_TEXT } from '@/utils/review'
 
 const router = useRouter()
 const data = ref<InsightsOverview | null>(null)
@@ -25,6 +31,42 @@ const loading = ref(true)
 const error = ref('')
 const days = ref(90)
 const companyFilter = ref('')
+
+const detailItems = ref<InsightEventItem[]>([])
+const detailTotal = ref(0)
+const detailPage = ref(1)
+const detailSize = 8
+const detailLoading = ref(false)
+const detailError = ref('')
+const detailResult = ref('')
+const detailRoundType = ref('')
+const detailTopic = ref('')
+const taxonomy = ref<ReviewTaxonomy | null>(null)
+
+const RESULT_TONE: Record<string, string> = {
+  PASS: 'success',
+  FAIL: 'danger',
+  PENDING: 'muted',
+}
+const RESULT_OPTIONS = ['PASS', 'FAIL', 'PENDING']
+
+const detailPages = computed(() => Math.max(1, Math.ceil(detailTotal.value / detailSize)))
+/** 三层浏览：公司 → 岗位 → 轮次（当前页内分组，顺序沿用事件时间倒序）。 */
+const detailGroups = computed(() => {
+  const groups = new Map<string, { key: string; companyName: string; jobTitle: string; items: InsightEventItem[] }>()
+  detailItems.value.forEach((item) => {
+    const key = `${item.companyId ?? item.companyName ?? 0}-${item.jobPositionId ?? item.jobTitle ?? 0}`
+    const group = groups.get(key) ?? {
+      key,
+      companyName: item.companyName ?? '未关联公司',
+      jobTitle: item.jobTitle ?? '未命名岗位',
+      items: [],
+    }
+    group.items.push(item)
+    groups.set(key, group)
+  })
+  return [...groups.values()]
+})
 
 const maxLossCount = computed(() => {
   const counts = data.value?.lossTags.map((item) => item.count) ?? [1]
@@ -44,6 +86,41 @@ async function load(): Promise<void> {
   } finally {
     loading.value = false
   }
+  void loadDetail(true)
+}
+
+async function loadDetail(reset = false): Promise<void> {
+  if (reset) {
+    detailPage.value = 1
+  }
+  detailLoading.value = true
+  try {
+    const result = await listInsightInterviewEvents({
+      page: detailPage.value,
+      size: detailSize,
+      days: days.value,
+      companyId: companyFilter.value ? Number(companyFilter.value) : null,
+      result: detailResult.value || undefined,
+      roundType: detailRoundType.value || undefined,
+      topic: detailTopic.value || undefined,
+    })
+    detailItems.value = result.items
+    detailTotal.value = result.total
+    detailError.value = ''
+  } catch (ex) {
+    detailError.value = ex instanceof Error ? ex.message : '加载面试明细失败'
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+function goDetail(delta: number): void {
+  const next = detailPage.value + delta
+  if (next < 1 || next > detailPages.value) {
+    return
+  }
+  detailPage.value = next
+  void loadDetail()
 }
 
 async function loadCompanies(): Promise<void> {
@@ -55,6 +132,14 @@ async function loadCompanies(): Promise<void> {
   }
 }
 
+async function loadTaxonomy(): Promise<void> {
+  try {
+    taxonomy.value = await getReviewTaxonomy()
+  } catch {
+    // 词表加载失败时知识点筛选降级为无选项
+  }
+}
+
 function formatTime(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleDateString('zh-CN') : '—'
 }
@@ -62,6 +147,7 @@ function formatTime(value: string | null | undefined): string {
 onMounted(() => {
   void load()
   void loadCompanies()
+  void loadTaxonomy()
 })
 </script>
 
@@ -340,6 +426,76 @@ onMounted(() => {
 
       <section class="card">
         <div class="card-head">
+          <h3 class="card-title">面试明细</h3>
+          <span class="meta">按公司 → 岗位 → 轮次浏览，或按结果 / 轮次 / 知识点筛选</span>
+        </div>
+        <div class="filters detail-filters">
+          <select v-model="detailResult" aria-label="结果筛选" @change="loadDetail(true)">
+            <option value="">全部结果</option>
+            <option v-for="result in RESULT_OPTIONS" :key="result" :value="result">
+              {{ INTERVIEW_RESULT_TEXT[result] ?? result }}
+            </option>
+          </select>
+          <select v-model="detailRoundType" aria-label="轮次类型筛选" @change="loadDetail(true)">
+            <option value="">全部轮次</option>
+            <option v-for="(text, key) in ROUND_TYPE_TEXT" :key="key" :value="key">{{ text }}</option>
+          </select>
+          <select v-model="detailTopic" aria-label="知识点筛选" @change="loadDetail(true)">
+            <option value="">全部知识点</option>
+            <option v-for="item in taxonomy?.topics ?? []" :key="item.key" :value="item.key">
+              {{ item.label }}
+            </option>
+          </select>
+          <button type="button" class="btn ghost" @click="loadDetail(true)">查询</button>
+        </div>
+        <div v-if="detailError" class="banner danger">{{ detailError }}</div>
+        <div v-else-if="detailLoading" class="skeleton">
+          <div class="skeleton-row" />
+        </div>
+        <p v-else-if="!detailItems.length" class="empty-line">所选条件下没有面试记录。</p>
+        <div v-else class="detail-groups">
+          <article v-for="group in detailGroups" :key="group.key" class="detail-group">
+            <div class="detail-group-head">
+              <strong>{{ group.companyName }}</strong>
+              <span class="meta">{{ group.jobTitle }}</span>
+            </div>
+            <ul class="detail-rounds">
+              <li v-for="item in group.items" :key="item.id" class="detail-round">
+                <span class="tag">{{ ROUND_TYPE_TEXT[item.roundType] ?? item.roundType }}</span>
+                <span>第 {{ item.roundNo }} 轮</span>
+                <span class="status" :class="RESULT_TONE[item.result]">
+                  {{ INTERVIEW_RESULT_TEXT[item.result] ?? item.result }}
+                </span>
+                <span class="meta">{{ formatTime(item.interviewTime) }}</span>
+                <span v-for="topic in item.topics" :key="topic.tag" class="tag primary">
+                  {{ topic.label }}
+                </span>
+                <RouterLink v-if="item.reviewSessionId" :to="`/reviews/${item.reviewSessionId}`" class="link">
+                  复盘 →
+                </RouterLink>
+                <span v-else class="meta">未复盘</span>
+              </li>
+            </ul>
+          </article>
+        </div>
+        <div v-if="detailPages > 1" class="pager">
+          <button type="button" class="btn ghost" :disabled="detailPage <= 1" @click="goDetail(-1)">
+            上一页
+          </button>
+          <span>{{ detailPage }} / {{ detailPages }}</span>
+          <button
+            type="button"
+            class="btn ghost"
+            :disabled="detailPage >= detailPages"
+            @click="goDetail(1)"
+          >
+            下一页
+          </button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
           <h3 class="card-title">改进闭环</h3>
           <RouterLink to="/improvements" class="link">改进看板 →</RouterLink>
         </div>
@@ -400,6 +556,62 @@ onMounted(() => {
   border-radius: var(--radius-btn);
   background: var(--surface);
   color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+.detail-filters {
+  margin-bottom: var(--space-3);
+}
+
+.detail-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.detail-group {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.detail-group:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.detail-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 13.5px;
+}
+
+.detail-rounds {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detail-round {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  color: var(--text-3);
   font-size: var(--fs-sm);
 }
 

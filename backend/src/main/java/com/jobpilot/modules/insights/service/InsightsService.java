@@ -10,9 +10,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jobpilot.common.api.ErrorCode;
+import com.jobpilot.common.api.PageResult;
 import com.jobpilot.common.exception.BizException;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightCompanyProfile;
+import com.jobpilot.modules.insights.dto.InsightDtos.InsightEventItem;
+import com.jobpilot.modules.insights.dto.InsightDtos.InsightEventTopic;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightFunnel;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightImprovements;
 import com.jobpilot.modules.insights.dto.InsightDtos.InsightLossTagDelta;
@@ -31,6 +36,7 @@ import com.jobpilot.modules.insights.mapper.InsightsRows.ActionStatusRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.CompanyTagRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.FunnelRow;
+import com.jobpilot.modules.insights.mapper.InsightsRows.InsightEventRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.LossTagRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.QuestionRow;
 import com.jobpilot.modules.insights.mapper.InsightsRows.ResumeFunnelRow;
@@ -53,6 +59,7 @@ public class InsightsService {
     static final int MINIMUM_SAMPLE = 5;
     static final int STALE_DAYS = 14;
     static final String SUMMARY_BASED_ON = "LOCAL_AGGREGATION";
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private static final Map<String, String> ROUND_LABELS = Map.of(
             "HR", "HR 面", "TECH", "技术面", "CROSS", "交叉面",
@@ -100,6 +107,65 @@ public class InsightsService {
         return new InsightsOverview(sample, summary(sample, lossTags, rounds, topics, improvements),
                 topics, lossTags, rounds, companies, questions, funnel, resumeFunnel, improvements,
                 trend, ReviewTaxonomyCatalog.TAXONOMY_VERSION, now);
+    }
+
+    /** 面试明细（FR5.2）：按事件时间倒序分页，支持结果 / 轮次类型 / 知识点扁平筛选。 */
+    public PageResult<InsightEventItem> events(int days, Long companyId, Long jobPositionId,
+                                                String result, String roundType, String topic,
+                                                Integer page, Integer size) {
+        if (days < 7 || days > 365) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "days 需在 7~365 之间");
+        }
+        int current = PageResult.normalizePage(page);
+        int pageSize = PageResult.normalizeSize(size);
+        OffsetDateTime now = OffsetDateTime.now();
+        OffsetDateTime from = now.minusDays(days);
+        String resultFilter = textOrNull(result);
+        String roundFilter = textOrNull(roundType);
+        String topicFilter = textOrNull(topic);
+        long total = mapper.interviewEventCount(from, now, companyId, jobPositionId,
+                resultFilter, roundFilter, topicFilter);
+        if (total == 0) {
+            return PageResult.of(List.of(), 0, current, pageSize);
+        }
+        List<InsightEventItem> items = mapper.interviewEvents(from, now, companyId, jobPositionId,
+                        resultFilter, roundFilter, topicFilter, (current - 1) * pageSize, pageSize)
+                .stream().map(this::event).toList();
+        return PageResult.of(items, total, current, pageSize);
+    }
+
+    private InsightEventItem event(InsightEventRow row) {
+        return new InsightEventItem(row.getId(), row.getApplicationId(), row.getCompanyId(),
+                row.getCompanyName(), row.getJobPositionId(), row.getJobTitle(), row.getRoundNo(),
+                row.getRoundType(), row.getResult(), row.getInterviewTime(), row.getReviewSessionId(),
+                eventTopics(row.getAnalysisJson()));
+    }
+
+    private List<InsightEventTopic> eventTopics(String analysisJson) {
+        if (analysisJson == null || analysisJson.isBlank()) {
+            return List.of();
+        }
+        try {
+            JsonNode topics = MAPPER.readTree(analysisJson).path("topics");
+            if (!topics.isArray()) {
+                return List.of();
+            }
+            List<InsightEventTopic> result = new ArrayList<>();
+            for (JsonNode node : topics) {
+                String tag = node.path("tag").asText("").trim();
+                if (!tag.isEmpty()) {
+                    String label = ReviewTaxonomyCatalog.topicLabel(tag);
+                    result.add(new InsightEventTopic(tag, label == null ? tag : label));
+                }
+            }
+            return result;
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    private static String textOrNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private List<InsightTopicOutcome> topics(List<TopicOutcomeRow> rows) {
