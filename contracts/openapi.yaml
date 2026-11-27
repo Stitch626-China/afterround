@@ -491,7 +491,6 @@ paths:
   # ==========================================================
 
   /api/llm/prompts:
-    x-implemented: false
     get:
       tags: [提示词]
       operationId: listPrompts
@@ -508,7 +507,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/llm/prompts/{promptKey}:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/PromptKey'
     get:
@@ -531,7 +529,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/llm/prompts/{promptKey}/draft:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/PromptKey'
     put:
@@ -580,7 +577,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/llm/prompts/{promptKey}/publish:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/PromptKey'
     post:
@@ -615,7 +611,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/llm/prompts/{promptKey}/versions:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/PromptKey'
       - $ref: '#/components/parameters/Page'
@@ -638,7 +633,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/llm/prompts/{promptKey}/versions/{versionNo}:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/PromptKey'
       - $ref: '#/components/parameters/PromptVersionNo'
@@ -659,7 +653,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/llm/prompts/{promptKey}/versions/{versionNo}/activate:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/PromptKey'
       - $ref: '#/components/parameters/PromptVersionNo'

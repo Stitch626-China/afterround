@@ -72,3 +72,10 @@
 - 验证：27 份全量 L1 全部通过；L2 断言 45 项失败 2 项（95.6%，达标，003 `knowledge-gap`、004 `no-evidence` 未命中）；新基线复盘键为 `qN.score` / `qN.<dimension>`，无下标残留、无 null。不依赖 Docker 的 230 个单元测试全绿（23 个集成测试跳过）。
 - 阻塞：Docker Desktop 升级 29.9.3 后 Testcontainers 1.21 探测失败；`~/.testcontainers.properties` 固定旧 `docker_engine` 策略，已征得用户同意修改，但被路径白名单拒绝。JaCoCo 门禁需在修复 Docker 探测后补跑。
 - 下一步 / 断点：提交推送；修复 Docker/Testcontainers 环境（删除用户级固定策略或开启 TCP 2375）后补跑 `mvn test` 与覆盖率。
+
+### 18:10 事件
+
+- 改动：完成 P1 后端 Task 1~4。契约升 1.22.0，新增提示词工作台 8 端点与 schema（总数 101）；新增 `V11__llm_prompt_versions.sql`；新增 `PromptCatalog`（12 组）、`PromptValidator`、`PromptRegistry`（DB ACTIVE 优先 + classpath 兜底 + 精确失效）、`PromptService`、`PromptController` 与 DTO；新增 `PromptServiceTest`、`PromptApiIntegrationTest`；移除 8 个提示词端点的 `x-implemented: false`；开发对照表前两行改为已完成。
+- 原因：提示词查看/草稿/发布/回滚后端闭环，发布只热更新、不自动触发评测。
+- 验证：`mvn -f backend/pom.xml clean test`（Docker 可用、非沙箱）253 tests、0 failures、0 skipped、JaCoCo 全部达标；`PromptApiIntegrationTest` 覆盖列表/内置兜底/草稿/发布/版本历史/回滚/无效草稿 400/丢弃幂等/404。Docker 探测以 `DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine` 解决，无需改用户级配置。
+- 下一步 / 断点：Task 5 让 8 个 PromptFactory 接入 `PromptRegistry` 并记录动态版本；之后做 P1 前端工作台。

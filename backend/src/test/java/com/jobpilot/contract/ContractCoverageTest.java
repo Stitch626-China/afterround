@@ -24,6 +24,7 @@ import com.jobpilot.modules.job.controller.JobPositionController;
 import com.jobpilot.modules.llm.controller.LlmController;
 import com.jobpilot.modules.llm.controller.LlmSceneController;
 import com.jobpilot.modules.offer.controller.OfferController;
+import com.jobpilot.modules.prompt.controller.PromptController;
 import com.jobpilot.modules.resume.controller.ResumeComparisonController;
 import com.jobpilot.modules.resume.controller.ResumeController;
 import com.jobpilot.modules.review.controller.ImprovementActionController;
@@ -100,7 +101,7 @@ class ContractCoverageTest {
                 ResumeComparisonController.class, InterviewController.class, InterviewSessionController.class,
                 OfferController.class, JobApplicationController.class, InterviewEventController.class,
                 ReviewSessionController.class, ImprovementActionController.class,
-                ReviewTaxonomyController.class, InsightsController.class)) {
+                ReviewTaxonomyController.class, InsightsController.class, PromptController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (Method method : controller.getDeclaredMethods()) {
                 for (Annotation annotation : method.getAnnotations()) {

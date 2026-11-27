@@ -724,8 +724,8 @@ frontend/e2e/llm-workbench.spec.ts
 
 | 功能 | 接口 | 实现类 | 数据表 | 验证 | 状态 |
 |---|---|---|---|---|---|
-| 提示词列表/详情 | `GET /api/llm/prompts`、`GET /api/llm/prompts/{key}` | `PromptService` / `PromptRegistry` | `llm_prompt_versions` | `PromptApiIntegrationTest` | 待实现 |
-| 草稿/发布/回滚 | `PUT .../draft`、`POST .../publish`、`POST .../versions/{n}/activate` | `PromptService` | `llm_prompt_versions` | `PromptServiceTest` + E2E | 待实现 |
+| 提示词列表/详情 | `GET /api/llm/prompts`、`GET /api/llm/prompts/{key}` | `PromptService` / `PromptRegistry` | `llm_prompt_versions` | `PromptApiIntegrationTest`（列表/内置兜底/404） | 已完成 |
+| 草稿/发布/回滚 | `PUT .../draft`、`POST .../publish`、`POST .../versions/{n}/activate` | `PromptService` | `llm_prompt_versions` | `PromptServiceTest` + `PromptApiIntegrationTest`（草稿/发布/历史/回滚/400/幂等） | 已完成 |
 | 模型与绑定 | 现有 `/api/llm/global`、`/api/llm/scenes/{scene}` | `LlmGlobalSettingService` / `LlmSceneService` | 现有 LLM 配置表 | 现有测试 + E2E | 待实现 |
 | 评测运行 | `POST/GET /api/llm/eval/runs`、`GET /{id}`、`POST /{id}/cancel` | `EvalRunService` / `EvalRunner` | `llm_eval_runs` / `llm_eval_run_cases` | `EvalRunServiceTest` + API 集成 | 待实现 |
 | 设为基线 | `POST /api/llm/eval/baselines` | `EvalBaselineService` | `llm_eval_baselines` | `EvalBaselineServiceTest` + E2E | 待实现 |
