@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 public class ResumePromptFactory {
 
     /** 简历分析 Prompt 版本，随模板语义变化递增；F7 对比据此判定结果可比性。 */
-    public static final String VERSION = "resume-analysis-v2";
+    public static final String VERSION = "resume-analysis-v3";
 
     private final String systemTemplate;
     private final String userTemplate;
