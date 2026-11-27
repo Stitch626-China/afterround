@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.21.1
+  version: 1.22.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -34,6 +34,8 @@ info:
       只删除磁盘音频与音频元信息，保留转写与分析。
     - **1.21.1（修订）**：补记 1.19.0 遗漏的复盘列表 `keyword` 查询参数；音频清理限定「分析完成后」；
       修正洞察 AI 总结的样本不足描述与面试轮次 PATCH 摘要。
+    - **1.22.0（提示词工作台）**：新增 8 个提示词端点（查看 / 草稿 / 发布 / 回滚 / 版本），
+      发布后热更新；保存与发布校验占位符和该场景必需的 JSON 字段；发布不触发评测。
     - 场景枚举 `LlmScene` 一次性定义全部 7 个场景（含 M2 未落地的预留项），避免后续扩展改动枚举。
       JD 结构化解析与简历对比总结未列入枚举，使用全局默认，不参与场景级绑定。
 
@@ -61,6 +63,9 @@ info:
     - `40916` 复盘分析尚未完成，无法确认
     - `40917` 该投递的面试轮次已存在复盘记录
 
+    ## 错误码补充（1.22.0）
+    - `40920` 提示词版本并发冲突，请刷新后重试
+
   contact:
     name: 面后（AfterRound）
   license:
@@ -74,6 +79,8 @@ servers:
 tags:
   - name: 模型配置
     description: Provider / Model 增删改查、连通测试、模型列举、全局默认、场景级绑定。配置存数据库，保存即生效。
+  - name: 提示词
+    description: 提示词查看、草稿、发布、回滚与版本历史；发布后热更新，不自动触发评测。
   - name: 对话会话
     description: 会话内 Provider + Model 两级切换与流式对话；任务执行中禁止切换。
   - name: 简历
@@ -476,6 +483,208 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResultSceneBinding'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # ==========================================================
+  # 提示词工作台（1.22.0）
+  # ==========================================================
+
+  /api/llm/prompts:
+    x-implemented: false
+    get:
+      tags: [提示词]
+      operationId: listPrompts
+      summary: 查询全部提示词摘要
+      description: 返回 12 组提示词的当前生效版本、草稿状态、占位符与影响功能；不返回全文。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultPromptList'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/prompts/{promptKey}:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/PromptKey'
+    get:
+      tags: [提示词]
+      operationId: getPrompt
+      summary: 查询提示词详情
+      description: |
+        返回生效版本、代码内置默认、草稿与校验结果。
+        `active.source=BUILTIN` 时 `versionNo=0`，前端显示「内置默认（vN）」。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultPromptDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/prompts/{promptKey}/draft:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/PromptKey'
+    put:
+      tags: [提示词]
+      operationId: savePromptDraft
+      summary: 保存提示词草稿
+      description: 保存草稿不影响线上；返回校验结果，草稿可保存但存在错误时不能发布。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavePromptDraftRequest'
+      responses:
+        '200':
+          description: 保存成功（含校验结果）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultPromptDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 提示词版本并发冲突（业务码 40920），请刷新后重试
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      tags: [提示词]
+      operationId: discardPromptDraft
+      summary: 丢弃提示词草稿
+      description: 幂等：没有草稿时同样返回 200。
+      responses:
+        '200':
+          description: 丢弃成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/prompts/{promptKey}/publish:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/PromptKey'
+    post:
+      tags: [提示词]
+      operationId: publishPrompt
+      summary: 发布提示词草稿
+      description: 将草稿置为当前生效版本并热更新；发布不触发评测。
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishPromptRequest'
+      responses:
+        '200':
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultPromptDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 提示词版本并发冲突（业务码 40920），请刷新后重试
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/prompts/{promptKey}/versions:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/PromptKey'
+      - $ref: '#/components/parameters/Page'
+      - $ref: '#/components/parameters/Size'
+    get:
+      tags: [提示词]
+      operationId: listPromptVersions
+      summary: 提示词版本历史
+      description: 只返回 ACTIVE / ARCHIVED；草稿在详情接口的 `draft` 字段，不混入历史列表。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultPromptVersionPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/prompts/{promptKey}/versions/{versionNo}:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/PromptKey'
+      - $ref: '#/components/parameters/PromptVersionNo'
+    get:
+      tags: [提示词]
+      operationId: getPromptVersion
+      summary: 提示词版本详情
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultPromptVersionDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/prompts/{promptKey}/versions/{versionNo}/activate:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/PromptKey'
+      - $ref: '#/components/parameters/PromptVersionNo'
+    post:
+      tags: [提示词]
+      operationId: activatePromptVersion
+      summary: 回滚到历史版本
+      description: 只允许激活 ARCHIVED 版本；已有草稿保留并返回 warning；不触发评测。
+      responses:
+        '200':
+          description: 激活成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultPromptDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 提示词版本并发冲突（业务码 40920），请刷新后重试
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -2872,6 +3081,24 @@ components:
         type: string
         pattern: '^[a-z0-9][a-z0-9-]{1,63}$'
         example: corp-gateway
+    PromptKey:
+      name: promptKey
+      in: path
+      required: true
+      description: 提示词分组 key（如 resume-analysis）
+      schema:
+        type: string
+        pattern: '^[a-z0-9][a-z0-9-]{1,63}$'
+        example: resume-analysis
+    PromptVersionNo:
+      name: versionNo
+      in: path
+      required: true
+      description: 提示词 DB 版本号（从 1 开始；内置默认不在此路径使用）
+      schema:
+        type: integer
+        minimum: 1
+        example: 1
     ModelName:
       name: modelName
       in: path
@@ -6776,3 +7003,194 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/LlmUsageResponse'
+
+    # ---------- 提示词工作台（1.22.0） ----------
+
+    PromptVersionSummary:
+      type: object
+      required: [versionNo, source, status, contentHash]
+      properties:
+        versionNo:
+          type: integer
+          description: 内置默认固定为 0；DB 版本从 1 开始
+          example: 1
+        source:
+          type: string
+          enum: [BUILTIN, DB]
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE, ARCHIVED]
+        contentHash:
+          type: string
+          description: SHA-256(system + 分隔线 + user)，用于影响面提示
+        note:
+          type: [string, "null"]
+        createdAt:
+          type: [string, "null"]
+          format: date-time
+        publishedAt:
+          type: [string, "null"]
+          format: date-time
+
+    PromptSummary:
+      type: object
+      required: [key, name, category, description, outputMode, modelScope, hasEvalCorpus,
+                 affectedFunctions, placeholders, requiredFields, activeVersion, builtinVersion, hasDraft]
+      properties:
+        key:
+          type: string
+          description: 提示词分组 key
+          example: resume-analysis
+        name:
+          type: string
+          example: 简历分析
+        category:
+          type: string
+          example: 档案
+        description:
+          type: string
+        outputMode:
+          type: string
+          enum: [JSON, TEXT]
+        modelScope:
+          type: string
+          enum: [SCENE, GLOBAL, SESSION]
+          description: SESSION 表示使用会话创建时的模型（模拟面试追问）
+        scene:
+          type: [string, "null"]
+          description: LlmScene 名称；GLOBAL/SESSION 时为空
+        evalScene:
+          type: [string, "null"]
+          description: 评测场景 key；无评测语料时为空
+        hasEvalCorpus:
+          type: boolean
+        affectedFunctions:
+          type: array
+          description: 该提示词影响的功能
+          items:
+            type: string
+        placeholders:
+          type: array
+          items:
+            type: string
+        requiredFields:
+          type: array
+          description: 发布时必须仍出现在 system 中的 JSON 字段名
+          items:
+            type: string
+        activeVersion:
+          $ref: '#/components/schemas/PromptVersionSummary'
+        builtinVersion:
+          type: string
+          description: 代码内置版本号，如 resume-analysis-v3
+        hasDraft:
+          type: boolean
+        updatedAt:
+          type: [string, "null"]
+          format: date-time
+
+    PromptVersionDetail:
+      allOf:
+        - $ref: '#/components/schemas/PromptVersionSummary'
+        - type: object
+          required: [systemContent, userContent]
+          properties:
+            systemContent:
+              type: string
+            userContent:
+              type: string
+
+    PromptValidation:
+      type: object
+      required: [valid, errors, warnings]
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+
+    PromptDetail:
+      allOf:
+        - $ref: '#/components/schemas/PromptSummary'
+        - type: object
+          required: [active, builtIn, validation]
+          properties:
+            active:
+              $ref: '#/components/schemas/PromptVersionDetail'
+            builtIn:
+              $ref: '#/components/schemas/PromptVersionDetail'
+              description: 代码内置默认，用于 diff / 恢复内置
+            draft:
+              oneOf:
+                - $ref: '#/components/schemas/PromptVersionDetail'
+                - type: 'null'
+            validation:
+              $ref: '#/components/schemas/PromptValidation'
+
+    SavePromptDraftRequest:
+      type: object
+      required: [systemContent, userContent]
+      properties:
+        systemContent:
+          type: string
+          maxLength: 20000
+        userContent:
+          type: string
+          maxLength: 20000
+        note:
+          type: [string, "null"]
+          maxLength: 200
+
+    PublishPromptRequest:
+      type: object
+      properties:
+        note:
+          type: [string, "null"]
+          maxLength: 200
+
+    ResultPromptList:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/PromptSummary'
+
+    ResultPromptDetail:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PromptDetail'
+
+    ResultPromptVersionDetail:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PromptVersionDetail'
+
+    ResultPromptVersionPage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/PromptVersionSummary'
