@@ -1,19 +1,60 @@
 <script setup lang="ts">
-/** 12 组提示词列表：名称、生效版本、草稿标记与影响功能。 */
-import type { PromptSummary } from '@/api/prompts'
+/** 12 组提示词列表：名称、生效版本、草稿标记与影响功能；导出由前端聚合详情生成。 */
+import { ref } from 'vue'
+import { getPrompt, type PromptSummary } from '@/api/prompts'
 import { versionLabel } from '@/utils/prompt'
 
-defineProps<{
+const props = defineProps<{
   items: PromptSummary[]
   selectedKey: string
   loading: boolean
 }>()
 
 const emit = defineEmits<{ select: [key: string] }>()
+
+const exporting = ref(false)
+const exportError = ref('')
+
+/** 聚合列表 + 详情导出 JSON；不新增后端端点，导出的是当前生效内容。 */
+async function exportAll(): Promise<void> {
+  exporting.value = true
+  exportError.value = ''
+  try {
+    const prompts = await Promise.all(props.items.map(async (item) => {
+      const detail = await getPrompt(item.key)
+      return {
+        key: detail.key,
+        name: detail.name,
+        version: detail.active.versionNo > 0 ? `db-${detail.active.versionNo}` : detail.builtinVersion,
+        systemContent: detail.active.systemContent,
+        userContent: detail.active.userContent,
+      }
+    }))
+    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), prompts }, null, 2)],
+      { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `llm-prompts-${new Date().toISOString().slice(0, 10)}.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  } catch (ex) {
+    exportError.value = ex instanceof Error ? ex.message : '导出失败'
+  } finally {
+    exporting.value = false
+  }
+}
 </script>
 
 <template>
   <aside class="prompt-list">
+    <div class="list-head">
+      <span class="meta">{{ loading ? '加载中' : `${items.length} 组` }}</span>
+      <button type="button" class="btn quiet" :disabled="loading || exporting || !items.length" @click="exportAll">
+        {{ exporting ? '导出中…' : '导出 JSON' }}
+      </button>
+    </div>
+    <p v-if="exportError" class="export-error">{{ exportError }}</p>
     <div v-if="loading" class="skeleton">
       <div class="skeleton-row" />
       <div class="skeleton-row" />
@@ -45,6 +86,20 @@ const emit = defineEmits<{ select: [key: string] }>()
   min-width: 0;
   border-right: 1px solid var(--border);
   padding-right: var(--space-3);
+}
+
+.list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.export-error {
+  margin: 0 0 var(--space-2);
+  color: var(--danger, #b04a3f);
+  font-size: var(--fs-xs);
 }
 
 ul {

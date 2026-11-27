@@ -149,3 +149,10 @@
 - 原因：基线只是带标签的运行，对比必须同场景 / 同 Provider / 同模型 / 同参数 / 同语料 / 同引擎；提示词是被测变量，不参与可比性判定；部分重跑不得污染基线。
 - 验证：`EvalImpactAnalyzerTest` 4 + `EvalCompareServiceTest` 5 全过；`EvalApiIntegrationTest` 新增 2 个（两次完成运行可比 + 基线 label + 404；部分重跑只跑 ERROR、不可设基线、取消与换模型不可比）通过；契约 lint 0/0；后端 `clean test` **289 tests、0 skipped、JaCoCo 全部门禁通过**。
 - 下一步 / 断点：提交 Task 14；进入 Task 15 前端基线对比 Tab、基线过期徽标、导出提示词 JSON 与重跑失败用例入口。
+
+### 19:52 事件
+
+- 改动：Task 15 前端收口。`api/eval.ts` 增加基线列表 / 设为基线 / 设为当前 / 运行对比 4 个接口（类型由契约生成）；新增 `BaselineComparePanel.vue`（左右运行选择、可比性横幅、质量 / 回归 / 成本 / 耗时 4 卡、按场景能力标「不适用」、用例变化筛选与基线列表「设为当前」）；工作台增加「基线对比」Tab；`EvalRunPanel` 支持完成且无 ERROR 时「设为基线」（填 label、不重跑）、有 ERROR 时「重跑失败用例」（partial 标记）、历史表标部分重跑、接收受影响场景预选；`PromptEditor` 增加「基线已过期 / 尚无基线」徽标与「去评测」链接（不弹窗、不自动跑）；`PromptList` 增加导出 JSON（前端聚合详情，不新增端点）；工作台支持 `?tab=eval&scenes=...` 深链。
+- 原因：基线与对比必须由用户主动触发；发布后只提示、不阻断；导出不引入后端负担。
+- 验证：`npm run build`（含 vue-tsc）通过；Vitest **42** 通过；Playwright 新增基线对比 / 无基线不可比用例已编写，执行仍被沙箱拒绝 Edge 用户目录访问，待本机 `npm run test:e2e`。
+- 下一步 / 断点：提交 Task 15；进入 Task 16 P3 文档、环境变量、全量回归与收口。

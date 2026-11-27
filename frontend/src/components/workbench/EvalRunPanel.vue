@@ -3,9 +3,10 @@
  * 评测运行面板：3 个场景、手动开始、进度轮询、取消与逐用例结果。
  * 评测始终使用当前生效提示词与模型快照；配置变更不会自动触发运行。
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   cancelEvalRun,
+  createEvalBaseline,
   createEvalRun,
   getEvalRun,
   listEvalRuns,
@@ -26,6 +27,7 @@ import {
   runStatusLabel,
 } from '@/utils/eval'
 
+const props = withDefaults(defineProps<{ initialScenes?: string[] }>(), { initialScenes: () => [] })
 const emit = defineEmits<{ (e: 'go-models'): void }>()
 
 const scenes = ref<EvalSceneSummary[]>([])
@@ -39,15 +41,31 @@ const error = ref('')
 const notice = ref('')
 const startOpen = ref(false)
 const cancelOpen = ref(false)
+const baselineOpen = ref(false)
+const baselineLabel = ref('')
 let timer: number | undefined
 
 const activeRun = computed(() => runs.value.find((run) => !isTerminal(run.status)) ?? null)
 const selectedScenes = computed(() => scenes.value.filter((scene) => selected.value.includes(scene.scene)))
 const totalSelectedCases = computed(() => selectedScenes.value.reduce((sum, scene) => sum + scene.caseCount, 0))
 const canStart = computed(() => selected.value.length > 0 && !busy.value && !activeRun.value)
+const canBaseline = computed(() => detail.value?.status === 'COMPLETED'
+  && !detail.value.partial && detail.value.errorCases === 0)
+const canRetry = computed(() => detail.value?.status === 'COMPLETED'
+  && detail.value.errorCases > 0 && !activeRun.value)
 const metrics = computed(() => detail.value?.metrics ?? null)
 const counts = computed(() => failureCounts(detail.value?.cases ?? []))
 const progress = computed(() => (detail.value ? progressPercent(detail.value) : 0))
+
+/** 只预选传入的受影响场景，仍由用户手动点开始。 */
+function applyInitialScenes(keys: string[]): void {
+  if (!keys.length) {
+    return
+  }
+  selected.value = scenes.value
+    .filter((scene) => scene.model && keys.includes(scene.scene))
+    .map((scene) => scene.scene)
+}
 
 function toggle(scene: EvalSceneSummary): void {
   if (!scene.model) {
@@ -70,6 +88,7 @@ function toSummary(run: EvalRunDetail): EvalRunSummary {
     totalCases: run.totalCases,
     completedCases: run.completedCases,
     errorCases: run.errorCases,
+    partial: run.partial,
     error: run.error,
     createdAt: run.createdAt,
     startedAt: run.startedAt,
@@ -126,6 +145,7 @@ async function load(): Promise<void> {
     const [sceneList, runPage] = await Promise.all([listEvalScenes(), listEvalRuns()])
     scenes.value = sceneList
     runs.value = runPage.items
+    applyInitialScenes(props.initialScenes)
     const active = runPage.items.find((run) => !isTerminal(run.status))
     if (active) {
       detail.value = await getEvalRun(active.id)
@@ -154,7 +174,11 @@ async function confirmStart(): Promise<void> {
   error.value = ''
   notice.value = ''
   try {
-    const created = await createEvalRun({ scenes: selected.value as EvalSceneSummary['scene'][], repeat: repeat.value })
+    const created = await createEvalRun({
+      scenes: selected.value as EvalSceneSummary['scene'][],
+      repeat: repeat.value,
+      retryErrorsOnly: false,
+    })
     detail.value = created
     mergeRun(created)
     notice.value = '评测已开始，使用启动时的模型与提示词快照'
@@ -185,6 +209,58 @@ async function confirmCancel(): Promise<void> {
   }
 }
 
+/** 设为基线：只贴标签并复用运行结果，不重跑。 */
+async function confirmBaseline(): Promise<void> {
+  baselineOpen.value = false
+  if (!detail.value) {
+    return
+  }
+  busy.value = true
+  error.value = ''
+  try {
+    const results = await createEvalBaseline({
+      runId: detail.value.id,
+      label: baselineLabel.value.trim() || null,
+    })
+    const created = results.filter((item) => item.created)
+    detail.value = { ...detail.value, baselines: results }
+    notice.value = created.length
+      ? `已设为基线：${created.map((item) => item.scene).join(' / ')}（复用本次结果，未重跑）`
+      : results.map((item) => item.reason).filter(Boolean).join('；') || '没有可设为基线的场景'
+    scenes.value = await listEvalScenes()
+  } catch (ex) {
+    error.value = ex instanceof Error ? ex.message : '设为基线失败'
+  } finally {
+    busy.value = false
+  }
+}
+
+/** 部分重跑：只重跑当前运行的执行错误用例，新运行不参与完整对比。 */
+async function retryErrors(): Promise<void> {
+  if (!detail.value) {
+    return
+  }
+  busy.value = true
+  error.value = ''
+  notice.value = ''
+  try {
+    const created = await createEvalRun({
+      sourceRunId: detail.value.id,
+      retryErrorsOnly: true,
+      repeat: 1,
+    })
+    detail.value = created
+    mergeRun(created)
+    notice.value = `只重跑 ${created.totalCases} 个执行错误用例；结果标记为部分重跑`
+    startPolling()
+  } catch (ex) {
+    error.value = ex instanceof Error ? ex.message : '重跑失败用例失败'
+  } finally {
+    busy.value = false
+  }
+}
+
+watch(() => props.initialScenes, (keys) => applyInitialScenes(keys))
 onMounted(load)
 onBeforeUnmount(stopPolling)
 </script>
@@ -275,7 +351,11 @@ onBeforeUnmount(stopPolling)
       <section v-if="detail" class="block detail">
         <div class="block-head">
           <div>
-            <h3>运行 #{{ detail.id }} <span class="status" :class="isTerminal(detail.status) ? 'success' : 'primary'">{{ runStatusLabel(detail.status) }}</span></h3>
+            <h3>
+              运行 #{{ detail.id }}
+              <span class="status" :class="isTerminal(detail.status) ? 'success' : 'primary'">{{ runStatusLabel(detail.status) }}</span>
+              <span v-if="detail.partial" class="tag warning">部分重跑</span>
+            </h3>
             <p class="meta">
               创建 {{ shortTime(detail.createdAt) }} · 开始 {{ shortTime(detail.startedAt) }} · 结束 {{ shortTime(detail.finishedAt) }}
             </p>
@@ -291,10 +371,21 @@ onBeforeUnmount(stopPolling)
               取消运行
             </button>
             <button
+              v-if="detail.status === 'COMPLETED' && detail.errorCases > 0"
               type="button"
               class="btn ghost"
-              disabled
-              title="基线功能在 P3 开放；运行完成不等于基线"
+              :disabled="busy || !canRetry"
+              title="只重跑执行错误（ERROR）用例；结果标记为部分重跑"
+              @click="retryErrors"
+            >
+              重跑失败用例
+            </button>
+            <button
+              type="button"
+              class="btn ghost"
+              :disabled="busy || !canBaseline"
+              :title="canBaseline ? '只贴标签，复用本次运行结果，不重跑' : '仅完成且无执行错误的运行可设为基线'"
+              @click="baselineOpen = true"
             >
               设为基线
             </button>
@@ -414,7 +505,10 @@ onBeforeUnmount(stopPolling)
           <tbody>
             <tr v-for="run in runs" :key="run.id" class="clickable" @click="openRun(run.id)">
               <td>{{ run.id }}</td>
-              <td>{{ runStatusLabel(run.status) }}</td>
+              <td>
+                {{ runStatusLabel(run.status) }}
+                <span v-if="run.partial" class="tag warning">部分</span>
+              </td>
               <td>{{ run.scenes.join(' / ') }}</td>
               <td>{{ run.completedCases }} / {{ run.totalCases }}（{{ progressPercent(run) }}%）</td>
               <td>{{ run.errorCases }}</td>
@@ -447,6 +541,24 @@ onBeforeUnmount(stopPolling)
           <div class="dialog-actions">
             <button type="button" class="btn danger" :disabled="busy" @click="confirmCancel">确认取消</button>
             <button type="button" class="btn quiet" @click="cancelOpen = false">再想想</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="baselineOpen" class="dialog-mask" @click.self="baselineOpen = false">
+        <div class="dialog" role="dialog" aria-label="设为基线">
+          <h2>设为基线？</h2>
+          <p>
+            基线只是给运行 #{{ detail?.id }} 贴标签，复用已有结果，不会重跑；
+            同一场景只保留一个当前基线，历史基线仍保留。
+          </p>
+          <label class="dialog-field">
+            备注（可选）
+            <input v-model="baselineLabel" maxlength="100" aria-label="基线备注" placeholder="例如：v3 发布后的首次运行" />
+          </label>
+          <div class="dialog-actions">
+            <button type="button" class="btn primary" :disabled="busy" @click="confirmBaseline">设为基线</button>
+            <button type="button" class="btn quiet" @click="baselineOpen = false">取消</button>
           </div>
         </div>
       </div>
@@ -733,6 +845,30 @@ onBeforeUnmount(stopPolling)
   margin: 0 0 var(--space-4);
   color: var(--text-2);
   font-size: var(--fs-sm);
+}
+
+.dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--space-4);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.dialog-field input {
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-btn);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+}
+
+td .tag {
+  margin-left: 4px;
 }
 
 .dialog-actions {

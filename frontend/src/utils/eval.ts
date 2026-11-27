@@ -23,6 +23,14 @@ const CASE_LABELS: Record<string, string> = {
   SKIPPED: '已跳过',
 }
 
+const CHANGE_LABELS: Record<string, string> = {
+  FIXED: '修复',
+  REGRESSED: '新增失败',
+  SCORE_DRIFT: '分数漂移',
+  TAG_CHANGED: '标签变化',
+  UNCHANGED: '无变化',
+}
+
 export function isTerminal(status: string): boolean {
   return TERMINAL.includes(status)
 }
@@ -41,6 +49,11 @@ export function runStatusLabel(status: string): string {
 
 export function caseStatusLabel(status: string): string {
   return CASE_LABELS[status] ?? status
+}
+
+/** 对比变化文案：FIXED / REGRESSED / SCORE_DRIFT / TAG_CHANGED。 */
+export function changeLabel(change: string): string {
+  return CHANGE_LABELS[change] ?? change
 }
 
 /** 耗时：ms / s / m s，缺失显示短横线。 */

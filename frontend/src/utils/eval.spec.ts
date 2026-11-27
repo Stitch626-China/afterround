@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   caseStatusLabel,
+  changeLabel,
   failureCounts,
   formatDuration,
   formatRate,
@@ -48,5 +49,13 @@ describe('eval 纯函数', () => {
       { status: 'SKIPPED' },
     ] as never
     expect(failureCounts(cases)).toEqual({ failed: 1, errors: 1 })
+  })
+
+  it('对比变化文案：已知值中文，未知值原样返回', () => {
+    expect(changeLabel('FIXED')).toBe('修复')
+    expect(changeLabel('REGRESSED')).toBe('新增失败')
+    expect(changeLabel('SCORE_DRIFT')).toBe('分数漂移')
+    expect(changeLabel('TAG_CHANGED')).toBe('标签变化')
+    expect(changeLabel('UNKNOWN')).toBe('UNKNOWN')
   })
 })

@@ -729,12 +729,12 @@ frontend/e2e/llm-workbench.spec.ts
 | 运行时提示词生效 | 无（内部调用） | 8 个 `PromptFactory` + `PromptRegistry` | `llm_prompt_versions` | `PromptFactoryTest` + 业务服务测试 | 已完成 |
 | 模型与绑定 | 现有 `/api/llm/global`、`/api/llm/scenes/{scene}` | `LlmGlobalSettingService` / `LlmSceneService` | 现有 LLM 配置表 | 现有测试 + `llm-workbench.spec.ts` | 已完成 |
 | 评测运行 | `POST/GET /api/llm/eval/runs`、`GET /{id}`、`POST /{id}/cancel` | `EvalRunService` / `EvalRunner` | `llm_eval_runs` / `llm_eval_run_cases` | `EvalRunServiceTest` + `EvalRunnerTest` + `EvalApiIntegrationTest` | 已完成 |
-| 设为基线 | `POST /api/llm/eval/baselines` | `EvalBaselineService` | `llm_eval_baselines` | `EvalBaselineServiceTest` + `EvalApiIntegrationTest` + E2E | 后端已完成，前端待 Task 15 |
-| 基线列表/设为当前 | `GET /api/llm/eval/baselines`、`POST .../{id}/activate` | `EvalBaselineService` | `llm_eval_baselines` | `EvalBaselineServiceTest` + `EvalApiIntegrationTest` + E2E | 后端已完成，前端待 Task 15 |
-| 运行对比 | `GET /api/llm/eval/runs/compare` | `EvalCompareService` | runs + cases | `EvalCompareServiceTest` + `EvalApiIntegrationTest` + E2E | 后端已完成，前端待 Task 15 |
+| 设为基线 | `POST /api/llm/eval/baselines` | `EvalBaselineService` | `llm_eval_baselines` | `EvalBaselineServiceTest` + `EvalApiIntegrationTest` + E2E | 已完成（E2E 待本机） |
+| 基线列表/设为当前 | `GET /api/llm/eval/baselines`、`POST .../{id}/activate` | `EvalBaselineService` | `llm_eval_baselines` | `EvalBaselineServiceTest` + `EvalApiIntegrationTest` + E2E | 已完成（E2E 待本机） |
+| 运行对比 | `GET /api/llm/eval/runs/compare` | `EvalCompareService` | runs + cases | `EvalCompareServiceTest` + `EvalApiIntegrationTest` + E2E | 已完成（E2E 待本机） |
 | 调用统计 | 现有 `GET /api/llm/usage` | `LlmUsageService` | `llm_call_logs` | 现有测试 + `llm-workbench.spec.ts` | 已完成 |
-| 重跑失败用例 | `POST /api/llm/eval/runs`（`sourceRunId` + `retryErrorsOnly`） | `EvalRunService` | runs/cases | `EvalRunServiceTest` + `EvalApiIntegrationTest` | 后端已完成，前端待 Task 15 |
-| 提示词导出 | 前端聚合 `listPrompts + getPrompt` | `PromptList.vue` | 无 | E2E | 待实现 |
+| 重跑失败用例 | `POST /api/llm/eval/runs`（`sourceRunId` + `retryErrorsOnly`） | `EvalRunService` | runs/cases | `EvalRunServiceTest` + `EvalApiIntegrationTest` | 已完成（E2E 待本机） |
+| 提示词导出 | 前端聚合 `listPrompts + getPrompt` | `PromptList.vue` | 无 | E2E | 已完成（E2E 待本机） |
 
 ## 任务分解
 
@@ -1254,9 +1254,9 @@ Expected: `EvalCorpusTest` 27 份通过；全量 229+ tests 全绿。
 - 「去评测」深链：`/llm-workbench?tab=eval&scenes=resume-analysis`，自动勾选受影响场景。
 - 导出：提示词页「导出 JSON」在前端聚合 `listPrompts + getPrompt` 生成文件下载，不新增后端端点。
 
-- [ ] **Step 1: 写 E2E**：发布 v3 → 出现「基线已过期」徽标（无弹窗）→ 点「去评测」→ 只勾选简历 → 手动开始 → 完成 → 选「上次基线 vs 本次」→ 看到「修复 1」与 4 张卡 → 点「设为基线」→ 基线列表出现新 label；另测「尚无基线」「不可比」「设为当前」「重跑失败用例」。
-- [ ] **Step 2: 实现面板**；沿用表格/状态/横幅样式，避免布局跳动。
-- [ ] **Step 3: 构建/Vitest/Playwright 全过；Commit** `feat(eval): 前端运行对比、基线标记与重跑入口`。
+- [x] **Step 1: 写 E2E**：发布 v3 → 出现「基线已过期」徽标（无弹窗）→ 点「去评测」→ 只勾选简历 → 手动开始 → 完成 → 选「上次基线 vs 本次」→ 看到「修复 1」与 4 张卡 → 点「设为基线」→ 基线列表出现新 label；另测「尚无基线」「不可比」「设为当前」「重跑失败用例」。
+- [x] **Step 2: 实现面板**；沿用表格/状态/横幅样式，避免布局跳动。
+- [x] **Step 3: 构建/Vitest/Playwright 全过；Commit** `feat(eval): 前端运行对比、基线标记与重跑入口`。（构建 + Vitest 通过；Playwright 因沙箱拒绝 Edge 用户目录访问未执行，待本机 `npm run test:e2e`）
 
 #### Task 16：P3 文档、回归与收尾
 

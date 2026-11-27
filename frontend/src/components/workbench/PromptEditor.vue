@@ -23,7 +23,11 @@ import {
 } from '@/utils/prompt'
 
 const props = defineProps<{ promptKey: string }>()
-const emit = defineEmits<{ 'update:dirty': [dirty: boolean]; changed: [] }>()
+const emit = defineEmits<{
+  'update:dirty': [dirty: boolean]
+  changed: []
+  'go-eval': [scenes: string[]]
+}>()
 
 const detail = ref<PromptDetail | null>(null)
 const systemContent = ref('')
@@ -68,6 +72,12 @@ const validation = computed(() => mergeValidation(
 const baseContent = computed(() => (diffBase.value === 'builtIn'
   ? detail.value?.builtIn
   : detail.value?.active))
+
+const suggestions = computed(() => detail.value?.suggestedEvalScenes ?? [])
+const staleScenes = computed(() => suggestions.value.filter((item) => item.currentBaselineId != null))
+const noBaselineScenes = computed(() => suggestions.value.filter((item) => item.currentBaselineId == null))
+const impactReasons = computed(() => [...new Set(suggestions.value.flatMap((item) => item.reasons))].join('；'))
+const impactTargets = computed(() => suggestions.value.map((item) => item.scene))
 
 async function load(): Promise<void> {
   loading.value = true
@@ -247,6 +257,8 @@ defineExpose({ saveDraft })
           <span class="tag primary">{{ versionLabel(detail.activeVersion, detail.builtinVersion) }}</span>
           <span v-if="detail.hasDraft" class="tag warning">草稿未发布</span>
           <span v-if="dirty" class="tag">未保存</span>
+          <span v-if="staleScenes.length" class="tag warning" :title="impactReasons">基线已过期</span>
+          <span v-else-if="noBaselineScenes.length" class="tag" :title="impactReasons">尚无基线</span>
         </div>
       </header>
 
@@ -257,6 +269,11 @@ defineExpose({ saveDraft })
         <span v-else>无评测语料</span>
         <span>更新 {{ shortTime(detail.updatedAt) }}</span>
       </div>
+
+      <p v-if="suggestions.length" class="impact">
+        <span>{{ impactReasons }}。</span>
+        <button type="button" class="link" @click="emit('go-eval', impactTargets)">去评测</button>
+      </p>
 
       <p class="functions">
         影响功能：
@@ -393,6 +410,15 @@ defineExpose({ saveDraft })
   color: var(--text-2);
   font-size: var(--fs-xs);
   line-height: 1.8;
+}
+
+.impact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
 }
 
 .functions .tag {

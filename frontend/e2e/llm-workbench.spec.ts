@@ -457,3 +457,246 @@ test('评测运行：模型缺失禁用、手动开始、进度、取消确认�
 function toSummaryOf(detail: ReturnType<typeof detailOf>) {
   return { ...detail, activeVersion: detail.activeVersion, hasDraft: detail.hasDraft }
 }
+
+/**
+ * 基线与对比 E2E（接口全 mock）：
+ * 发布后「基线已过期」→ 去评测只预选受影响场景 → 设为基线（不重跑）→
+ * 基线对比四维指标与用例变化 → 设为当前只切换标记。
+ */
+test('基线对比：过期徽标、去评测预选、设为基线与四维对比', async ({ page }) => {
+  const resumeDetail = {
+    ...detailOf(resumeSummary, resumeSystem, resumeUser),
+    suggestedEvalScenes: [{
+      scene: 'resume-analysis',
+      caseCount: 10,
+      reasons: ['提示词已更新'],
+      currentBaselineId: 3,
+    }],
+  }
+  const runSummary = (id: number, partial = false) => ({
+    id,
+    status: 'COMPLETED',
+    scenes: ['resume-analysis'],
+    totalCases: 10,
+    completedCases: 10,
+    errorCases: 0,
+    partial,
+    error: null,
+    createdAt: '2026-11-27T10:00:00Z',
+    startedAt: '2026-11-27T10:00:01Z',
+    finishedAt: '2026-11-27T10:03:00Z',
+  })
+  const runDetail = {
+    ...runSummary(8),
+    cases: [],
+    models: [{ scene: 'resume-analysis', providerKey: 'stub', model: 'Qwen3.8-27B' }],
+    prompts: [{ scene: 'resume-analysis', promptKey: 'resume-analysis', promptVersion: 'resume-analysis-v3', promptHash: 'hash' }],
+    metrics: { l1Total: 10, l1Failed: 1, l1PassRate: 0.9, l2Total: 45, l2Failed: 2, l2PassRate: 0.9556, totalTokens: 31000, avgTokens: 3100, avgElapsedMs: 11000, p95ElapsedMs: 24000 },
+  }
+  const baseline = (id: number, runId: number, label: string, current: boolean) => ({
+    id,
+    scene: 'resume-analysis',
+    runId,
+    label,
+    providerKey: 'stub',
+    model: 'Qwen3.8-27B',
+    promptVersion: 'resume-analysis-v2',
+    promptHash: 'old',
+    corpusHash: 'hash-resume',
+    engineVersion: 'llm-eval-v1',
+    params: {},
+    metrics: { l1Total: 10, l1Failed: 2, l1PassRate: 0.8, l2Total: 45, l2Failed: 5, l2PassRate: 0.8889, totalTokens: 30000, avgTokens: 3000, avgElapsedMs: 12000, p95ElapsedMs: 25000 },
+    current,
+    createdAt: '2026-11-27T10:00:00Z',
+  })
+  let baselines = [baseline(3, 7, 'v3 基线', true), baseline(4, 8, '复测', false)]
+  const evalScenes = [{
+    scene: 'resume-analysis',
+    name: '简历分析',
+    caseCount: 10,
+    corpusHash: 'hash-resume',
+    promptKey: 'resume-analysis',
+    promptVersion: 'resume-analysis-v3',
+    modelScope: 'SCENE',
+    providerKey: 'stub',
+    model: 'Qwen3.8-27B',
+    currentBaseline: baselines[0],
+    lastRun: runSummary(8),
+    rebuildReasons: ['提示词已更新'],
+  }]
+  const compareData = {
+    comparable: true,
+    reasons: [],
+    warnings: [],
+    applicableDimensions: ['QUALITY', 'SCORE_DRIFT', 'COST', 'LATENCY'],
+    scene: 'resume-analysis',
+    left: {
+      runId: 7,
+      scene: 'resume-analysis',
+      providerKey: 'stub',
+      model: 'Qwen3.8-27B',
+      promptVersion: 'resume-analysis-v2',
+      promptHash: 'old',
+      corpusHash: 'hash-resume',
+      engineVersion: 'llm-eval-v1',
+      params: {},
+      metrics: baselines[0].metrics,
+      baselineId: 3,
+      baselineLabel: 'v3 基线',
+    },
+    right: {
+      runId: 8,
+      scene: 'resume-analysis',
+      providerKey: 'stub',
+      model: 'Qwen3.8-27B',
+      promptVersion: 'resume-analysis-v3',
+      promptHash: 'new',
+      corpusHash: 'hash-resume',
+      engineVersion: 'llm-eval-v1',
+      params: {},
+      metrics: runDetail.metrics,
+      baselineId: null,
+      baselineLabel: null,
+    },
+    quality: { l1PassRate: 0.8, l2PassRate: 0.8889, l1Delta: 0.1, l2Delta: 0.0667, l1Failed: 1, l2Failed: 2 },
+    regression: { fixedCases: 1, newFailedCases: 0, scoreDriftCases: 0, tagChangedCases: 0 },
+    cost: { leftTokens: 30000, rightTokens: 31000, delta: 1000, leftAvgTokens: 3000, rightAvgTokens: 3100 },
+    latency: { leftAvgMs: 12000, rightAvgMs: 11000, avgDelta: -1000, leftP95Ms: 25000, rightP95Ms: 24000, p95Delta: -1000 },
+    cases: [{
+      caseId: '001-backend-java-ai',
+      leftStatus: 'FAIL',
+      rightStatus: 'PASS',
+      changes: ['FIXED'],
+      scoreDrift: 5,
+      tagJaccard: null,
+      details: 'FAIL → PASS，已修复',
+    }],
+  }
+
+  await page.route('**/api/llm/providers', (route) => route.fulfill({ json: envelope([provider]) }))
+  await page.route(/\/api\/llm\/global$/, (route) =>
+    route.fulfill({ json: envelope({ defaultProviderKey: 'stub', defaultModel: 'Qwen3.8-27B' }) }))
+  await page.route(/\/api\/llm\/scenes(\/.*)?$/, (route) => route.fulfill({ json: envelope([]) }))
+  await page.route('**/api/llm/usage**', (route) => route.fulfill({ json: envelope(emptyUsage) }))
+  await page.route(/\/api\/llm\/prompts(\/.*)?$/, (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path === '/api/llm/prompts') {
+      return route.fulfill({ json: envelope([toSummaryOf(resumeDetail)]) })
+    }
+    return route.fulfill({ json: envelope(resumeDetail) })
+  })
+  await page.route('**/api/llm/eval/scenes', (route) => route.fulfill({ json: envelope(evalScenes) }))
+  await page.route(/\/api\/llm\/eval\/runs(\/.*)?$/, (route) => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/api/llm/eval/runs') {
+      return route.fulfill({ json: envelope({ items: [runSummary(8), runSummary(7)], total: 2, page: 1, size: 50 }) })
+    }
+    if (url.pathname.endsWith('/8')) {
+      return route.fulfill({ json: envelope(runDetail) })
+    }
+    return route.fulfill({ json: envelope(runDetail) })
+  })
+  await page.route(/\/api\/llm\/eval\/runs\/compare.*/, (route) => route.fulfill({ json: envelope(compareData) }))
+  await page.route(/\/api\/llm\/eval\/baselines(\/.*)?$/, (route) => {
+    const url = new URL(route.request().url())
+    if (route.request().method() === 'POST' && url.pathname.endsWith('/activate')) {
+      const id = Number(url.pathname.split('/').at(-2))
+      baselines = baselines.map((item) => ({ ...item, current: item.id === id }))
+      return route.fulfill({ json: envelope(baselines.find((item) => item.id === id)) })
+    }
+    if (route.request().method() === 'POST') {
+      return route.fulfill({ json: envelope([{ scene: 'resume-analysis', created: true, baselineId: 5, reason: null }]) })
+    }
+    return route.fulfill({ json: envelope(baselines) })
+  })
+
+  await page.goto('/llm-workbench?tab=prompts')
+  await expect(page.getByText('基线已过期', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '去评测' }).click()
+  await expect(page.getByRole('heading', { name: '选择场景' })).toBeVisible()
+  await expect(page.getByLabel('选择简历分析')).toBeChecked()
+  await expect(page.getByText('1 个场景 · 10 例')).toBeVisible()
+
+  await page.locator('tr.clickable').first().click()
+  await page.getByRole('button', { name: '设为基线' }).click()
+  await page.getByLabel('基线备注').fill('v3 复测')
+  await page.getByRole('dialog', { name: '设为基线' }).getByRole('button', { name: '设为基线' }).click()
+  await expect(page.getByText('已设为基线', { exact: false })).toBeVisible()
+
+  await page.getByRole('button', { name: '基线对比' }).click()
+  await expect(page.getByRole('heading', { name: '选择对比' })).toBeVisible()
+  await page.getByRole('button', { name: '开始对比' }).click()
+  await expect(page.getByText('修复 1')).toBeVisible()
+  await expect(page.getByText('80.0% → 90.0%')).toBeVisible()
+  await expect(page.getByText('001-backend-java-ai')).toBeVisible()
+  await expect(page.getByText('FAIL → PASS，已修复')).toBeVisible()
+  await page.getByRole('button', { name: '设为当前' }).last().click()
+  await expect(page.getByText('已将「复测」设为当前基线')).toBeVisible()
+})
+
+/** 无基线 / 不可比：只显示原因，不伪造指标。 */
+test('基线对比：尚无基线与不可比原因', async ({ page }) => {
+  const runs = [8, 7].map((id) => ({
+    id,
+    status: 'COMPLETED',
+    scenes: ['resume-analysis'],
+    totalCases: 10,
+    completedCases: 10,
+    errorCases: 0,
+    partial: false,
+    error: null,
+    createdAt: '2026-11-27T10:00:00Z',
+    startedAt: '2026-11-27T10:00:01Z',
+    finishedAt: '2026-11-27T10:03:00Z',
+  }))
+  const scenes = [{
+    scene: 'resume-analysis',
+    name: '简历分析',
+    caseCount: 10,
+    corpusHash: 'hash-resume',
+    promptKey: 'resume-analysis',
+    promptVersion: 'resume-analysis-v3',
+    modelScope: 'SCENE',
+    providerKey: 'stub',
+    model: 'Qwen3.8-27B',
+    currentBaseline: null,
+    lastRun: runs[0],
+    rebuildReasons: ['尚无基线'],
+  }]
+
+  await page.route('**/api/llm/providers', (route) => route.fulfill({ json: envelope([provider]) }))
+  await page.route(/\/api\/llm\/global$/, (route) =>
+    route.fulfill({ json: envelope({ defaultProviderKey: 'stub', defaultModel: 'Qwen3.8-27B' }) }))
+  await page.route(/\/api\/llm\/scenes(\/.*)?$/, (route) => route.fulfill({ json: envelope([]) }))
+  await page.route('**/api/llm/usage**', (route) => route.fulfill({ json: envelope(emptyUsage) }))
+  await page.route(/\/api\/llm\/prompts(\/.*)?$/, (route) =>
+    route.fulfill({ json: envelope([toSummaryOf(detailOf(resumeSummary, resumeSystem, resumeUser))]) }))
+  await page.route('**/api/llm/eval/scenes', (route) => route.fulfill({ json: envelope(scenes) }))
+  await page.route(/\/api\/llm\/eval\/runs(\/.*)?$/, (route) => {
+    const url = new URL(route.request().url())
+    return route.fulfill({ json: envelope({ items: runs, total: runs.length, page: 1, size: 50 }) })
+  })
+  await page.route(/\/api\/llm\/eval\/runs\/compare.*/, (route) =>
+    route.fulfill({ json: envelope({
+      comparable: false,
+      reasons: ['场景集合不同：["resume-analysis"] vs ["jd-parse"]'],
+      warnings: [],
+      applicableDimensions: [],
+      scene: 'resume-analysis',
+      left: { runId: 7, scene: 'resume-analysis', providerKey: 'stub', model: 'Qwen3.8-27B', promptVersion: 'v3', promptHash: 'h', corpusHash: 'c', engineVersion: 'llm-eval-v1', params: {}, metrics: {}, baselineId: null, baselineLabel: null },
+      right: { runId: 8, scene: 'resume-analysis', providerKey: 'stub', model: 'Qwen3.8-27B', promptVersion: 'v3', promptHash: 'h', corpusHash: 'c', engineVersion: 'llm-eval-v1', params: {}, metrics: {}, baselineId: null, baselineLabel: null },
+      quality: null,
+      regression: null,
+      cost: null,
+      latency: null,
+      cases: [],
+    }) }))
+  await page.route(/\/api\/llm\/eval\/baselines(\/.*)?$/, (route) => route.fulfill({ json: envelope([]) }))
+
+  await page.goto('/llm-workbench?tab=baseline')
+  await expect(page.getByRole('heading', { name: '选择对比' })).toBeVisible()
+  await expect(page.getByText('尚无基线', { exact: false })).toBeVisible()
+  await page.getByRole('button', { name: '开始对比' }).click()
+  await expect(page.getByText('不可比：场景集合不同', { exact: false })).toBeVisible()
+})
+
