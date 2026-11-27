@@ -1,40 +1,43 @@
 package com.jobpilot.modules.resume.prompt;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-
-import org.springframework.core.io.ClassPathResource;
+import com.jobpilot.modules.prompt.service.PromptRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * 简历对比总结 Prompt（F7）：差异事实由本地计算后注入，模型只负责点评。
+ * 简历对比总结 Prompt（F7）：差异事实由本地计算后注入，模型只负责点评；
+ * 模板来自运行时注册表。
  */
 @Component
 public class ResumeComparisonPromptFactory {
 
-    private final String systemTemplate;
-    private final String userTemplate;
+    private static final String KEY = "resume-comparison";
 
+    private final PromptRegistry registry;
+
+    /** 测试 / CLI：不查 DB，只读内置模板。 */
     public ResumeComparisonPromptFactory() {
-        this.systemTemplate = read("prompts/resume-comparison-system.st");
-        this.userTemplate = read("prompts/resume-comparison-user.st");
+        this(PromptRegistry.builtinOnly());
+    }
+
+    @Autowired
+    public ResumeComparisonPromptFactory(PromptRegistry registry) {
+        this.registry = registry;
     }
 
     public String system() {
-        return systemTemplate;
+        return registry.template(KEY).system();
     }
 
     public String user(String base, String target, String diff) {
-        return userTemplate.replace("{{base}}", base)
+        return registry.template(KEY).user()
+                .replace("{{base}}", base)
                 .replace("{{target}}", target)
                 .replace("{{diff}}", diff);
     }
 
-    private static String read(String path) {
-        try {
-            return new ClassPathResource(path).getContentAsString(StandardCharsets.UTF_8);
-        } catch (IOException ex) {
-            throw new IllegalStateException("加载 Prompt 模板失败: " + path, ex);
-        }
+    /** 本次调用实际使用的提示词版本。 */
+    public String version() {
+        return registry.version(KEY);
     }
 }

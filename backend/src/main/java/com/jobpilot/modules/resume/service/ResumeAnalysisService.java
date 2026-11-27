@@ -291,7 +291,7 @@ public class ResumeAnalysisService {
                         : ai.careerDirections().stream().limit(5).toList()));
         entity.setLlmProvider(target.providerKey());
         entity.setLlmModel(target.model());
-        entity.setPromptVersion(ResumePromptFactory.VERSION);
+        entity.setPromptVersion(prompts.version());
         entity.setUpdatedAt(OffsetDateTime.now());
         if (exists) {
             analysisMapper.updateById(entity);

@@ -1,50 +1,56 @@
 package com.jobpilot.modules.offer.prompt;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-
-import org.springframework.core.io.ClassPathResource;
+import com.jobpilot.modules.prompt.service.PromptRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-/** Offer 提取与分析 Prompt（FR6.1 / FR6.4）：模板外置，联网开关决定来源约束。 */
+/**
+ * Offer 提取与分析 Prompt（FR6.1 / FR6.4）：联网开关决定来源约束；
+ * 模板来自运行时注册表，发布后下次调用即生效。
+ */
 @Component
 public class OfferPromptFactory {
 
-    private final String extractSystem;
-    private final String extractUser;
-    private final String analysisSystem;
-    private final String analysisUser;
+    private static final String EXTRACT_KEY = "offer-extract";
+    private static final String ANALYSIS_KEY = "offer-analysis";
 
+    private final PromptRegistry registry;
+
+    /** 测试 / CLI：不查 DB，只读内置模板。 */
     public OfferPromptFactory() {
-        this.extractSystem = read("prompts/offer-extract-system.st");
-        this.extractUser = read("prompts/offer-extract-user.st");
-        this.analysisSystem = read("prompts/offer-analysis-system.st");
-        this.analysisUser = read("prompts/offer-analysis-user.st");
+        this(PromptRegistry.builtinOnly());
+    }
+
+    @Autowired
+    public OfferPromptFactory(PromptRegistry registry) {
+        this.registry = registry;
     }
 
     public String extractSystem() {
-        return extractSystem;
+        return registry.template(EXTRACT_KEY).system();
     }
 
     public String extractUser(String text) {
-        return extractUser.replace("{{text}}", text == null ? "" : text);
+        return registry.template(EXTRACT_KEY).user().replace("{{text}}", text == null ? "" : text);
     }
 
     public String analysisSystem(boolean webSearch) {
-        return analysisSystem.replace("{{searchRule}}", webSearch
+        return registry.template(ANALYSIS_KEY).system().replace("{{searchRule}}", webSearch
                 ? "已开启联网：可结合公开信息补充判断，并在 sources 中列出依据来源（不得编造链接）。"
                 : "未开启联网：sources 必须返回空数组，结论只能基于用户提供的资料。");
     }
 
     public String analysisUser(String materials) {
-        return analysisUser.replace("{{materials}}", materials == null ? "" : materials);
+        return registry.template(ANALYSIS_KEY).user().replace("{{materials}}", materials == null ? "" : materials);
     }
 
-    private static String read(String path) {
-        try {
-            return new ClassPathResource(path).getContentAsString(StandardCharsets.UTF_8);
-        } catch (IOException ex) {
-            throw new IllegalStateException("加载 Prompt 模板失败: " + path, ex);
-        }
+    /** 本次 Offer 提取实际使用的提示词版本。 */
+    public String extractVersion() {
+        return registry.version(EXTRACT_KEY);
+    }
+
+    /** 本次 Offer 分析实际使用的提示词版本。 */
+    public String analysisVersion() {
+        return registry.version(ANALYSIS_KEY);
     }
 }

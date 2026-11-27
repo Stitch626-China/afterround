@@ -1,39 +1,38 @@
 package com.jobpilot.modules.interview.prompt;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import com.jobpilot.modules.interview.service.InterviewDirectionService.Direction;
-import org.springframework.core.io.ClassPathResource;
+import com.jobpilot.modules.prompt.service.PromptRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * 模拟面试 Prompt（§6.6）：人格来自 SKILL.md，分类配额来自 skill.meta.yml，
- * 模板外置便于调优而不改代码。
+ * 模拟面试 Prompt（§6.6）：人格来自 SKILL.md，分类配额来自 skill.meta.yml；
+ * 模板来自运行时注册表，发布后下次出题 / 追问 / 评估即生效。
  */
 @Component
 public class InterviewPromptFactory {
 
-    private final String questionSystem;
-    private final String questionUser;
-    private final String followUpSystem;
-    private final String followUpUser;
-    private final String evaluateSystem;
-    private final String evaluateUser;
+    private static final String QUESTION_KEY = "interview-question";
+    private static final String FOLLOW_UP_KEY = "interview-followup";
+    private static final String EVALUATE_KEY = "interview-evaluate";
 
+    private final PromptRegistry registry;
+
+    /** 测试 / CLI：不查 DB，只读内置模板。 */
     public InterviewPromptFactory() {
-        this.questionSystem = read("prompts/interview-question-system.st");
-        this.questionUser = read("prompts/interview-question-user.st");
-        this.followUpSystem = read("prompts/interview-followup-system.st");
-        this.followUpUser = read("prompts/interview-followup-user.st");
-        this.evaluateSystem = read("prompts/interview-evaluate-system.st");
-        this.evaluateUser = read("prompts/interview-evaluate-user.st");
+        this(PromptRegistry.builtinOnly());
+    }
+
+    @Autowired
+    public InterviewPromptFactory(PromptRegistry registry) {
+        this.registry = registry;
     }
 
     public String questionSystem(Direction direction, int questionCount, int followUpCount, boolean hasResume) {
-        return questionSystem
+        return registry.template(QUESTION_KEY).system()
                 .replace("{{persona}}", direction.persona())
                 .replace("{{questionCount}}", String.valueOf(questionCount))
                 .replace("{{followUpCount}}", String.valueOf(followUpCount))
@@ -53,48 +52,55 @@ public class InterviewPromptFactory {
         String topics = historyTopics == null || historyTopics.isEmpty()
                 ? "无"
                 : historyTopics.stream().collect(Collectors.joining("、"));
-        return questionUser
+        return registry.template(QUESTION_KEY).user()
                 .replace("{{resumeSection}}", resumeSection)
                 .replace("{{jdSection}}", jdSection)
                 .replace("{{historyTopics}}", topics);
     }
 
     public String followUpSystem(Direction direction, int followUpCount) {
-        return followUpSystem
+        return registry.template(FOLLOW_UP_KEY).system()
                 .replace("{{persona}}", direction.persona())
                 .replace("{{followUpCount}}", String.valueOf(followUpCount));
     }
 
     public String followUpUser(String directionLabel, String mainContent, String answer) {
-        return followUpUser
+        return registry.template(FOLLOW_UP_KEY).user()
                 .replace("{{directionLabel}}", directionLabel == null ? "" : directionLabel)
                 .replace("{{mainContent}}", mainContent == null ? "" : mainContent)
                 .replace("{{answer}}", answer == null ? "" : answer);
     }
 
     public String evaluateSystem(Direction direction) {
-        return evaluateSystem
+        return registry.template(EVALUATE_KEY).system()
                 .replace("{{persona}}", direction.persona())
                 .replace("{{categories}}", categories(direction));
     }
 
     public String evaluateUser(String directionLabel, String transcript) {
-        return evaluateUser
+        return registry.template(EVALUATE_KEY).user()
                 .replace("{{directionLabel}}", directionLabel == null ? "" : directionLabel)
                 .replace("{{transcript}}", transcript == null ? "" : transcript);
+    }
+
+    /** 本次出题实际使用的提示词版本。 */
+    public String questionVersion() {
+        return registry.version(QUESTION_KEY);
+    }
+
+    /** 本次追问实际使用的提示词版本。 */
+    public String followUpVersion() {
+        return registry.version(FOLLOW_UP_KEY);
+    }
+
+    /** 本次评估实际使用的提示词版本。 */
+    public String evaluateVersion() {
+        return registry.version(EVALUATE_KEY);
     }
 
     private static String categories(Direction direction) {
         return direction.categories().stream()
                 .map(category -> category.key() + " " + category.label() + " " + category.weight() + "%")
                 .collect(Collectors.joining("；"));
-    }
-
-    private static String read(String path) {
-        try {
-            return new ClassPathResource(path).getContentAsString(StandardCharsets.UTF_8);
-        } catch (IOException ex) {
-            throw new IllegalStateException("加载 Prompt 模板失败: " + path, ex);
-        }
     }
 }

@@ -1,36 +1,39 @@
 package com.jobpilot.modules.review.prompt;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-
-import org.springframework.core.io.ClassPathResource;
+import com.jobpilot.modules.prompt.service.PromptRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
  * 复盘分析 Prompt（FR4.3）：外置模板 + 显式 JSON 结构与受控词表；
- * 模型优先读取 REVIEW_ANALYZE 场景绑定，未绑定时回落全局默认。
+ * 模板来自运行时注册表，发布后下次分析即生效。
  */
 @Component
 public class ReviewPromptFactory {
 
-    /** 分析 Prompt 版本，随模板语义变化递增。 */
+    /** 内置版本号，仅用于文档与评测展示；运行时以 {@link #version()} 为准。 */
     public static final String VERSION = "review-analyze-v2";
+    private static final String KEY = "review-analyze";
 
-    private final String systemTemplate;
-    private final String userTemplate;
+    private final PromptRegistry registry;
 
+    /** 测试 / CLI：不查 DB，只读内置模板。 */
     public ReviewPromptFactory() {
-        this.systemTemplate = read("prompts/review-analyze-system.st");
-        this.userTemplate = read("prompts/review-analyze-user.st");
+        this(PromptRegistry.builtinOnly());
+    }
+
+    @Autowired
+    public ReviewPromptFactory(PromptRegistry registry) {
+        this.registry = registry;
     }
 
     public String system() {
-        return systemTemplate;
+        return registry.template(KEY).system();
     }
 
     public String user(String companyName, String jobTitle, String roundType, String interviewerRole,
                        String companyIntro, String jdText, String resumeText, String text) {
-        return userTemplate
+        return registry.template(KEY).user()
                 .replace("{{companyName}}", value(companyName))
                 .replace("{{jobTitle}}", value(jobTitle))
                 .replace("{{roundType}}", value(roundType))
@@ -41,15 +44,12 @@ public class ReviewPromptFactory {
                 .replace("{{text}}", text);
     }
 
-    private static String value(String value) {
-        return value == null || value.isBlank() ? "未填写" : value;
+    /** 本次分析实际使用的提示词版本。 */
+    public String version() {
+        return registry.version(KEY);
     }
 
-    private static String read(String path) {
-        try {
-            return new ClassPathResource(path).getContentAsString(StandardCharsets.UTF_8);
-        } catch (IOException ex) {
-            throw new IllegalStateException("加载 Prompt 模板失败: " + path, ex);
-        }
+    private static String value(String value) {
+        return value == null || value.isBlank() ? "未填写" : value;
     }
 }

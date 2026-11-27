@@ -492,6 +492,7 @@ class ReviewSessionServiceTest {
             return null;
         }).when(executor).execute(any(Runnable.class));
         stubLookups();
+        when(prompts.version()).thenReturn(ReviewPromptFactory.VERSION);
 
         service().analyze(30L);
 

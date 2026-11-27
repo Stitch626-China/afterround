@@ -79,3 +79,10 @@
 - 原因：提示词查看/草稿/发布/回滚后端闭环，发布只热更新、不自动触发评测。
 - 验证：`mvn -f backend/pom.xml clean test`（Docker 可用、非沙箱）253 tests、0 failures、0 skipped、JaCoCo 全部达标；`PromptApiIntegrationTest` 覆盖列表/内置兜底/草稿/发布/版本历史/回滚/无效草稿 400/丢弃幂等/404。Docker 探测以 `DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine` 解决，无需改用户级配置。
 - 下一步 / 断点：Task 5 让 8 个 PromptFactory 接入 `PromptRegistry` 并记录动态版本；之后做 P1 前端工作台。
+
+### 18:14 事件
+
+- 改动：8 个 `PromptFactory`（简历/简历对比/JD 解析+OCR/岗位匹配/复盘/洞察/面试三组/Offer 两组）全部改为调用 `PromptRegistry.template(key)`，保留无参构造供测试与评测走内置模板；新增 `version()` / `parseVersion()` / `ocrVersion()` / `questionVersion()` / `followUpVersion()` / `evaluateVersion()` / `extractVersion()` / `analysisVersion()`；`ResumeAnalysisService`、`ReviewSessionService` 记录版本改为动态值；新增 `PromptFactoryTest` 8 个测试。
+- 原因：发布提示词后无需重启即可生效；分析结果记录的版本必须与实际调用模板一致，否则对比会误判。
+- 验证：`mvn -f backend/pom.xml clean test`（Docker）261 tests、0 failures、0 skipped、JaCoCo 全部达标；`PromptFactoryTest` 覆盖 8 个工厂的 DB 模板、占位符替换与版本标签。
+- 下一步 / 断点：Task 6 前端 LLM 工作台（入口、模型与绑定、提示词编辑/发布/历史/diff、调用统计迁移）。

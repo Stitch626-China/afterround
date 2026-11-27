@@ -787,7 +787,7 @@ public class ReviewSessionService {
             }
         }
         return new ReviewAnalysisResponse(questions, tags(ai.topics(), true), tags(ai.lossTags(), false),
-                summary(ai.summary()), drafts(ai.actions()), ReviewPromptFactory.VERSION,
+                summary(ai.summary()), drafts(ai.actions()), prompts.version(),
                 ReviewTaxonomyCatalog.RUBRIC_VERSION, ReviewTaxonomyCatalog.TAXONOMY_VERSION,
                 false, false, target.providerKey(), target.model());
     }
@@ -803,7 +803,7 @@ public class ReviewSessionService {
             row = new ReviewAnalysis();
             row.setReviewSessionId(reviewSessionId);
             row.setAnalysis(json);
-            row.setPromptVersion(ReviewPromptFactory.VERSION);
+            row.setPromptVersion(prompts.version());
             row.setRubricVersion(ReviewTaxonomyCatalog.RUBRIC_VERSION);
             row.setTaxonomyVersion(ReviewTaxonomyCatalog.TAXONOMY_VERSION);
             row.setLlmProvider(target.providerKey());
@@ -814,7 +814,7 @@ public class ReviewSessionService {
             analysisMapper.insert(row);
         } else {
             row.setAnalysis(json);
-            row.setPromptVersion(ReviewPromptFactory.VERSION);
+            row.setPromptVersion(prompts.version());
             row.setRubricVersion(ReviewTaxonomyCatalog.RUBRIC_VERSION);
             row.setTaxonomyVersion(ReviewTaxonomyCatalog.TAXONOMY_VERSION);
             row.setLlmProvider(target.providerKey());
