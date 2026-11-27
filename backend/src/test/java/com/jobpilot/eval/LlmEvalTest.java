@@ -361,12 +361,12 @@ class LlmEvalTest {
                 }
                 return;
             }
-            JsonNode scores = base.path("scores");
-            scores.fields().forEachRemaining(entry -> {
-                Double current = score(run.actual(), entry.getKey());
-                if (current != null && Math.abs(current - entry.getValue().asDouble()) > 10) {
+            Map<String, Double> current = scores(run.evalCase(), run.actual());
+            base.path("scores").fields().forEachRemaining(entry -> {
+                Double now = current.get(entry.getKey());
+                if (now != null && Math.abs(now - entry.getValue().asDouble()) > 10) {
                     failures.add(label + " 分数漂移 >10：" + entry.getKey()
-                            + " 基线=" + entry.getValue().asDouble() + ", 当前=" + current);
+                            + " 基线=" + entry.getValue().asDouble() + ", 当前=" + now);
                 }
             });
             Set<String> baseTags = tags(base);
@@ -385,20 +385,7 @@ class LlmEvalTest {
             ObjectNode node = M.createObjectNode();
             node.put("status", run.status());
             ObjectNode scores = node.putObject("scores");
-            if (run.actual() != null) {
-                for (String path : scorePaths(run.evalCase().scene())) {
-                    List<JsonNode> values = Expectations.collect(run.actual(), path);
-                    for (int i = 0; i < values.size(); i++) {
-                        if (values.get(i).isNumber()) {
-                            scores.put(path + "#" + i, values.get(i).asDouble());
-                        }
-                    }
-                }
-            }
-            Double overall = run.actual() == null ? null : Expectations.overall(run.actual());
-            if (overall != null) {
-                scores.put("overall#0", overall);
-            }
+            scores(run.evalCase(), run.actual()).forEach(scores::put);
             node.set("topics", M.valueToTree(topicTags(run.actual())));
             node.set("lossTags", M.valueToTree(lossTags(run.actual())));
             node.put("tokens", run.tokens());
@@ -433,25 +420,30 @@ class LlmEvalTest {
             return tags;
         }
 
-        private static Double score(JsonNode actual, String key) {
-            int index = key.lastIndexOf('#');
-            if (index < 0) {
-                return null;
+        /** 简历按字段名、复盘按 questionIndex 对齐分数，避免数组顺序变化造成假漂移。 */
+        private static Map<String, Double> scores(EvalCase evalCase, JsonNode actual) {
+            Map<String, Double> scores = new LinkedHashMap<>();
+            if (actual == null) {
+                return scores;
             }
-            String path = key.substring(0, index);
-            int position = Integer.parseInt(key.substring(index + 1));
-            List<JsonNode> values = Expectations.collect(actual, path);
-            return position < values.size() && values.get(position).isNumber()
-                    ? values.get(position).asDouble() : null;
-        }
-
-        private static List<String> scorePaths(String scene) {
-            return switch (scene) {
-                case "resume-analysis" -> List.of("technicalDepth", "projectQuality", "engineeringAbility",
-                        "expressionStructure", "jobMatchPotential");
-                case "review-analyze" -> List.of("questions[].score", "questions[].dimensions[].score");
-                default -> List.of();
-            };
+            switch (evalCase.scene()) {
+                case "resume-analysis" -> {
+                    for (String field : List.of("technicalDepth", "projectQuality", "engineeringAbility",
+                            "expressionStructure", "jobMatchPotential")) {
+                        if (actual.path(field).isNumber()) {
+                            scores.put(field + "#0", actual.path(field).asDouble());
+                        }
+                    }
+                    Double overall = Expectations.overall(actual);
+                    if (overall != null) {
+                        scores.put("overall#0", overall);
+                    }
+                }
+                case "review-analyze" -> scores.putAll(Expectations.reviewScores(actual));
+                default -> {
+                }
+            }
+            return scores;
         }
     }
 }

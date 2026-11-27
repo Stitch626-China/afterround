@@ -362,7 +362,7 @@ Get-ChildItem -Recurse -File backend/src/test/resources/llm-eval/cases |
 ## 8. 基线与变更规则
 
 1. **先冻结基线，再改 prompt**：评测执行器实现后，用当前代码跑一遍全部语料，输出存 `baselines/`；
-2. 基线记录 `gitCommit`、模型、每个 case 的关键分数、标签集合、耗时、token；
+2. 基线记录 `generatedAt`、模型、每个 case 的关键分数、标签集合、耗时、token；代码版本以生成时的 git commit 为准，记录在会话与提交信息中；
 3. 执行器启动时校验：**基线中的 case id 集合必须与目录扫描结果一致**，不一致直接报错；
 4. 改语料或改基线都算口径变更，必须单独提交并在提交信息里说明原因；
 5. 以下任一情况视为退化：L1 由 PASS 变 FAIL；某 case 分数漂移 >10；标签集合 Jaccard <0.7；L2 通过率低于 95%。
@@ -372,11 +372,11 @@ Get-ChildItem -Recurse -File backend/src/test/resources/llm-eval/cases |
 ```json
 {
   "generatedAt": "2026-11-27T10:00:00+08:00",
-  "gitCommit": "a9bfffd",
   "model": "provider/model",
   "cases": {
     "001-real-tech2-jvm-gap": {
-      "scores": { "questions[].score": [55, 70, 60] },
+      "status": "PASS",
+      "scores": { "q1.score": 55, "q2.score": 70, "q3.score": 60 },
       "topics": ["jvm", "system-design"],
       "lossTags": ["shallow-depth"],
       "tokens": 1234,
@@ -461,7 +461,7 @@ mvn -o -f backend/pom.xml "-Djacoco.skip=true" "-Dsurefire.excludedGroups=__none
 
 - 报告：`backend/target/llm-eval/report.md` 与 `report.json`（逐 case 的 L1/L2/L3、tokens、耗时、失败项）；
 - 基线：仅在 `EVAL_WRITE_BASELINE=true` 且全量运行时写入 `backend/src/test/resources/llm-eval/baselines/{scene}.json`；
-- 基线存在且非写入模式时自动对比：case 集合、模型名、分数漂移 >10、标签 Jaccard <0.7 均判失败；
+- 基线存在且非写入模式时自动对比：case 集合、模型名、分数漂移 >10、标签 Jaccard <0.7 均判失败；分数对齐方式为简历按字段名、复盘按 `questionIndex` + 维度名，数组顺序变化不产生漂移；
 - 判定口径：L1 / L3 任一失败即整轮失败；L2 按**断言**通过率聚合，低于 95% 才判失败，未通过的 case 在报告中仍标 FAIL；
 - 换模型必须重建基线；负样本的 `expectGraceful` 允许优雅失败，不参与基线分数对比。
 
@@ -470,11 +470,11 @@ mvn -o -f backend/pom.xml "-Djacoco.skip=true" "-Dsurefire.excludedGroups=__none
 - 全量 27 份 × 2 次 ≈ 54 次调用；调试 prompt 时用 `EVAL_ONLY` 跑单 case，不要写基线；
 - 报告只留断言结果与 token，不保存请求 / 响应全文，避免语料膨胀。
 
-### 12.5 首版基线（2026-11-27）
+### 12.5 当前基线（2026-11-27，`resume-analysis-v3`）
 
 - 环境：内网 `datangsoft / Qwen3.8-27B`，`EVAL_MAX_TOKENS=8192`、超时 300s、`repeat=1`；
-- 结果：27 份全量，L2 断言 45 项、失败 2 项（95.6%，达标）；L1 硬失败 1 项 `resume-analysis/002-ai-rag-platform`（引用用省略号拼接两段原文，属 prompt 约束不足，待改 prompt 后重建基线）；
-- `review-analyze/003`、`004` 的 L2 失分标签未命中（`knowledge-gap` / `no-evidence`）在 95% 阈值内，保留为模型波动观察项；
+- 结果：27 份全量，L1 全部通过（`resume-analysis/002` 的省略号拼接已由 prompt v3 修复）；L2 断言 45 项、失败 2 项（95.6%，达标），未命中为 `review-analyze/003`（`knowledge-gap`）与 `004`（`no-evidence`），保留为模型波动观察项；
+- 分数对齐：简历按字段名，复盘按 `questionIndex` + 维度名写入（如 `q1.score` / `q1.depth`），数组顺序变化不产生漂移；
 - 首版基线不引入 xfail 机制：改 prompt、语料或模型后按第 8 节重建，不要手改 `baselines/`。
 
 ## 附录 A：枚举与词表

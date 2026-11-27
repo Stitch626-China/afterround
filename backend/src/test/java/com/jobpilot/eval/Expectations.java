@@ -1,9 +1,11 @@
 package com.jobpilot.eval;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -45,12 +47,23 @@ public final class Expectations {
         List<Result> results = new ArrayList<>();
         int maxDrift = evalCase.intValue("scoreDriftMax", 5);
         double drift = 0;
-        for (String path : scorePaths(evalCase.scene())) {
-            List<JsonNode> left = collect(first, path);
-            List<JsonNode> right = collect(second, path);
-            for (int i = 0; i < Math.min(left.size(), right.size()); i++) {
-                if (left.get(i).isNumber() && right.get(i).isNumber()) {
-                    drift = Math.max(drift, Math.abs(left.get(i).asDouble() - right.get(i).asDouble()));
+        if ("review-analyze".equals(evalCase.scene())) {
+            Map<String, Double> left = reviewScores(first);
+            Map<String, Double> right = reviewScores(second);
+            for (Map.Entry<String, Double> entry : left.entrySet()) {
+                Double now = right.get(entry.getKey());
+                if (now != null) {
+                    drift = Math.max(drift, Math.abs(entry.getValue() - now));
+                }
+            }
+        } else {
+            for (String path : scorePaths(evalCase.scene())) {
+                List<JsonNode> left = collect(first, path);
+                List<JsonNode> right = collect(second, path);
+                for (int i = 0; i < Math.min(left.size(), right.size()); i++) {
+                    if (left.get(i).isNumber() && right.get(i).isNumber()) {
+                        drift = Math.max(drift, Math.abs(left.get(i).asDouble() - right.get(i).asDouble()));
+                    }
                 }
             }
         }
@@ -80,6 +93,37 @@ public final class Expectations {
             total += node.asDouble() * WEIGHTS[i];
         }
         return (double) Math.round(total);
+    }
+
+    /** 复盘按 questionIndex（缺失时按位置）对齐题目与维度分数，避免数组顺序变化造成假漂移。 */
+    static Map<String, Double> reviewScores(JsonNode actual) {
+        Map<String, Double> scores = new LinkedHashMap<>();
+        if (actual == null) {
+            return scores;
+        }
+        JsonNode questions = actual.path("questions");
+        if (!questions.isArray()) {
+            return scores;
+        }
+        int position = 0;
+        for (JsonNode question : questions) {
+            position++;
+            int index = question.path("questionIndex").asInt(0);
+            String key = "q" + (index > 0 ? index : position);
+            if (question.path("score").isNumber()) {
+                scores.put(key + ".score", question.path("score").asDouble());
+            }
+            JsonNode dimensions = question.path("dimensions");
+            if (!dimensions.isArray()) {
+                continue;
+            }
+            for (JsonNode dimension : dimensions) {
+                if (dimension.path("score").isNumber() && dimension.hasNonNull("dimension")) {
+                    scores.put(key + "." + dimension.get("dimension").asText(), dimension.path("score").asDouble());
+                }
+            }
+        }
+        return scores;
     }
 
     static List<JsonNode> collect(JsonNode root, String path) {

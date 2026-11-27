@@ -1,5 +1,5 @@
 {
-  "generatedAt" : "2026-11-27T13:27:57.400458300+08:00",
+  "generatedAt" : "2026-11-27T17:13:44.990294800+08:00",
   "model" : "Qwen3.8-27B",
   "cases" : {
     "001-java-python-ai-backend" : {
@@ -7,48 +7,48 @@
       "scores" : { },
       "topics" : [ ],
       "lossTags" : [ ],
-      "tokens" : 1062,
-      "elapsedMs" : 3650
+      "tokens" : 1059,
+      "elapsedMs" : 3804
     },
     "002-mid-java-backend" : {
       "status" : "PASS",
       "scores" : { },
       "topics" : [ ],
       "lossTags" : [ ],
-      "tokens" : 881,
-      "elapsedMs" : 2986
+      "tokens" : 882,
+      "elapsedMs" : 2790
     },
     "003-fullstack-data-platform" : {
       "status" : "PASS",
       "scores" : { },
       "topics" : [ ],
       "lossTags" : [ ],
-      "tokens" : 820,
-      "elapsedMs" : 2485
+      "tokens" : 821,
+      "elapsedMs" : 2690
     },
     "004-backend-ai-product" : {
       "status" : "PASS",
       "scores" : { },
       "topics" : [ ],
       "lossTags" : [ ],
-      "tokens" : 967,
-      "elapsedMs" : 3067
+      "tokens" : 969,
+      "elapsedMs" : 3402
     },
     "005-test-development" : {
       "status" : "PASS",
       "scores" : { },
       "topics" : [ ],
       "lossTags" : [ ],
-      "tokens" : 869,
-      "elapsedMs" : 2727
+      "tokens" : 862,
+      "elapsedMs" : 2955
     },
     "006-benefits-only" : {
       "status" : "PASS",
       "scores" : { },
       "topics" : [ ],
       "lossTags" : [ ],
-      "tokens" : 519,
-      "elapsedMs" : 938
+      "tokens" : 518,
+      "elapsedMs" : 977
     },
     "007-mixed-language" : {
       "status" : "PASS",
@@ -56,7 +56,7 @@
       "topics" : [ ],
       "lossTags" : [ ],
       "tokens" : 692,
-      "elapsedMs" : 2374
+      "elapsedMs" : 2734
     },
     "008-no-responsibility" : {
       "status" : "PASS",
@@ -64,15 +64,15 @@
       "topics" : [ ],
       "lossTags" : [ ],
       "tokens" : 437,
-      "elapsedMs" : 903
+      "elapsedMs" : 906
     },
     "009-client-engineer" : {
       "status" : "PASS",
       "scores" : { },
       "topics" : [ ],
       "lossTags" : [ ],
-      "tokens" : 908,
-      "elapsedMs" : 3108
+      "tokens" : 896,
+      "elapsedMs" : 3063
     }
   }
 }

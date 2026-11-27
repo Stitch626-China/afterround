@@ -64,3 +64,11 @@
 - 原因：抽检发现 008 断言超出 prompt 契约；原实现「任一 L2 失败即整轮失败」与规范「L2 通过率 ≥95%」不一致。
 - 验证：全量 27 份结果——L2 断言 45 项、失败 2 项（95.6%，达标）；L1 硬失败 1 项 `resume-analysis/002`（引用用省略号拼接两段原文）；三份基线 10 / 8 / 9 个 case、无 null、模型均为 `Qwen3.8-27B`；后端 **229 tests 全绿**（JaCoCo 门禁通过）。验收库容器 `jobpilot-verify-pg` 已停止。
 - 下一步 / 断点：提交并推送；`resume-analysis/002` 属 prompt 约束不足，后续补强引用规则后重建基线；`review-analyze/003`、`004` 的 L2 标签未命中在阈值内，作为波动观察。
+
+### 17:35 事件
+
+- 改动：简历 Prompt 升 `resume-analysis-v3`，引用规则补「必须是原文中连续出现的一段，不得用省略号拼接多个片段」；全量 27 份重建基线。修复复盘基线分数对齐：由数组下标改为 `questionIndex` + 维度名（`q1.score` / `q1.depth`），并在 `Expectations.stability` 同步按 `questionIndex` 对齐；新增回归测试先失败后通过。
+- 原因：`resume-analysis/002` 持续用省略号拼接两段原文；旧基线按题目数组下标比较，而复盘每次抽取的题目数量/顺序不同，产生 20~50 分假漂移。
+- 验证：27 份全量 L1 全部通过；L2 断言 45 项失败 2 项（95.6%，达标，003 `knowledge-gap`、004 `no-evidence` 未命中）；新基线复盘键为 `qN.score` / `qN.<dimension>`，无下标残留、无 null。不依赖 Docker 的 230 个单元测试全绿（23 个集成测试跳过）。
+- 阻塞：Docker Desktop 升级 29.9.3 后 Testcontainers 1.21 探测失败；`~/.testcontainers.properties` 固定旧 `docker_engine` 策略，已征得用户同意修改，但被路径白名单拒绝。JaCoCo 门禁需在修复 Docker 探测后补跑。
+- 下一步 / 断点：提交推送；修复 Docker/Testcontainers 环境（删除用户级固定策略或开启 TCP 2375）后补跑 `mvn test` 与覆盖率。

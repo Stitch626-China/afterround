@@ -121,6 +121,18 @@ class ExpectationsTest {
     }
 
     @Test
+    void reviewStabilityAlignsByQuestionIndexNotArrayOrder() throws Exception {
+        var caseFile = evalCase("review-analyze", "{\"scoreDriftMax\":5}");
+        var first = json("{\"questions\":[{\"questionIndex\":1,\"score\":50},"
+                + "{\"questionIndex\":2,\"score\":70}]}");
+        var second = json("{\"questions\":[{\"questionIndex\":2,\"score\":72},"
+                + "{\"questionIndex\":1,\"score\":52}]}");
+        assertThat(Expectations.stability(caseFile, first, second).stream()
+                .filter(r -> r.name().startsWith("scoreDriftMax"))
+                .allMatch(Expectations.Result::passed)).isTrue();
+    }
+
+    @Test
     void stabilityDetectsTagJaccardDrop() throws Exception {
         var caseFile = evalCase("review-analyze", "{\"tagJaccardMin\":0.7}");
         var first = json("{\"topics\":[{\"tag\":\"jvm\"},{\"tag\":\"redis\"}]}");
