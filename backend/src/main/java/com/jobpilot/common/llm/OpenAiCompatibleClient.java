@@ -32,7 +32,7 @@ import reactor.netty.http.client.HttpClient;
  */
 public class OpenAiCompatibleClient implements LlmClient {
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(120);
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(120);
     private static final int ERROR_BODY_LIMIT = 300;
     private static final int DEFAULT_MAX_TOKENS = 4096;
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -40,21 +40,28 @@ public class OpenAiCompatibleClient implements LlmClient {
 
     private final WebClient web;
     private final int maxTokens;
+    private final Duration timeout;
 
     public OpenAiCompatibleClient(String baseUrl, String apiKey) {
-        this(baseUrl, apiKey, DEFAULT_MAX_TOKENS);
+        this(baseUrl, apiKey, DEFAULT_MAX_TOKENS, DEFAULT_TIMEOUT);
     }
 
     public OpenAiCompatibleClient(String baseUrl, String apiKey, int maxTokens) {
+        this(baseUrl, apiKey, maxTokens, DEFAULT_TIMEOUT);
+    }
+
+    /** 允许按上游延迟调整超时（评测 / 慢网关）；生产默认 120s。 */
+    public OpenAiCompatibleClient(String baseUrl, String apiKey, int maxTokens, Duration timeout) {
         HttpClient http = HttpClient.create()
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5_000)
-                .responseTimeout(TIMEOUT);
+                .responseTimeout(timeout);
         this.web = WebClient.builder()
                 .baseUrl(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl)
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .clientConnector(new ReactorClientHttpConnector(http))
                 .build();
         this.maxTokens = maxTokens;
+        this.timeout = timeout;
     }
 
     @Override
@@ -103,7 +110,7 @@ public class OpenAiCompatibleClient implements LlmClient {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, this::toError)
                 .bodyToMono(JsonNode.class)
-                .block(TIMEOUT);
+                .block(timeout);
         List<String> models = new ArrayList<>();
         if (node != null) {
             node.path("data").forEach(item -> {
@@ -129,7 +136,7 @@ public class OpenAiCompatibleClient implements LlmClient {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, this::toError)
                 .bodyToMono(JsonNode.class)
-                .block(TIMEOUT);
+                .block(timeout);
         if (node == null || !node.path("choices").isArray() || node.path("choices").isEmpty()) {
             throw new LlmException(502, "上游响应缺少 choices");
         }

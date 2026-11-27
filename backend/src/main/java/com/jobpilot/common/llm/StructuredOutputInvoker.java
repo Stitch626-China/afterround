@@ -38,7 +38,8 @@ public class StructuredOutputInvoker {
             } catch (Exception ex) {
                 lastError = ex.getMessage();
                 current = new ArrayList<>(messages);
-                current.add(ChatMessage.system(
+                // 严格网关要求 system 只能在开头，错误反馈必须用 user 角色追加
+                current.add(ChatMessage.user(
                         "上次输出无法解析为 JSON：" + lastError + "。请只输出一个 JSON 对象，不要代码围栏、不要解释。"));
                 if (result != null && attempt == MAX_ATTEMPTS) {
                     throw new LlmException(502, "结构化输出连续 " + MAX_ATTEMPTS + " 次失败：" + lastError);

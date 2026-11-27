@@ -71,6 +71,21 @@ class StructuredOutputInvokerTest {
     }
 
     @Test
+    void retryFeedbackUsesUserRoleSoStrictProvidersAcceptIt() {
+        ScriptedClient client = new ScriptedClient();
+        client.answers.add("不是 JSON");
+        client.answers.add("{\"name\":\"fixed\"}");
+
+        new StructuredOutputInvoker(client).invoke("m",
+                List.of(ChatMessage.system("sys"), ChatMessage.user("hi")), Demo.class);
+
+        List<ChatMessage> retry = client.calls.get(1);
+        assertThat(retry.get(0).role()).isEqualTo("system");
+        assertThat(retry).last().extracting(ChatMessage::role).isEqualTo("user");
+        assertThat(retry.stream().filter(message -> "system".equals(message.role()))).hasSize(1);
+    }
+
+    @Test
     void failsAfterThreeAttempts() {
         ScriptedClient client = new ScriptedClient();
         client.answers.add("x");
