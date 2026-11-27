@@ -1260,12 +1260,12 @@ Expected: `EvalCorpusTest` 27 份通过；全量 229+ tests 全绿。
 
 #### Task 16：P3 文档、回归与收尾
 
-- [ ] 需求文档补「运行 vs 运行对比」「基线 label/设为当前」「重跑失败用例」「导出 JSON」与术语说明。
-- [ ] README 补工作台操作路径、`.env.example`/`docker-compose.yml` 补 `app.eval` 配置说明。
-- [ ] `docs/LLM评测集语料规范.md` 补引擎版本、基线指纹、DB 存储、旧基线导入与 CLI 写 `target/llm-eval/baselines` 说明。
-- [ ] 全量回归：契约 lint、后端全量 + JaCoCo、前端构建/Vitest/Playwright。
-- [ ] 手工验收（真实模型）：简历 v3 发布 → 只建议简历 → 跑一次 → 与上次基线比较 → 满意点「设为基线」（不重跑）；确认 002 从 FAIL 变 PASS 或至少记录原因。
-- [ ] 更新 `PROGRESS.md` 与当日会话记录；`git status` 干净；commit + push（失败按 AGENTS 重试）。
+- [x] 需求文档补「运行 vs 运行对比」「基线 label/设为当前」「重跑失败用例」「导出 JSON」与术语说明。（升 v1.21 + 迭代历程 + FR9.14~9.18）
+- [x] README 补工作台操作路径、`.env.example`/`docker-compose.yml` 补 `app.eval` 配置说明。
+- [x] `docs/LLM评测集语料规范.md` 补引擎版本、基线指纹、DB 存储、旧基线导入与 CLI 写 `target/llm-eval/baselines` 说明。
+- [x] 全量回归：契约 lint 0/0、后端 289 tests + JaCoCo、前端构建 + Vitest 42；Playwright 24 个用例已编写，受沙箱限制待本机执行。
+- [ ] 手工验收（真实模型）：简历 v3 发布 → 只建议简历 → 跑一次 → 与上次基线比较 → 满意点「设为基线」（不重跑）；确认 002 从 FAIL 变 PASS 或至少记录原因。（需用户主动触发，未自动执行）
+- [x] 更新 `PROGRESS.md` 与当日会话记录；`git status` 干净；commit + push（失败按 AGENTS 重试）。
 
 ## 验收与回归
 

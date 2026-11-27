@@ -53,8 +53,9 @@
 | 改进看板 | 行动状态流转与验证证据，可关联具体面试轮次；下一轮面试后投递时间线提示旧行动待验证，形成可追踪的改进闭环 |
 | Offer 决策 | 多 Offer 固定 12 行同维度对比，保留 / 淘汰可反悔，前景分析；支持记录决策依据快照（当时看重什么、最终选择及原因） |
 | 模拟面试（可选） | 结构化出题、追问、交卷评估；作为真实面试前的练习，不是产品核心 |
-| LLM 工作台 | 侧栏底部独立入口：集中查看 / 修改 12 组提示词（草稿 / 发布 / 回滚 / 版本历史 / 行级 diff / 恢复内置），内联维护全局与场景模型绑定；发布立即生效，但**不会自动跑评测** |
-| 评测运行 | LLM 工作台「评测运行」：简历 10 例 / JD 9 例 / 复盘 8 例，可单选或全量 27 例；**手动开始、二次确认**，展示进度、逐用例状态与取消；完成不等于基线，质量失败与执行错误分开计数 |
+| LLM 工作台 | 侧栏底部独立入口：集中查看 / 修改 12 组提示词（草稿 / 发布 / 回滚 / 版本历史 / 行级 diff / 恢复内置 / 导出 JSON），内联维护全局与场景模型绑定；发布立即生效，但**不会自动跑评测** |
+| 评测运行 | LLM 工作台「评测运行」：简历 10 例 / JD 9 例 / 复盘 8 例，可单选或全量 27 例；**手动开始、二次确认**，展示进度、逐用例状态与取消；有执行错误时可只重跑失败用例（标记为部分重跑） |
+| 基线对比 | 完成且无执行错误的运行可「设为基线」（只贴标签、不重跑）；「基线对比」按质量 / 回归 / 成本 / 耗时对比两次运行，不可比时只说明原因；「设为当前」只切换标记，历史基线保留 |
 | 调用统计 | LLM 工作台「调用统计」：近 30 / 90 天的调用次数、成功率、token 消耗、平均耗时，按场景 / 模型 / 按天分组；只读聚合 `llm_call_logs`，评测调用显示为「评测·场景」 |
 
 ## 技术栈
@@ -191,17 +192,17 @@ cd frontend && npm run test:e2e
 npx @redocly/cli lint contracts/openapi.yaml
 ```
 
-**LLM 回归评测（可选）**：语料随应用发布在 `backend/src/main/resources/llm-eval/cases/`，基线在 `backend/src/main/resources/llm-eval/baselines/`；默认 `mvn test` 不调用模型。配置 `EVAL_BASE_URL` / `EVAL_API_KEY` / `EVAL_MODEL` 后，按 [语料规范](docs/LLM评测集语料规范.md) 第 12 节运行，报告输出到 `backend/target/llm-eval/report.md`。CLI 生成基线只写 `backend/target/llm-eval/baselines/`（可用 `EVAL_BASELINE_OUT` 覆盖），源码目录保持干净；产品内的「评测运行」只走数据库。
+**LLM 回归评测（可选）**：语料随应用发布在 `backend/src/main/resources/llm-eval/cases/`，历史基线在 `backend/src/main/resources/llm-eval/baselines/`；默认 `mvn test` 不调用模型。配置 `EVAL_BASE_URL` / `EVAL_API_KEY` / `EVAL_MODEL` 后，按 [语料规范](docs/LLM评测集语料规范.md) 第 12 节运行，报告输出到 `backend/target/llm-eval/report.md`。CLI 生成基线只写 `backend/target/llm-eval/baselines/`（可用 `EVAL_BASELINE_OUT` 覆盖），源码目录保持干净；产品内的基线只走数据库：完成运行后点「设为基线」贴标签，不重跑。
 
-**LLM 工作台**：侧栏底部「LLM 工作台」可查看和修改所有提示词与模型绑定，并在「评测运行」手动跑场景语料。提示词发布后立即生效，但不会自动触发评测；是否运行、何时运行必须由用户主动发起。
+**LLM 工作台**：侧栏底部「LLM 工作台」可查看和修改所有提示词与模型绑定，在「评测运行」手动跑场景语料，在「基线对比」比较两次运行。提示词发布后立即生效，但不会自动触发评测；是否运行、是否设为基线必须由用户主动发起。提示词页可把当前生效的 12 组提示词导出为 JSON。
 
 CI 在 push 到 `main` 或创建 / 更新 PR 时自动运行；也可在 Actions 页面点「Run workflow」，或执行 `gh workflow run ci.yml` 手动触发。
 
 | 指标 | 当前 |
 |---|---|
-| 后端测试 | 273 tests，JaCoCo 行覆盖 ≥85% 门禁 |
-| 前端测试 | Vitest 41 + Playwright 22 E2E（E2E 需本机执行） |
-| 契约 | 106 端点，lint 0 error / 0 warning |
+| 后端测试 | 289 tests，JaCoCo 行覆盖 ≥85% 门禁 |
+| 前端测试 | Vitest 42 + Playwright 24 E2E（E2E 需本机执行） |
+| 契约 | 110 端点，lint 0 error / 0 warning |
 | CI | GitHub Actions 三 job：契约 / 后端 / 前端，全绿 |
 
 ## 目录结构

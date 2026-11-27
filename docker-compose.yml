@@ -43,6 +43,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-change-me}
       # 容器内路径，配合 appdata 卷持久化上传的原始文件
       STORAGE_ROOT: /app/data/files
+      # 评测 token / 超时 / 重复次数随 .env 注入（EVAL_MAX_TOKENS / EVAL_TIMEOUT_SECONDS / EVAL_REPEAT），见 .env.example
     ports:
       - "8080:8080"
     volumes:

@@ -7,10 +7,11 @@
 
 - 产品：面后（AfterRound），个人求职档案与决策系统（真实面试复盘 → 跨场归因 → 改进闭环 → Offer 决策）
 - 形态：个人自用版，免登录、单用户，本地 Docker Compose
-- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.20**（LLM 工作台 + 评测运行）；契约 **1.24.0**（**110 端点全部实现**）；M3 收口完成，P1 提示词工作台、P2 评测运行器与 P3 Task 13~14 后端已完成，下一步 P3 前端基线对比
+- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.21**（LLM 工作台 + 评测运行 + 基线对比）；契约 **1.24.0**（**110 端点全部实现**）；M3 收口完成，P1 提示词工作台、P2 评测运行器、P3 基线对比代码与文档已完成，待本机 Playwright 与真实模型手工验收
 
 ## 当前状态
 
+- **P3 文档与回归（2026-11-27，DSL-WORKPC）**：需求文档升 v1.21，新增迭代历程与 FR9.14~9.18（基线、运行对比、四维口径、重跑失败用例、导出 JSON）；README 补「基线对比」能力、工作台操作路径、测试指标（后端 289 / Vitest 42 / Playwright 24 / 110 端点）；`.env.example` 补 `EVAL_MAX_TOKENS` / `EVAL_TIMEOUT_SECONDS` / `EVAL_REPEAT`，`docker-compose.yml` 注明随 `.env` 注入；`docs/LLM评测集语料规范.md` 补基线指纹、`llm-eval-v1` 引擎版本、数据库基线与旧 JSON 一次性导入、CLI 只写 `target/llm-eval/baselines`；`docs/功能实现对照表.md` 补 FR9.9~9.18。全量回归：契约 lint 0/0、后端 **289 tests、0 skipped、JaCoCo 通过**、前端构建 + Vitest **42**。Playwright 24 个用例待本机执行；真实模型手工验收需用户主动触发。
 - **P3 基线对比前端（2026-11-27，DSL-WORKPC）**：工作台新增「基线对比」Tab：任选两次运行，不可比时只列原因，可比时展示质量 / 回归 / 成本 / 耗时 4 张卡（按场景能力标「不适用」）与用例变化筛选（新增失败 / 修复 / 分数漂移 / 标签变化）；基线列表展示 label / 运行 / 提示词版本，「设为当前」只切换标记。评测详情在完成且无 ERROR 时可「设为基线」（填 label、复用结果不重跑），有 ERROR 时显示「重跑失败用例」并标记 `partial`；提示词页显示「基线已过期 / 尚无基线」徽标与「去评测」链接（只预选受影响场景，不自动跑），支持 `?tab=eval&scenes=` 深链；提示词列表可导出 JSON（前端聚合，无新端点）。验证：前端构建（vue-tsc）通过、Vitest **42**；Playwright 新增 3 个基线 / 不可比用例已编写，执行仍被沙箱拒绝，待本机 `npm run test:e2e`。
 - **P3 基线与对比后端（2026-11-27，DSL-WORKPC）**：V13 `llm_eval_baselines`（每场景一个当前基线、历史保留、run 删除 RESTRICT）；`EvalBaselineService` 把已完成运行「设为基线」只贴标签、复用结果不重跑，逐场景跳过 ERROR，`activate` 只切换 `is_current`；`LegacyBaselineImporter` 首次启动导入 3 个历史 JSON（简历 v2→`legacy` hash，JD/复盘写当前 hash）；`EvalImpactAnalyzer` 比较提示词 hash / Provider / Model / 语料 / 引擎 / 参数，无基线返回「尚无基线」，接入提示词详情 `suggestedEvalScenes` 与场景卡片 `rebuildReasons`；`EvalCompareService` 做 run vs run 4 维对比（质量 / 回归 / 成本 / 耗时），legacy Provider 按模型比较并 warning，不可比返回 200 + `comparable=false`，维度按场景能力裁剪；部分重跑 `sourceRunId + retryErrorsOnly` 复制源快照、只跑 ERROR、`partial=true` 不可设基线且不参与完整对比。验证：契约 lint 0/0；后端 **289 tests、0 skipped、JaCoCo 全部门禁通过**；compare / 部分重跑 API 集成测试通过。
 - **P2 评测运行器（2026-11-27，DSL-WORKPC）**：评测核心从 test scope 迁入 `modules/eval/core`（`EvalCase` / `EvalCorpus` / `Expectations` / `EvalSnapshot` / `EvalMetrics` / `EvalMetricsCalculator` / `EvalFingerprint` / `EvalEngine` / `EvalSceneCatalog`），27 份语料与 3 份基线迁至 `src/main/resources/llm-eval/` 并由 classpath 加载；新增 V12 `llm_eval_runs` / `llm_eval_run_cases`，`EvalRunService` 做并发校验、提示词 / 模型 / 参数 / 语料快照、事务 afterCommit 调度，`EvalRunner` 逐用例断言、token 埋点、连续 3 次上游故障熔断、取消 / 失败清理剩余用例，`EvalRunRecovery` 启动把中断运行置 FAILED；契约 1.23.0 新增 5 个评测端点（106 全部实现）。前端工作台新增「评测运行」Tab：场景卡片、全量 / 单选、二次确认、3 秒轮询、进度、取消确认、metrics / 快照 / 逐用例表、历史运行；「设为基线」按钮 P2 置灰。验证：契约 lint 0/0；后端 **273 tests 全绿、0 skipped、JaCoCo 门禁通过**（含真实 PG + 假上游的评测集成测试）；前端构建通过、Vitest **41**；Playwright 新增评测用例已编写，受沙箱限制未执行，待本机 `npm run test:e2e`。
@@ -101,7 +102,7 @@
 
 ## 下一步
 
-1. **P3 基线版本化与对比（收尾中，按实施计划 Task 13~16）**：Task 13~15 已完成（契约 1.24.0 / V13 / 设为基线 / 历史导入 / 影响面 / 4 维对比 / 部分重跑 / 前端对比 Tab / 过期徽标 / 导出 JSON）；下一步 Task 16 P3 文档（需求 v1.21、README、环境变量、语料规范）、全量回归与收口；Playwright 待本机执行。
+1. **P3 基线版本化与对比（代码与文档完成，2026-11-27）**：Task 13~16 已完成（契约 1.24.0 / V13 / 设为基线 / 历史导入 / 影响面 / 4 维对比 / 部分重跑 / 前端对比 Tab / 过期徽标 / 导出 JSON / 需求 v1.21 / README / 环境变量 / 语料规范）；后端 289 tests + JaCoCo、前端构建 + Vitest 42、契约 lint 0/0。剩余：本机 `npm run test:e2e`（24 个用例，沙箱拒绝 Edge 用户目录）、真实模型手工验收（需用户主动触发）。
 2. **P2 评测运行器已完成（2026-11-27）**：契约 1.23.0（106 端点）；后端 273 tests；前端构建 + Vitest 41；Playwright 评测用例待本机执行（沙箱拒绝 Edge 用户目录访问）。
 3. **P1 LLM 工作台已完成（2026-11-27）**：提示词 12 组查看 / 草稿 / 发布 / 回滚 / 历史 / diff / 恢复内置；全局与场景绑定内联保存；调用统计迁入；发布不自动跑评测。契约 1.22.0（101 端点）；后端 261 tests、前端 Vitest 36 + Playwright 21 全绿。
 3. **完整性项已清零（2026-11-26）**：投递链路（FR8.1 / FR8.2 / FR2.5）、FR5.2 / FR5.3 / FR8.4 / FR6.7、FR5.1、FR5.6、FR5.8、FR1.7 轨二、NFR6 调用统计、NFR7 音频可选清理全部补齐；对照表无待补缺口。全量核查后修复契约漏记 `keyword`、音频清理时机、行情淘汰过滤、搜索空态等 8 处问题。后续转入真实使用反馈驱动的迭代。

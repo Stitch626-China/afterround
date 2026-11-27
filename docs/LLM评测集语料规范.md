@@ -1,13 +1,13 @@
 # LLM 评测集语料规范
 
-> 版本 v1.3 / 2026-11-27 / 适用目录 `backend/src/test/resources/llm-eval/`
+> 版本 v1.3 / 2026-11-27 / 适用目录 `backend/src/main/resources/llm-eval/`
 > 状态：评测执行器已实现（`backend/src/test/java/com/jobpilot/eval/`），默认 `mvn test` 排除真实模型调用；本文件仍是建库、标注与执行的唯一依据。
 
 ## 0. 快速开始（在另一台主机）
 
 1. `git pull` 拿到最新代码与本规范；
 2. 在仓库**外**建原始层目录，放真实转写、真实简历、抓取的 JD（永不入 git）；
-3. 在 `backend/src/test/resources/llm-eval/cases/` 下建 case 目录，逐份脱敏；
+3. 在 `backend/src/main/resources/llm-eval/cases/` 下建 case 目录，逐份脱敏；
 4. 每个 case 至少写三个文件：`input.txt`、`meta.json`、`expect.json`；
 5. 按第 7 节自查隐私、按附录 B 逐项自检；
 6. 只提交 `cases/`（必要时含 `.gitignore`），push；
@@ -20,14 +20,14 @@
 - **评测对象**：prompt + 结构化治理链路（外置模板、JSON 模式、本地修复、带错误反馈重试、本地兜底校验），不是模型能力排名。
 - **评测目标**：改 prompt、换模型、升级网关时，退化能被自动发现，而不是靠人眼抽检。
 - **不评测**：ASR / OCR 识别质量、前端 UI、接口性能、数据库状态机。
-- **首批范围**：3 个场景共 22 份语料（复盘 8 / JD 8 / 简历 6）。
+- **首批范围**：3 个场景共 27 份语料（简历 10 / 复盘 8 / JD 9）。
 
 ## 2. 两层存储
 
 | 层 | 位置 | 是否入 git | 内容 |
 |---|---|---|---|
 | 原始层 | 仓库外，任意私有目录 | **否** | 真实转写、真实简历、抓取 JD、原始音频、标注草稿 |
-| 入库层 | `backend/src/test/resources/llm-eval/cases/` | 是 | 脱敏或合成后的 `input.txt` / `meta.json` / `expect.json` |
+| 入库层 | `backend/src/main/resources/llm-eval/cases/` | 是 | 脱敏或合成后的 `input.txt` / `meta.json` / `expect.json` |
 
 原始层没有固定路径要求，只要在仓库目录之外即可。推荐结构：
 
@@ -58,7 +58,7 @@ raw/
 ## 3. 目录结构
 
 ```
-backend/src/test/resources/llm-eval/
+backend/src/main/resources/llm-eval/
 ├── cases/
 │   ├── resume-analysis/
 │   │   ├── 001-typical-java-3y/
@@ -353,7 +353,7 @@ JD 入库只保留「结构 + 术语」，删除公司名、联系方式、独�
 提交前用 PowerShell 搜索入库目录，确认零命中：
 
 ```powershell
-Get-ChildItem -Recurse -File backend/src/test/resources/llm-eval/cases |
+Get-ChildItem -Recurse -File backend/src/main/resources/llm-eval/cases |
   Select-String -Pattern "真实姓名","公司全名","13800138000","@qq.com"
 ```
 
@@ -361,10 +361,12 @@ Get-ChildItem -Recurse -File backend/src/test/resources/llm-eval/cases |
 
 ## 8. 基线与变更规则
 
-1. **先冻结基线，再改 prompt**：评测执行器实现后，用当前代码跑一遍全部语料，输出存 `baselines/`；
-2. 基线记录 `generatedAt`、模型、每个 case 的关键分数、标签集合、耗时、token；代码版本以生成时的 git commit 为准，记录在会话与提交信息中；
+### 8.1 基线指纹与判定
+
+1. **先冻结基线，再改 prompt**：用当前代码跑一遍全部语料，由执行器生成基线；
+2. 基线记录 `generatedAt`、`promptVersion`、`promptHash`、`providerKey`、`model`、`corpusHash`、`engineVersion`、`params`、每个 case 的关键分数、标签集合、耗时、token；代码版本以生成时的 git commit 为准，记录在会话与提交信息中；
 3. 执行器启动时校验：**基线中的 case id 集合必须与目录扫描结果一致**，不一致直接报错；
-4. 改语料或改基线都算口径变更，必须单独提交并在提交信息里说明原因；
+4. 改语料、改断言引擎或改基线都算口径变更，必须单独提交并在提交信息里说明原因；
 5. 以下任一情况视为退化：L1 由 PASS 变 FAIL；某 case 分数漂移 >10；标签集合 Jaccard <0.7；L2 通过率低于 95%。
 
 基线文件形态（执行器生成，仅供参考）：
@@ -372,7 +374,13 @@ Get-ChildItem -Recurse -File backend/src/test/resources/llm-eval/cases |
 ```json
 {
   "generatedAt": "2026-11-27T10:00:00+08:00",
-  "model": "provider/model",
+  "promptVersion": "resume-analysis-v3",
+  "promptHash": "a1b2c3...（SHA-256 十六进制）",
+  "providerKey": "datangsoft",
+  "model": "Qwen3.8-27B",
+  "corpusHash": "d4e5f6...",
+  "engineVersion": "llm-eval-v1",
+  "params": { "maxTokens": 8192, "timeoutSeconds": 300, "temperature": 0.2 },
   "cases": {
     "001-real-tech2-jvm-gap": {
       "status": "PASS",
@@ -386,6 +394,31 @@ Get-ChildItem -Recurse -File backend/src/test/resources/llm-eval/cases |
 }
 ```
 
+- `promptHash` 与 `corpusHash` 是变更检测指纹，不参与运行之间的可比性判定（提示词是被测变量）；
+- `engineVersion` 由 `EvalEngine.VERSION` 提供，断言规则变化时手动升级；引擎升级后旧基线不可比，需要重建。
+
+### 8.2 产品内基线（数据库）
+
+- 产品内基线落 `llm_eval_baselines`（Flyway V13），每个场景最多一个 `is_current=true` 的当前基线，历史基线全部保留；
+- **「设为基线」只是给已完成运行贴标签**，复用该次运行结果，不重跑；有执行错误（ERROR）的场景跳过，部分重跑 / 取消 / 失败的运行不可设基线；
+- 「设为当前」只切换 `is_current`，不重跑、不改历史；
+- 对比对象是 run vs run：只有场景、Provider、模型、语料、断言引擎与生成参数一致才可比；不可比时返回原因，不拼凑指标；
+- 运行详情里的提示词版本是启动快照，之后发布新版本不会改写历史基线。
+
+### 8.3 旧 JSON 基线导入
+
+- 首次启动且 `llm_eval_baselines` 为空、同时没有 COMPLETED 运行记录时，`LegacyBaselineImporter` 一次性导入 3 个 `baselines/*.json`；
+- 导入会创建合成 COMPLETED run + 逐 case 记录 + 基线；旧数据没有 L1/L2 明细，对应指标为 null；
+- `baseline.promptVersion` 与当前内置版本一致时写当前内容 hash；否则写 `legacy`（简历 v2 → v3 会命中）；
+- 旧基线 Provider 未知，写 `provider_key='legacy'`；对比时 legacy 视为通配，只要求 model 相同，并在 warnings 提示「历史基线 Provider 未知，按模型比较」；
+- 导入只发生一次，之后以数据库中的基线为准，不再读 JSON。
+
+### 8.4 CLI 与运行时的边界
+
+- CLI 执行器（`LlmEvalTest`）只读 classpath 语料与 `baselines/`，写报告 / 新基线到 `backend/target/llm-eval/`（`EVAL_BASELINE_OUT` 可覆盖），**不写源码目录、不写数据库**；
+- 产品内「评测运行」只走数据库，模型 / 提示词 / 参数 / 语料 hash / 引擎版本都在启动时快照；
+- 两者共用同一套语料、断言引擎与 prompt 生成器，避免口径分叉。
+
 ## 9. 建库完整流程
 
 1. `git pull` 拿到本规范；
@@ -396,7 +429,7 @@ Get-ChildItem -Recurse -File backend/src/test/resources/llm-eval/cases |
 6. 按第 7 节搜索隐私关键词，按附录 B 逐项自检；
 7. 只提交 `cases/`，提交信息建议 `test(eval): 新增 review-analyze 语料 8 份`；
 8. push，然后在开发机 `git pull`（如有未提交改动，先处理再拉）；
-9. 把 `backend/src/test/resources/llm-eval/cases/review-analyze/` 交给 AI，实现执行器与基线。
+9. 把 `backend/src/main/resources/llm-eval/cases/review-analyze/` 交给 AI，实现执行器与基线。
 
 ## 10. 交付与协作方式
 
@@ -432,7 +465,7 @@ Get-ChildItem -Recurse -File backend/src/test/resources/llm-eval/cases |
 | `EVAL_MODEL` | 是 | 被测模型名 |
 | `EVAL_MAX_TOKENS` | 否 | 默认 8192（评测值；生产 NFR7 仍为 4096） |
 | `EVAL_TIMEOUT_SECONDS` | 否 | 默认 300（生产客户端默认 120s） |
-| `EVAL_REPEAT` | 否 | 默认 2，用于 L3 稳定性 |
+| `EVAL_REPEAT` | 否 | 默认 1；工作台评测运行也读取该值 |
 | `EVAL_WRITE_BASELINE` | 否 | 首次生成基线设为 `true`，必须全量运行 |
 | `EVAL_ONLY` | 否 | 逗号分隔 case id 或 `scene/id`，仅调试用；不可与写基线同用 |
 
@@ -460,10 +493,11 @@ mvn -o -f backend/pom.xml "-Djacoco.skip=true" "-Dsurefire.excludedGroups=__none
 ### 12.3 输出与判定
 
 - 报告：`backend/target/llm-eval/report.md` 与 `report.json`（逐 case 的 L1/L2/L3、tokens、耗时、失败项）；
-- 基线：仅在 `EVAL_WRITE_BASELINE=true` 且全量运行时写入 `backend/src/test/resources/llm-eval/baselines/{scene}.json`；
+- 基线：仅在 `EVAL_WRITE_BASELINE=true` 且全量运行时写入 `backend/target/llm-eval/baselines/{scene}.json`（可用 `EVAL_BASELINE_OUT` 覆盖目录），源码目录保持干净；
 - 基线存在且非写入模式时自动对比：case 集合、模型名、分数漂移 >10、标签 Jaccard <0.7 均判失败；分数对齐方式为简历按字段名、复盘按 `questionIndex` + 维度名，数组顺序变化不产生漂移；
 - 判定口径：L1 / L3 任一失败即整轮失败；L2 按**断言**通过率聚合，低于 95% 才判失败，未通过的 case 在报告中仍标 FAIL；
-- 换模型必须重建基线；负样本的 `expectGraceful` 允许优雅失败，不参与基线分数对比。
+- 换模型必须重建基线；负样本的 `expectGraceful` 允许优雅失败，不参与基线分数对比；
+- 产品内评测运行读取同一组 `app.eval` 参数（`EVAL_MAX_TOKENS` / `EVAL_TIMEOUT_SECONDS` / `EVAL_REPEAT`），但结果落数据库，不写上述 CLI 文件。
 
 ### 12.4 成本控制
 
@@ -475,7 +509,8 @@ mvn -o -f backend/pom.xml "-Djacoco.skip=true" "-Dsurefire.excludedGroups=__none
 - 环境：内网 `datangsoft / Qwen3.8-27B`，`EVAL_MAX_TOKENS=8192`、超时 300s、`repeat=1`；
 - 结果：27 份全量，L1 全部通过（`resume-analysis/002` 的省略号拼接已由 prompt v3 修复）；L2 断言 45 项、失败 2 项（95.6%，达标），未命中为 `review-analyze/003`（`knowledge-gap`）与 `004`（`no-evidence`），保留为模型波动观察项；
 - 分数对齐：简历按字段名，复盘按 `questionIndex` + 维度名写入（如 `q1.score` / `q1.depth`），数组顺序变化不产生漂移；
-- 首版基线不引入 xfail 机制：改 prompt、语料或模型后按第 8 节重建，不要手改 `baselines/`。
+- 产品内的当前基线以数据库 `llm_eval_baselines` 为准：完成且无 ERROR 的运行点「设为基线」即可，复用运行结果、不重跑；历史 JSON 只在首次启动时导入一次；
+- 首版基线不引入 xfail 机制：改 prompt、语料或模型后重建基线，不要手改 `baselines/` 或手工改库。
 
 ## 附录 A：枚举与词表
 

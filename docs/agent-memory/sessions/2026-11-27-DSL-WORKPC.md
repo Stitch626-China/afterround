@@ -156,3 +156,10 @@
 - 原因：基线与对比必须由用户主动触发；发布后只提示、不阻断；导出不引入后端负担。
 - 验证：`npm run build`（含 vue-tsc）通过；Vitest **42** 通过；Playwright 新增基线对比 / 无基线不可比用例已编写，执行仍被沙箱拒绝 Edge 用户目录访问，待本机 `npm run test:e2e`。
 - 下一步 / 断点：提交 Task 15；进入 Task 16 P3 文档、环境变量、全量回归与收口。
+
+### 20:00 事件
+
+- 改动：Task 16 P3 文档与回归。需求文档升 v1.21（迭代历程 + FR9.14~9.18：设为基线、运行对比、四维口径、重跑失败用例、导出 JSON）；README 增加「基线对比」能力、工作台操作路径与测试指标（后端 289 / Vitest 42 / Playwright 24 / 110 端点）；`.env.example` 增加 `EVAL_MAX_TOKENS` / `EVAL_TIMEOUT_SECONDS` / `EVAL_REPEAT`，`docker-compose.yml` 注明评测参数随 `.env` 注入；`docs/LLM评测集语料规范.md` 补基线指纹（promptHash / provider / model / corpusHash / engineVersion / params）、`llm-eval-v1` 引擎版本、数据库基线与旧 JSON 一次性导入、CLI 只写 `target/llm-eval/baselines`；`docs/功能实现对照表.md` 补 FR9.9~9.18。
+- 原因：把「运行 = 评测、基线 = 贴标签的运行、发布不自动评测」的口径同步到需求、README、环境变量、语料规范与实现对照表，避免跨设备与后续验收理解漂移。
+- 验证：契约 lint 0/0；后端 `clean test` **289 tests、0 skipped、JaCoCo 全部门禁通过**；前端构建（vue-tsc）通过、Vitest **42**。Playwright 24 个用例仍未执行（沙箱拒绝 Edge 用户目录），真实模型手工验收未自动触发。
+- 下一步 / 断点：提交 Task 16；剩余事项为本机 `npm run test:e2e` 与用户主动发起的真实模型手工验收（发布 v3 → 只建议简历 → 跑一次 → 对比 → 设为基线）。
