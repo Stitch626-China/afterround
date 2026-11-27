@@ -7,11 +7,12 @@
 
 - 产品：面后（AfterRound），个人求职档案与决策系统（真实面试复盘 → 跨场归因 → 改进闭环 → Offer 决策）
 - 形态：个人自用版，免登录、单用户，本地 Docker Compose
-- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.17**（v1.15 纸墨视觉 + v1.16 实现状态索引 + v1.17 快速录入复盘）；契约 **1.21.1**（**93 端点全部实现**）；M3-d 技术收口完成，产品已定名「面后（AfterRound）」
+- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.19**（LLM 工作台）；契约 **1.22.0**（**101 端点全部实现**）；M3 收口完成，P1 LLM 工作台已完成，下一步 P2 评测运行器
 
 ## 当前状态
 
-- **LLM 评测执行器与基线（2026-11-27，DSL-WORKPC）**：新增 `backend/src/test/java/com/jobpilot/eval/`——语料校验（默认测试执行，不调模型）、L1/L2/L3 断言引擎、真实模型执行器、Markdown/JSON 报告与基线读写；默认 `mvn test` 排除 `llm-eval`。抽检 27 份语料，修正 10 份简历 `expect.json` 中超 prompt 契约的 `maxItems`（只保留 careerDirections≤5）、复盘负样本 `maxItems.questions` 与过严的 `shallow-depth` 禁项、3 处真实转写绝对时间。评测发现并修复 `StructuredOutputInvoker` 重试把 system 消息追加到末尾导致严格网关 400（改为 user，新增回归测试）；`OpenAiCompatibleClient` 增加可配置超时构造器（生产默认仍 120s）。简历 Prompt 升 `resume-analysis-v3`，明确引用必须是原文连续片段、不得用省略号拼接；首版基线（内网 `Qwen3.8-27B`，27 份全量，repeat=1）重新生成后 L1 全部通过，L2 断言 45 项失败 2 项（95.6%，达标，`review-analyze/003/004` 为标签波动观察项）。复盘基线分数改为按 `questionIndex` + 维度名对齐（`q1.score` / `q1.depth`），修复题目数量/顺序变化造成的 20~50 分假漂移。规范升 v1.3；不依赖 Docker 的 230 个单元测试全绿；本机 Docker Desktop 升级 29.9.3 后 Testcontainers 1.21 探测失败，23 个集成测试跳过、JaCoCo 未能本机复核（见「阻塞」）。
+- **P1 LLM 工作台（2026-11-27，DSL-WORKPC）**：新增 `llm_prompt_versions`（Flyway V11）与 `modules/prompt`——`PromptCatalog` 管理 12 组提示词元数据，`PromptValidator` 校验占位符 / JSON 必填字段，`PromptRegistry` 运行时 DB ACTIVE 优先、classpath 兜底、发布后精确失效，`PromptService` / `PromptController` 提供 8 个端点（查看 / 草稿 / 发布 / 回滚 / 版本历史）；8 个 PromptFactory 全部接入注册表，分析结果记录动态版本标签。前端新增侧栏底部「LLM 工作台」：模型与绑定（全局 + 7 场景 + 3 个评测场景生效模型，手动保存、全局二次确认）、提示词（12 组编辑 / diff / 恢复内置 / 草稿 / 发布 / 版本历史 / 未保存三选一拦截）、调用统计（从设置抽屉迁入）。发布只影响下一次调用，不自动跑评测、不阻塞使用。验证：契约 lint 0/0（101 端点）；后端 **261 tests 全绿、0 skipped、JaCoCo 门禁通过**；前端构建、Vitest **36**、Playwright **21** 全过。
+- **LLM 评测执行器与基线（2026-11-27，DSL-WORKPC）**：新增 `backend/src/test/java/com/jobpilot/eval/`——语料校验（默认测试执行，不调模型）、L1/L2/L3 断言引擎、真实模型执行器、Markdown/JSON 报告与基线读写；默认 `mvn test` 排除 `llm-eval`。抽检 27 份语料，修正 10 份简历 `expect.json` 中超 prompt 契约的 `maxItems`（只保留 careerDirections≤5）、复盘负样本 `maxItems.questions` 与过严的 `shallow-depth` 禁项、3 处真实转写绝对时间。评测发现并修复 `StructuredOutputInvoker` 重试把 system 消息追加到末尾导致严格网关 400（改为 user，新增回归测试）；`OpenAiCompatibleClient` 增加可配置超时构造器（生产默认仍 120s）。简历 Prompt 升 `resume-analysis-v3`，明确引用必须是原文连续片段、不得用省略号拼接；首版基线（内网 `Qwen3.8-27B`，27 份全量，repeat=1）重新生成后 L1 全部通过，L2 断言 45 项失败 2 项（95.6%，达标，`review-analyze/003/004` 为标签波动观察项）。复盘基线分数改为按 `questionIndex` + 维度名对齐（`q1.score` / `q1.depth`），修复题目数量/顺序变化造成的 20~50 分假漂移。规范升 v1.3；不依赖 Docker 的 230 个单元测试全绿。
 - **LLM 评测集 review-analyze 语料已建（2026-11-26，DSL-WORKPC）**：在 `backend/src/test/resources/llm-eval/cases/review-analyze/` 新增 8 份语料（001~004 真实转写脱敏、005~007 笔记 NOTES、008 纯 HR 负样本），每份含 `input.txt` / `meta.json` / `expect.json`；input 均 ≤30,000 字符，UTF-8 无 BOM、LF；隐私关键词扫描零命中；断言使用 `taxonomy-v1` key，负样本 `expectGraceful` + `mustNotContainTags`；已检查并提交（2026-11-26，HOMEPC）。
 - **LLM 评测集 jd-parse 语料已建（2026-11-26，DSL-WORKPC）**：在 `backend/src/test/resources/llm-eval/cases/jd-parse/` 新增 9 份语料（001~004 来自四家公司 JD 改写，005 测试岗补位，009 客户端岗补位，006 福利-only 边界，007 中英混杂边界，008 无职责负样本）；每份含 `input.txt` / `meta.json` / `expect.json`；input 68~832 字符，UTF-8 无 BOM、LF；隐私关键词扫描零命中；断言使用 `requiredFields` / `skillsMin` / `maxItems` / `mustMentionAny`，边界与负样本使用 `expectGraceful`；已检查并提交（2026-11-26，HOMEPC）。
 - **LLM 评测集 resume-analysis 语料已建（2026-11-26，DSL-WORKPC）**：在 `backend/src/test/resources/llm-eval/cases/resume-analysis/` 新增 10 份语料（7 份真实简历：后端+AI、AI/RAG、应届 Java、SRE、AI/Agent、前端、设计；3 份合成缺陷：无量化、空窗转行、超短）；每份含 `input.txt` / `meta.json` / `expect.json`；input 96~2697 字符；UTF-8 无 BOM、LF；隐私关键词扫描零命中；`quotesMustComeFromInput=true`、`overallFormula=30/25/20/15/10`、五维 `scoreRange` 与 `careerDirections` 上限已配置；已检查并提交（2026-11-26，HOMEPC）。
@@ -93,22 +94,24 @@
   - **M1-c 后端已完成（2026-11-12）**：简历上传（文件 / 粘贴文本）、Tika 解析与文本清洗、SHA-256 去重、`FileStorage` 本地实现与路径穿越防护、异步分析状态机（PENDING/PROCESSING/COMPLETED/FAILED，重试 ≤3）、五维加权报告（本地按权重算总分）、优势/短板/原句优化建议、3-5 个岗位方向推荐、分页/详情/删除（清理文件与分析）、Prompt 外置、**薪资字段（`V2__resume_salary.sql`）与编辑接口**（用户值优先、重分析不覆盖、清空回落 LLM 值）；**后端 50 个测试全部通过**（含真实 PostgreSQL 端到端 + 契约 26 端点全覆盖）
   - **M1-d 前端结构已完成（2026-11-12）**：一级导航只留业务主线（简历中心 + M2/M3 占位）、左下角齿轮设置抽屉（模型服务 CRUD / 全局默认 / 连通测试 / 上游列举 + 外观）、`light` / `dark` 主题（跟随系统 + 记忆 + 首屏防闪）、简历列表与上传（拖拽 / 选择 / 粘贴、状态轮询、分页、行内删除确认、点击进报告）、请求失败友好降级；浏览器实测布局 / 抽屉 / 主题切换 PASS，前端生产构建通过
   - **M1-d 收尾完成（2026-11-12）**：模型对话页（会话列表 / 新建删除 / Provider + Model 两级切换 / SSE 流式 / 消息级追溯 / 生成中状态）、`api/chat.ts` + `api/sse.ts` 纯函数解析、Vitest 9 个单测、Playwright 2 个 E2E（接口 mock 自包含，使用本机 Edge）；真实链路联调（临时 PostgreSQL 5433 + 假 OpenAI 上游）PASS：新建会话 → 发送 → 流式返回「你好，这是流式回答。」→ 状态回空闲，控制台 0 error
-- 阻塞（本机，2026-11-27）：Docker Desktop 升级 29.9.3 后 Testcontainers 1.21 无法探测 Docker；`~/.testcontainers.properties` 固定了旧的 `docker_engine` 策略，当前沙箱/权限无法修改该用户级文件（已征得用户同意仍被路径白名单拒绝）。影响：23 个集成测试跳过、JaCoCo 覆盖率门禁无法在本机复核；不依赖 Docker 的 230 个单元测试全绿。修复：手动删除该文件中的 `docker.client.strategy` 行，或在 Docker Desktop 开启 TCP 2375 后以 `DOCKER_HOST` 重跑 `mvn test`。
+- 阻塞（本机，已解决 2026-11-27）：Docker Desktop 升级 29.9.3 后 Testcontainers 1.21 无法探测 Docker；根因是用户级 `~/.testcontainers.properties` 固定了旧的 `docker_engine` 策略。**解决方式**：不改用户级文件，运行时设置 `DOCKER_HOST=npipe:////./pipe/dockerDesktopLinuxEngine` 并在非沙箱模式执行 Maven；`clean test` 261 tests、0 skipped、JaCoCo 门禁全部通过。
 
 ## 下一步
 
-1. **完整性项已清零（2026-11-26）**：投递链路（FR8.1 / FR8.2 / FR2.5）、FR5.2 / FR5.3 / FR8.4 / FR6.7、FR5.1、FR5.6、FR5.8、FR1.7 轨二、NFR6 调用统计、NFR7 音频可选清理全部补齐；契约 **1.21.1（93 端点）**，对照表无待补缺口。全量核查后修复契约漏记 `keyword`、音频清理时机、行情淘汰过滤、搜索空态等 8 处问题。后续转入真实使用反馈驱动的迭代。
-2. **前端「纸墨」已全量推广（2026-11-24）**：全站页面与设置抽屉均套用共享层，用户评审样板通过后一次完成；构建 / Vitest 26 / Playwright 16 复核通过。后续只在用户提出视觉问题时定点微调，不再批量改样式。
-3. **M3-d 收口（已完成，2026-11-25）**：技术回归、命名、README、脱敏、演示材料与公开仓库均已完成；LICENSE 保持不加（README 已声明保留所有权利），中国商标网未查。
-4. **M2 用户验收（暂停，可继续）**：验收库容器 5433 仍在运行，后端按需启动；M2 两批功能已实现并修复验收问题。F3 模拟面试后续只保留为可选练习。
-5. **公开仓库（已完成，2026-11-25）**：仓库已设为 PUBLIC 并开启 Secret Scanning / Push Protection / Dependabot（自动 Security Updates 关闭）；演示数据种子 `scripts/seed-demo.mjs` 已完成并验证；后续根据反馈迭代 README 与演示材料，可选补 v1.0.0 tag / Release、social preview 与 Pin。
-6. **M2 收口（已完成）**：两批 38 端点、前端页面、Vitest 19 / Playwright 11 与真实链路联调全部通过。
-7. 非阻塞遗留：开源前补 `LICENSE` 并同步契约 `info.license`；CD 待换机稳定手动部署后再做。
-8. M2 改进项：历史消息升级为「完整轮次 + token 预算 + 摘要」；契约类型/required 深度校验；SSE E2E 增量渲染断言。
-9. **测试缺口（2026-11-18 盘点，高价值项已补，剩余非阻塞）**：
+1. **P2 评测运行器（下一步，按实施计划 Task 8~12）**：契约 1.23.0 增 5 个评测端点；评测核心迁入运行时 + 语料 classpath 化；V12 建 `llm_eval_runs` / `llm_eval_run_cases`；前端「评测运行」Tab（全量 / 单场景、进度、取消、重跑 ERROR）。评测仍由用户主动触发，不随提示词或模型变更自动运行。
+2. **P1 LLM 工作台已完成（2026-11-27）**：提示词 12 组查看 / 草稿 / 发布 / 回滚 / 历史 / diff / 恢复内置；全局与场景绑定内联保存；调用统计迁入；发布不自动跑评测。契约 1.22.0（101 端点）；后端 261 tests、前端 Vitest 36 + Playwright 21 全绿。
+3. **完整性项已清零（2026-11-26）**：投递链路（FR8.1 / FR8.2 / FR2.5）、FR5.2 / FR5.3 / FR8.4 / FR6.7、FR5.1、FR5.6、FR5.8、FR1.7 轨二、NFR6 调用统计、NFR7 音频可选清理全部补齐；对照表无待补缺口。全量核查后修复契约漏记 `keyword`、音频清理时机、行情淘汰过滤、搜索空态等 8 处问题。后续转入真实使用反馈驱动的迭代。
+4. **前端「纸墨」已全量推广（2026-11-24）**：全站页面与设置抽屉均套用共享层，用户评审样板通过后一次完成；后续只在用户提出视觉问题时定点微调，不再批量改样式。
+5. **M3-d 收口（已完成，2026-11-25）**：技术回归、命名、README、脱敏、演示材料与公开仓库均已完成；LICENSE 保持不加（README 已声明保留所有权利），中国商标网未查。
+6. **M2 用户验收（暂停，可继续）**：验收库容器 5433 仍在运行，后端按需启动；M2 两批功能已实现并修复验收问题。F3 模拟面试后续只保留为可选练习。
+7. **公开仓库（已完成，2026-11-25）**：仓库已设为 PUBLIC 并开启 Secret Scanning / Push Protection / Dependabot（自动 Security Updates 关闭）；演示数据种子 `scripts/seed-demo.mjs` 已完成并验证；后续根据反馈迭代 README 与演示材料，可选补 v1.0.0 tag / Release、social preview 与 Pin。
+8. **M2 收口（已完成）**：两批 38 端点、前端页面、Vitest 19 / Playwright 11 与真实链路联调全部通过。
+9. 非阻塞遗留：开源前补 `LICENSE` 并同步契约 `info.license`；CD 待换机稳定手动部署后再做。
+10. M2 改进项：历史消息升级为「完整轮次 + token 预算 + 摘要」；契约类型/required 深度校验；SSE E2E 增量渲染断言。
+11. **测试缺口（2026-11-18 盘点，高价值项已补，剩余非阻塞）**：
    - 中价值：公司 `create/update` 的并发重复键分支与标签 JSON 兜底；岗位 `importJd/parse` 的 Tika/IO 异常与循环自然退出分支；`JobMatchService.toResponse` 的详情解析失败兜底；JSON 兜底异常（`skillsJson` / `skills` / `parseList` / `write`）；`LlmGlobalSettingService` 部分分支；Provider/Model 删除的 HTTP 层；`GlobalExceptionHandler` 的 413/500。
    - 可接受不补：`LlmBootstrapRunner`（环境变量种子）、`main`、DTO、Prompt 资源缺失异常、`AesGcmCipher.deriveKey` 分支。
-10. **LLM 评测集（27 份语料 + 执行器 + v3 基线已完成，2026-11-27）**：`review-analyze` 8 份、`jd-parse` 9 份、`resume-analysis` 10 份分别在 `backend/src/test/resources/llm-eval/cases/<scene>/`，共 27 份。执行器复用生产 `PromptFactory` 与 `StructuredOutputInvoker`，默认 `mvn test` 排除 `llm-eval` tag。简历 Prompt 升 `resume-analysis-v3` 后，首版基线（内网 `Qwen3.8-27B`，8192 token / 300s / repeat=1）L1 全通过、L2 通过率 95.6%；复盘分数已改为 `questionIndex` 对齐。剩余：本机 Docker/Testcontainers 环境修复后补跑集成测试与 JaCoCo 门禁。
+12. **LLM 评测集（27 份语料 + 执行器 + v3 基线已完成，2026-11-27）**：`review-analyze` 8 份、`jd-parse` 9 份、`resume-analysis` 10 份分别在 `backend/src/test/resources/llm-eval/cases/<scene>/`，共 27 份。执行器复用生产 `PromptFactory` 与 `StructuredOutputInvoker`，默认 `mvn test` 排除 `llm-eval` tag。简历 Prompt 升 `resume-analysis-v3` 后，首版基线（内网 `Qwen3.8-27B`，8192 token / 300s / repeat=1）L1 全通过、L2 通过率 95.6%；复盘分数已改为 `questionIndex` 对齐。P2 将把执行器迁入运行时并由工作台主动触发。
 
 ## 关键决策
 
@@ -167,3 +170,6 @@
 | 2026-11-26 | 模拟面试保持 P2 可选练习，放在侧栏「练习」组；与核心复盘/归因冲突时让位 | 模拟面试发生在面试前，但不是产品核心；不能反过来阻塞复盘主流程 |
 | 2026-11-26 | 复盘「快速新建」产生的岗位标记 `MANUAL` 并排除行情统计；查重按「公司 + 岗位名」精确复用 | 无 JD 的岗位计入行情会带偏市场数据；精确匹配避免自动合并出错，命中时前端提示可切换 |
 | 2026-11-26 | 快速录入收集的公司介绍 / JD / 简历必须注入复盘分析（Prompt v2），否则不收集 | 收集了不用等于增加用户负担；背景仅作参考、截断长度并在系统提示中声明不是指令 |
+| 2026-11-27 | **运行 = 一次评测；基线 = 被「设为基线」的那次运行**（贴标签，不重跑） | 避免重复跑基线；对比直接复用运行结果，语义也更直观 |
+| 2026-11-27 | 提示词发布 / 模型变更**不自动触发评测**，也不阻塞使用 | 用户需要先直接使用改动；跑评测、重建基线必须由用户主动发起 |
+| 2026-11-27 | 提示词采用**内置默认 + DB 覆盖版本**，发布后精确失效缓存 | 升级内置不丢用户修改；回滚与追溯都有版本记录 |

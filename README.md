@@ -53,7 +53,8 @@
 | 改进看板 | 行动状态流转与验证证据，可关联具体面试轮次；下一轮面试后投递时间线提示旧行动待验证，形成可追踪的改进闭环 |
 | Offer 决策 | 多 Offer 固定 12 行同维度对比，保留 / 淘汰可反悔，前景分析；支持记录决策依据快照（当时看重什么、最终选择及原因） |
 | 模拟面试（可选） | 结构化出题、追问、交卷评估；作为真实面试前的练习，不是产品核心 |
-| 调用统计 | 左下角设置抽屉「调用统计」：近 30 / 90 天的调用次数、成功率、token 消耗、平均耗时，按场景 / 模型 / 按天分组；任意页面可打开，数据只读聚合 `llm_call_logs` |
+| LLM 工作台 | 侧栏底部独立入口：集中查看 / 修改 12 组提示词（草稿 / 发布 / 回滚 / 版本历史 / 行级 diff / 恢复内置），内联维护全局与场景模型绑定；发布立即生效，但**不会自动跑评测** |
+| 调用统计 | LLM 工作台「调用统计」：近 30 / 90 天的调用次数、成功率、token 消耗、平均耗时，按场景 / 模型 / 按天分组；只读聚合 `llm_call_logs` |
 
 ## 技术栈
 
@@ -191,13 +192,15 @@ npx @redocly/cli lint contracts/openapi.yaml
 
 **LLM 回归评测（可选）**：语料在 `backend/src/test/resources/llm-eval/`，默认 `mvn test` 不调用模型；配置 `EVAL_BASE_URL` / `EVAL_API_KEY` / `EVAL_MODEL` 后，按 [语料规范](docs/LLM评测集语料规范.md) 第 12 节运行，报告输出到 `backend/target/llm-eval/report.md`。
 
+**LLM 工作台**：侧栏底部「LLM 工作台」可查看和修改所有提示词与模型绑定。提示词发布后立即生效，但不会自动触发评测；跑评测、重建基线与对比必须由用户主动发起。
+
 CI 在 push 到 `main` 或创建 / 更新 PR 时自动运行；也可在 Actions 页面点「Run workflow」，或执行 `gh workflow run ci.yml` 手动触发。
 
 | 指标 | 当前 |
 |---|---|
-| 后端测试 | 210 tests，JaCoCo 行覆盖 ≥85% 门禁 |
-| 前端测试 | Vitest 28 + Playwright 20 E2E |
-| 契约 | 93 端点，lint 0 error / 0 warning |
+| 后端测试 | 261 tests，JaCoCo 行覆盖 ≥85% 门禁 |
+| 前端测试 | Vitest 36 + Playwright 21 E2E |
+| 契约 | 101 端点，lint 0 error / 0 warning |
 | CI | GitHub Actions 三 job：契约 / 后端 / 前端，全绿 |
 
 ## 目录结构
