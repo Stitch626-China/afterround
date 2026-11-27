@@ -65,6 +65,12 @@ public enum ErrorCode {
     /** 提示词版本并发冲突（1.22.0，契约 40920）。 */
     PROMPT_VERSION_CONFLICT(40920, "提示词版本冲突，请刷新后重试", HttpStatus.CONFLICT),
 
+    /** 已有评测任务执行中（1.23.0，契约 40918）。 */
+    EVAL_RUN_IN_PROGRESS(40918, "已有评测任务执行中，请等待完成", HttpStatus.CONFLICT),
+
+    /** 评测运行已结束，不可取消（1.23.0，契约 40919）。 */
+    EVAL_RUN_FINISHED(40919, "评测已结束，不可取消", HttpStatus.CONFLICT),
+
     PAYLOAD_TOO_LARGE(41301, "文件超过大小限制", HttpStatus.PAYLOAD_TOO_LARGE),
 
     UNSUPPORTED_MEDIA_TYPE(41501, "不支持的文件类型", HttpStatus.UNSUPPORTED_MEDIA_TYPE),

@@ -1062,10 +1062,10 @@ Expected: 构建通过；Vitest 全过；Playwright 全过（新用例：侧栏�
 
 #### Task 8：契约 1.23.0（评测 5 端点）
 
-- [ ] 增加 5 个路径与 schema；`info.version=1.23.0`；新路径标 `x-implemented: false`。
-- [ ] 新增错误码 `40918`、`40919`，同步 `ErrorCode.java` 与契约 `info.description`。
-- [ ] `ContractCoverageTest` 总数改 106；跑 lint 与契约测试。
-- [ ] Commit `feat(contract): 定义评测运行 5 端点（1.23.0）`。
+- [x] 增加 5 个路径与 schema；`info.version=1.23.0`；新路径标 `x-implemented: false`。
+- [x] 新增错误码 `40918`、`40919`，同步 `ErrorCode.java` 与契约 `info.description`。
+- [x] `ContractCoverageTest` 总数改 106；跑 lint 与契约测试。
+- [x] Commit `feat(contract): 定义评测运行 5 端点（1.23.0）`。
 
 #### Task 9：评测核心迁入运行时 + 语料 classpath 化
 

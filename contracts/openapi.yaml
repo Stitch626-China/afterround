@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.22.0
+  version: 1.23.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -36,6 +36,8 @@ info:
       修正洞察 AI 总结的样本不足描述与面试轮次 PATCH 摘要。
     - **1.22.0（提示词工作台）**：新增 8 个提示词端点（查看 / 草稿 / 发布 / 回滚 / 版本），
       发布后热更新；保存与发布校验占位符和该场景必需的 JSON 字段；发布不触发评测。
+    - **1.23.0（评测运行器）**：新增 5 个评测端点（场景列表 / 创建运行 / 运行列表 / 运行详情 / 取消），
+      运行为异步任务，使用启动时的提示词与模型快照；始终由用户主动触发，发布或改配置不自动评测。
     - 场景枚举 `LlmScene` 一次性定义全部 7 个场景（含 M2 未落地的预留项），避免后续扩展改动枚举。
       JD 结构化解析与简历对比总结未列入枚举，使用全局默认，不参与场景级绑定。
 
@@ -44,8 +46,8 @@ info:
     后续里程碑新增路径可先用路径级 `x-implemented: false` 标记「已定义、待实现」，
     实现完成后删除标记即自动纳入双向全等校验，无需维护例外清单。
     M3 1.9.0 契约的全部端点已实现（1.9.3 真实面试轮次、1.9.4 复盘 / 分析 / 词表 / 改进动作、1.9.5 ASR 重试），
-    1.10.0 新增跨场洞察端点，1.20.0 新增 token 成本统计，1.21.0 新增复盘音频清理；
-    当前 93 个端点全部纳入双向全等校验，无待实现标记。
+    1.10.0 新增跨场洞察端点，1.20.0 新增 token 成本统计，1.21.0 新增复盘音频清理，1.22.0 新增提示词工作台；
+    当前 101 个已实现端点纳入双向全等校验；1.23.0 新增的 5 个评测端点暂标 `x-implemented: false`（待实现）。
 
     ## 错误码补充（M2）
     - `40906` 公司名称已存在（`companies.name` UNIQUE）
@@ -66,6 +68,10 @@ info:
     ## 错误码补充（1.22.0）
     - `40920` 提示词版本并发冲突，请刷新后重试
 
+    ## 错误码补充（1.23.0）
+    - `40918` 已有评测任务执行中，请等待完成
+    - `40919` 评测已结束，不可取消
+
   contact:
     name: 面后（AfterRound）
   license:
@@ -81,6 +87,8 @@ tags:
     description: Provider / Model 增删改查、连通测试、模型列举、全局默认、场景级绑定。配置存数据库，保存即生效。
   - name: 提示词
     description: 提示词查看、草稿、发布、回滚与版本历史；发布后热更新，不自动触发评测。
+  - name: 评测运行
+    description: 场景级评测语料的异步运行、进度、取消与逐用例结果；始终由用户主动触发，运行不等于基线。
   - name: 对话会话
     description: 会话内 Provider + Model 两级切换与流式对话；任务执行中禁止切换。
   - name: 简历
@@ -674,6 +682,131 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           description: 提示词版本并发冲突（业务码 40920），请刷新后重试
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # ==========================================================
+  # 评测运行（1.23.0）
+  # ==========================================================
+
+  /api/llm/eval/scenes:
+    x-implemented: false
+    get:
+      tags: [评测运行]
+      operationId: listEvalScenes
+      summary: 查询评测场景与重建原因
+      description: |
+        返回 3 个评测场景（简历分析 / JD 解析 / 复盘分析）的语料数量、当前提示词版本、
+        生效模型、当前基线与重建原因。仅提示，不自动运行，也不阻塞使用。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultEvalSceneList'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/eval/runs:
+    x-implemented: false
+    get:
+      tags: [评测运行]
+      operationId: listEvalRuns
+      summary: 评测运行分页列表
+      description: 默认按创建时间倒序；`errorCases` 只统计执行错误（ERROR），质量失败看用例 `status=FAIL`。
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultEvalRunPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [评测运行]
+      operationId: createEvalRun
+      summary: 创建异步评测运行
+      description: |
+        - 必须由用户主动触发；使用当前生效提示词与当前模型，启动时做快照，中途改配置不影响本次运行。
+        - 同一时间只允许一个 PENDING / PROCESSING 运行，重复创建返回 **40918**。
+        - 评测调用写入 `llm_call_logs`，场景前缀 `EVAL_`；运行完成不等于基线。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEvalRunRequest'
+      responses:
+        '200':
+          description: 创建成功（异步执行，返回初始运行详情）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultEvalRunDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: 已有评测任务执行中（业务码 40918），请等待完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/eval/runs/{runId}:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/EvalRunId'
+    get:
+      tags: [评测运行]
+      operationId: getEvalRun
+      summary: 评测运行详情与逐用例结果
+      description: 返回运行摘要、逐用例断言明细，以及启动时的模型与提示词快照。
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultEvalRunDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/eval/runs/{runId}/cancel:
+    x-implemented: false
+    parameters:
+      - $ref: '#/components/parameters/EvalRunId'
+    post:
+      tags: [评测运行]
+      operationId: cancelEvalRun
+      summary: 请求取消评测运行
+      description: 置取消标记；当前用例结束后停止，剩余 PENDING 用例置 SKIPPED。已结束的运行返回 **40919**。
+      responses:
+        '200':
+          description: 已受理取消
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultEvalRunDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 评测已结束，不可取消（业务码 40919）
           content:
             application/json:
               schema:
@@ -3092,6 +3225,14 @@ components:
         type: integer
         minimum: 1
         example: 1
+    EvalRunId:
+      name: runId
+      in: path
+      required: true
+      description: 评测运行 ID
+      schema:
+        type: integer
+        format: int64
     ModelName:
       name: modelName
       in: path
@@ -7187,3 +7328,295 @@ components:
                       type: array
                       items:
                         $ref: '#/components/schemas/PromptVersionSummary'
+
+    # ---------- 评测运行（1.23.0） ----------
+
+    EvalAssertionResult:
+      type: object
+      required: [layer, name, passed, detail]
+      properties:
+        layer:
+          type: string
+          enum: [L1, L2, L3]
+        name:
+          type: string
+          example: requiredFields:overallScore
+        passed:
+          type: boolean
+        detail:
+          type: string
+          description: 人读的断言说明，便于定位失败原因
+
+    EvalMetrics:
+      type: object
+      description: 运行级聚合指标；旧导入基线缺少明细时对应字段为 null。
+      properties:
+        l1Total:
+          type: [integer, "null"]
+        l1Failed:
+          type: [integer, "null"]
+        l1PassRate:
+          type: [number, "null"]
+          description: 0~1 小数；L1 按用例计（任一 L1 断言失败即该用例失败）
+        l2Total:
+          type: [integer, "null"]
+        l2Failed:
+          type: [integer, "null"]
+        l2PassRate:
+          type: [number, "null"]
+          description: 0~1 小数；L2 按断言条目计
+        totalTokens:
+          type: [integer, "null"]
+        avgTokens:
+          type: [number, "null"]
+        avgElapsedMs:
+          type: [number, "null"]
+        p95ElapsedMs:
+          type: [number, "null"]
+
+    EvalCaseResult:
+      type: object
+      required: [scene, caseId, status, results]
+      properties:
+        scene:
+          type: string
+        caseId:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, PASS, FAIL, GRACEFUL, ERROR, SKIPPED]
+          description: FAIL 为质量失败，ERROR 为执行错误，两者分开计数
+        l1Passed:
+          type: [boolean, "null"]
+        l2Passed:
+          type: [boolean, "null"]
+        l3Passed:
+          type: [boolean, "null"]
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvalAssertionResult'
+        scores:
+          type: object
+          description: 结构化输出中的分数快照（如简历五维、复盘题分）
+          additionalProperties:
+            type: number
+        tokens:
+          type: [integer, "null"]
+        elapsedMs:
+          type: [integer, "null"]
+        error:
+          type: [string, "null"]
+
+    EvalSceneModel:
+      type: object
+      required: [scene, providerKey, model]
+      properties:
+        scene:
+          type: string
+        providerKey:
+          type: string
+        model:
+          type: string
+
+    EvalScenePrompt:
+      type: object
+      required: [scene, promptKey, promptVersion, promptHash]
+      properties:
+        scene:
+          type: string
+        promptKey:
+          type: string
+        promptVersion:
+          type: string
+          description: 形如 resume-analysis-v3（内置）或 resume-analysis-db1（DB）
+        promptHash:
+          type: string
+
+    EvalRunSummary:
+      type: object
+      required: [id, status, scenes, totalCases, completedCases, errorCases]
+      properties:
+        id:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED]
+        scenes:
+          type: array
+          items:
+            type: string
+        totalCases:
+          type: integer
+        completedCases:
+          type: integer
+        errorCases:
+          type: integer
+          description: 执行错误（ERROR）用例数，不含质量失败
+        error:
+          type: [string, "null"]
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: [string, "null"]
+          format: date-time
+        finishedAt:
+          type: [string, "null"]
+          format: date-time
+
+    EvalBaselineSummary:
+      type: object
+      description: 场景级基线（即被「设为基线」的那次运行）；P2 先定义供场景摘要引用，P3 复用。
+      required: [id, scene, runId, label, providerKey, model, promptVersion, promptHash,
+                 corpusHash, engineVersion, params, metrics, current, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        scene:
+          type: string
+        runId:
+          type: integer
+          format: int64
+        label:
+          type: [string, "null"]
+          maxLength: 100
+        providerKey:
+          type: string
+          description: 历史导入基线为 legacy（Provider 未知）
+        model:
+          type: string
+        promptVersion:
+          type: string
+        promptHash:
+          type: string
+          description: 影响面提示用；不参与可比性判定
+        corpusHash:
+          type: string
+        engineVersion:
+          type: string
+        params:
+          type: object
+          additionalProperties: true
+        metrics:
+          $ref: '#/components/schemas/EvalMetrics'
+        current:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    EvalSceneSummary:
+      type: object
+      required: [scene, name, caseCount, corpusHash, promptKey, promptVersion, modelScope, rebuildReasons]
+      properties:
+        scene:
+          type: string
+          enum: [resume-analysis, jd-parse, review-analyze]
+        name:
+          type: string
+        caseCount:
+          type: integer
+        corpusHash:
+          type: string
+        promptKey:
+          type: string
+        promptVersion:
+          type: string
+        modelScope:
+          type: string
+          enum: [SCENE, GLOBAL]
+        providerKey:
+          type: [string, "null"]
+        model:
+          type: [string, "null"]
+        currentBaseline:
+          oneOf:
+            - $ref: '#/components/schemas/EvalBaselineSummary'
+            - type: 'null'
+        lastRun:
+          oneOf:
+            - $ref: '#/components/schemas/EvalRunSummary'
+            - type: 'null'
+        rebuildReasons:
+          type: array
+          description: 当前配置与当前基线不一致的原因；空数组表示无需重建提示
+          items:
+            type: string
+
+    EvalRunDetail:
+      allOf:
+        - $ref: '#/components/schemas/EvalRunSummary'
+        - type: object
+          required: [cases, models, prompts]
+          properties:
+            cases:
+              type: array
+              items:
+                $ref: '#/components/schemas/EvalCaseResult'
+            models:
+              type: array
+              description: 启动时的模型快照；中途改配置不影响本次运行
+              items:
+                $ref: '#/components/schemas/EvalSceneModel'
+            prompts:
+              type: array
+              description: 启动时的提示词快照
+              items:
+                $ref: '#/components/schemas/EvalScenePrompt'
+            metrics:
+              oneOf:
+                - $ref: '#/components/schemas/EvalMetrics'
+                - type: 'null'
+
+    CreateEvalRunRequest:
+      type: object
+      required: [scenes]
+      properties:
+        scenes:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            enum: [resume-analysis, jd-parse, review-analyze]
+        repeat:
+          type: integer
+          minimum: 1
+          maximum: 2
+          default: 1
+          description: 重复次数；>1 时用于稳定性观察
+
+    ResultEvalSceneList:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/EvalSceneSummary'
+
+    ResultEvalRunDetail:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/EvalRunDetail'
+
+    ResultEvalRunPage:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/EvalRunSummary'

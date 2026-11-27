@@ -100,3 +100,10 @@
 - 原因：统一「运行 = 评测、基线 = 贴标签的运行、发布不自动评测」的术语与入口，避免文档、实现和验收口径脱节。
 - 验证：契约 lint 0/0；后端 `clean test` 261 tests、0 failures、0 skipped、JaCoCo 全部门禁通过；前端 `npm run build` 通过、Vitest 36、Playwright 21 全过。
 - 下一步 / 断点：P1 完成，按计划进入 P2 Task 8：契约 1.23.0 评测 5 端点。
+
+### 18:35 事件
+
+- 改动：契约升 1.23.0，新增评测运行 5 端点（`GET /api/llm/eval/scenes`、`POST/GET /api/llm/eval/runs`、`GET /runs/{runId}`、`POST /runs/{runId}/cancel`）与 12 个 schema（`EvalMetrics`、`EvalCaseResult`、`EvalRunSummary/Detail`、`EvalSceneSummary`、`EvalBaselineSummary`、`CreateEvalRunRequest` 及结果包装），路径暂标 `x-implemented: false`；`ErrorCode` 新增 `EVAL_RUN_IN_PROGRESS(40918)`、`EVAL_RUN_FINISHED(40919)`；`ContractCoverageTest` 总数 101 → 106。
+- 原因：P2 评测运行器先落契约，后端与前端按契约实现；运行始终由用户主动触发，运行不等于基线。
+- 验证：`npx @redocly/cli lint contracts/openapi.yaml` 0 error / 0 warning；`ContractCoverageTest`、`ContractSchemaTest` 均通过（待实现端点不计入双向全等）。
+- 下一步 / 断点：Task 9 评测核心迁入运行时、27 份语料与 3 份基线迁至 main resources 并改为 classpath 加载。
