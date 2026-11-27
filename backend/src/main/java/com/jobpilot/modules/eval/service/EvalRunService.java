@@ -24,14 +24,17 @@ import com.jobpilot.modules.eval.core.EvalSceneCatalog.EvalScene;
 import com.jobpilot.modules.eval.core.EvalEngine;
 import com.jobpilot.modules.eval.dto.CreateEvalRunRequest;
 import com.jobpilot.modules.eval.dto.EvalAssertionResult;
+import com.jobpilot.modules.eval.dto.EvalBaselineResult;
 import com.jobpilot.modules.eval.dto.EvalCaseResult;
 import com.jobpilot.modules.eval.dto.EvalRunDetail;
 import com.jobpilot.modules.eval.dto.EvalRunSummary;
 import com.jobpilot.modules.eval.dto.EvalSceneModel;
 import com.jobpilot.modules.eval.dto.EvalScenePrompt;
 import com.jobpilot.modules.eval.dto.EvalSceneSummary;
+import com.jobpilot.modules.eval.entity.LlmEvalBaseline;
 import com.jobpilot.modules.eval.entity.LlmEvalRun;
 import com.jobpilot.modules.eval.entity.LlmEvalRunCase;
+import com.jobpilot.modules.eval.mapper.LlmEvalBaselineMapper;
 import com.jobpilot.modules.eval.mapper.LlmEvalRunCaseMapper;
 import com.jobpilot.modules.eval.mapper.LlmEvalRunMapper;
 import com.jobpilot.modules.llm.service.LlmSceneService;
@@ -61,6 +64,7 @@ public class EvalRunService {
 
     private final LlmEvalRunMapper runMapper;
     private final LlmEvalRunCaseMapper caseMapper;
+    private final LlmEvalBaselineMapper baselineMapper;
     private final EvalSceneCatalog catalog;
     private final LlmSceneService sceneService;
     private final PromptRegistry registry;
@@ -75,11 +79,13 @@ public class EvalRunService {
     private int defaultRepeat = 1;
 
     public EvalRunService(LlmEvalRunMapper runMapper, LlmEvalRunCaseMapper caseMapper,
+                          LlmEvalBaselineMapper baselineMapper,
                           EvalSceneCatalog catalog, LlmSceneService sceneService, PromptRegistry registry,
                           EvalRunner runner,
                           @Qualifier("evalTaskExecutor") ThreadPoolTaskExecutor executor) {
         this.runMapper = runMapper;
         this.caseMapper = caseMapper;
+        this.baselineMapper = baselineMapper;
         this.catalog = catalog;
         this.sceneService = sceneService;
         this.registry = registry;
@@ -113,6 +119,9 @@ public class EvalRunService {
     @Transactional
     public EvalRunDetail create(CreateEvalRunRequest request) {
         List<String> scenes = normalizeScenes(request);
+        if (request.sourceRunId() != null || Boolean.TRUE.equals(request.retryErrorsOnly())) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "部分重跑暂未开放");
+        }
         if (runMapper.selectCount(Wrappers.<LlmEvalRun>lambdaQuery()
                 .in(LlmEvalRun::getStatus, ACTIVE_STATUS)) > 0) {
             throw BizException.of(ErrorCode.EVAL_RUN_IN_PROGRESS);
@@ -201,9 +210,9 @@ public class EvalRunService {
         List<LlmEvalRunCase> rows = caseMapper.selectList(Wrappers.<LlmEvalRunCase>lambdaQuery()
                 .eq(LlmEvalRunCase::getRunId, runId).orderByAsc(LlmEvalRunCase::getId));
         return new EvalRunDetail(run.getId(), run.getStatus(), parseScenes(run.getScenes()), run.getTotalCases(),
-                run.getCompletedCases(), run.getErrorCases(), run.getError(), run.getCreatedAt(),
+                run.getCompletedCases(), run.getErrorCases(), run.getPartial(), run.getError(), run.getCreatedAt(),
                 run.getStartedAt(), run.getFinishedAt(), rows.stream().map(this::caseResult).toList(),
-                models(run.getModelSnapshot()), prompts(run.getPromptSnapshot()), metrics(rows));
+                models(run.getModelSnapshot()), prompts(run.getPromptSnapshot()), metricsOf(rows), baselines(runId));
     }
 
     /** 取消：PENDING 直接终结并清理；PROCESSING 只置标记，由 worker 在当前用例结束后收口。 */
@@ -290,8 +299,15 @@ public class EvalRunService {
 
     private EvalRunSummary summary(LlmEvalRun run) {
         return new EvalRunSummary(run.getId(), run.getStatus(), parseScenes(run.getScenes()), run.getTotalCases(),
-                run.getCompletedCases(), run.getErrorCases(), run.getError(), run.getCreatedAt(),
+                run.getCompletedCases(), run.getErrorCases(), run.getPartial(), run.getError(), run.getCreatedAt(),
                 run.getStartedAt(), run.getFinishedAt());
+    }
+
+    /** 该运行已创建的基线，供详情页展示「已设为基线」。 */
+    private List<EvalBaselineResult> baselines(Long runId) {
+        return baselineMapper.selectList(Wrappers.<LlmEvalBaseline>lambdaQuery()
+                        .eq(LlmEvalBaseline::getRunId, runId).orderByAsc(LlmEvalBaseline::getScene))
+                .stream().map(row -> new EvalBaselineResult(row.getScene(), true, row.getId(), null)).toList();
     }
 
     private EvalCaseResult caseResult(LlmEvalRunCase row) {
@@ -301,7 +317,7 @@ public class EvalRunService {
     }
 
     /** L1 按用例、L2 按断言条目；ERROR 计入 L1/L2 失败，SKIPPED / PENDING 不参与。 */
-    private EvalMetrics metrics(List<LlmEvalRunCase> rows) {
+    static EvalMetrics metricsOf(List<LlmEvalRunCase> rows) {
         List<EvalMetricsCalculator.CaseResult> results = rows.stream().map(row -> {
             boolean error = "ERROR".equals(row.getStatus());
             int l2Total = 0;
@@ -328,7 +344,7 @@ public class EvalRunService {
         return empty ? null : metrics;
     }
 
-    private List<EvalAssertionResult> results(String json) {
+    static List<EvalAssertionResult> results(String json) {
         try {
             return M.readValue(json == null ? "[]" : json, new TypeReference<List<EvalAssertionResult>>() {
             });

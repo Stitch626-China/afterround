@@ -1194,11 +1194,11 @@ Expected: `EvalCorpusTest` 27 份通过；全量 229+ tests 全绿。
 - 旧基线 Provider 未知：`provider_key='legacy'`；对比时 legacy 视为通配，只要求 model 相同，并在 `warnings` 中提示「历史基线 Provider 未知，按模型比较」。
 - 幂等：同一 `(runId, scene)` 重复设为基线只更新 label/current，不重复插入；`run_id` 使用 `ON DELETE RESTRICT`，历史基线不随 run 删除。
 
-- [ ] **Step 1: 写失败测试**：`setBaselineDoesNotRerun`、`createMarksOnlyOneCurrent`、`sceneWithErrorIsSkipped`、`partialRunCannotCreateBaseline`、`activateSwitchesCurrent`、`importIsIdempotent`、`legacyHashOnlyForChangedVersion`。
-- [ ] **Step 2: 实现 V13、entity、mapper、service、importer**。
-- [ ] **Step 3: 运行导入测试**：3 个 scene 各 1 条 current；case 数与 JSON 一致；JD/复盘不因 legacy 误报。
-- [ ] **Step 4: 移除 P3 路径 `x-implemented: false`**；`ContractCoverageTest` 总数 110。
-- [ ] **Step 5: Commit** `feat(eval): 基线版本化、设为基线与旧基线导入（1.24.0）`。
+- [x] **Step 1: 写失败测试**：`setBaselineDoesNotRerun`、`createMarksOnlyOneCurrent`、`sceneWithErrorIsSkipped`、`partialRunCannotCreateBaseline`、`activateSwitchesCurrent`、`importIsIdempotent`、`legacyHashOnlyForChangedVersion`。
+- [x] **Step 2: 实现 V13、entity、mapper、service、importer**。
+- [x] **Step 3: 运行导入测试**：3 个 scene 各 1 条 current；case 数与 JSON 一致；JD/复盘不因 legacy 误报。
+- [x] **Step 4: 移除 P3 路径 `x-implemented: false`**；`ContractCoverageTest` 总数 110。（3 个基线端点已实现；运行对比端点按计划留到 Task 14，仍标 `x-implemented: false`）
+- [x] **Step 5: Commit** `feat(eval): 基线版本化、设为基线与旧基线导入（1.24.0）`。
 
 #### Task 14：影响面分析 + 4 维对比
 

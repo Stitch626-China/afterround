@@ -135,3 +135,10 @@
 - 原因：让「运行 = 评测、运行完成 ≠ 基线、发布不自动评测」的口径在需求、README 与验收表一致。
 - 验证：契约 lint 0/0（106 端点）；后端全量 273 tests、JaCoCo 通过；`ContractSchemaTest` 单独通过；前端构建 + Vitest 41 通过。
 - 下一步 / 断点：P3 Task 13：契约 1.24.0 + V13 + 基线服务（设为基线不重跑）。
+
+### 19:28 事件
+
+- 改动：契约升 1.24.0，新增 4 个端点（基线列表 / 设为基线 / 设为当前 / 运行对比；对比按计划暂标 `x-implemented: false`），新增 `EvalBaselineResult`、`CreateEvalBaselineRequest`、`EvalRunCompare*`、`PromptImpactSuggestion` 等 schema，并扩展 `PromptDetail.suggestedEvalScenes`、`EvalRunSummary.partial`、`EvalRunDetail.baselines`、`CreateEvalRunRequest.sourceRunId/retryErrorsOnly`；新增 V13 `llm_eval_baselines`（历史保留、每场景一个当前基线、run 删除 RESTRICT）；新增 `LlmEvalBaseline` 实体 / mapper、`EvalBaselineService`（设为基线复用运行结果、逐场景跳过 ERROR、activate 只换标记）、`LegacyBaselineImporter`（启动且基线表与 COMPLETED 运行均为空时导入 3 个 JSON，简历 v2→legacy、JD/复盘写当前 hash）；`EvalController` 增加 3 个基线端点；`ContractCoverageTest` 总数 110；`EvalRunService` 详情补 `partial` 与 `baselines`。
+- 原因：基线是「被贴标签的运行」，设为基线不重跑；历史 JSON 只做首次导入，产品基线只走 DB；`is_current` 只做标记，历史不覆盖。
+- 验证：`ContractSchemaTest` 通过（新增 12 个 DTO 字段对齐）；`EvalBaselineServiceTest` 4 个 + `LegacyBaselineImporterTest` 1 个通过（3 场景 / 27 例 / legacy hash 规则 / 幂等）；后端 `clean test` **278 tests、0 skipped、JaCoCo 全部门禁通过**；契约 lint 0/0。
+- 下一步 / 断点：Task 14 影响面分析 + run vs run 4 维对比（含部分重跑），移除 compare 的待实现标记。

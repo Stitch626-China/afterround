@@ -2,13 +2,16 @@ package com.jobpilot.modules.eval.dto;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
 
-/** 创建评测运行：P2 只支持选择场景；P3 追加 sourceRunId + retryErrorsOnly。 */
+/**
+ * 创建评测运行：普通运行给 scenes；部分重跑给 sourceRunId + retryErrorsOnly。
+ * 二选一与互斥校验在服务端完成，便于给出可操作提示。
+ */
 public record CreateEvalRunRequest(
-        @NotEmpty List<@NotBlank String> scenes,
-        @Min(1) @Max(2) Integer repeat) {
+        List<String> scenes,
+        @Min(1) @Max(2) Integer repeat,
+        Long sourceRunId,
+        Boolean retryErrorsOnly) {
 }

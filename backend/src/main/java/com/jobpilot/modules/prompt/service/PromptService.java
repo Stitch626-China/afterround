@@ -73,7 +73,7 @@ public class PromptService {
                 summary.outputMode(), summary.modelScope(), summary.scene(), summary.evalScene(),
                 summary.hasEvalCorpus(), summary.affectedFunctions(), summary.placeholders(),
                 summary.requiredFields(), summary.activeVersion(), summary.builtinVersion(),
-                summary.hasDraft(), summary.updatedAt(), active, builtIn, draft, validation);
+                summary.hasDraft(), summary.updatedAt(), active, builtIn, draft, validation, List.of());
     }
 
     /** 保存草稿：可保存但有错误时不能发布。 */

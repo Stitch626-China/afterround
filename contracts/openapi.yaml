@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.23.0
+  version: 1.24.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -38,6 +38,8 @@ info:
       发布后热更新；保存与发布校验占位符和该场景必需的 JSON 字段；发布不触发评测。
     - **1.23.0（评测运行器）**：新增 5 个评测端点（场景列表 / 创建运行 / 运行列表 / 运行详情 / 取消），
       运行为异步任务，使用启动时的提示词与模型快照；始终由用户主动触发，发布或改配置不自动评测。
+    - **1.24.0（基线对比）**：新增 4 个端点（基线列表 / 从已完成运行设为基线 / 设为当前 / 运行对比），
+      基线是被「设为基线」的那次运行，只贴标签不重跑；对比对象是 run vs run，提示词不参与可比性。
     - 场景枚举 `LlmScene` 一次性定义全部 7 个场景（含 M2 未落地的预留项），避免后续扩展改动枚举。
       JD 结构化解析与简历对比总结未列入枚举，使用全局默认，不参与场景级绑定。
 
@@ -48,6 +50,7 @@ info:
     M3 1.9.0 契约的全部端点已实现（1.9.3 真实面试轮次、1.9.4 复盘 / 分析 / 词表 / 改进动作、1.9.5 ASR 重试），
     1.10.0 新增跨场洞察端点，1.20.0 新增 token 成本统计，1.21.0 新增复盘音频清理，1.22.0 新增提示词工作台；
     当前 101 个已实现端点纳入双向全等校验；1.23.0 的 5 个评测端点已实现并纳入同一校验。
+    1.24.0 新增 4 个基线 / 对比端点：3 个基线端点已实现，运行对比端点待 Task 14 实现（`x-implemented: false`）。
 
     ## 错误码补充（M2）
     - `40906` 公司名称已存在（`companies.name` UNIQUE）
@@ -807,6 +810,120 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResultVoid'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  # ==========================================================
+  # 基线对比（1.24.0）
+  # ==========================================================
+
+  /api/llm/eval/baselines:
+    get:
+      tags: [评测运行]
+      operationId: listEvalBaselines
+      summary: 按场景查询当前与历史基线
+      description: 当前基线在前，其余按创建时间倒序；不传 `scene` 时返回全部场景。
+      parameters:
+        - name: scene
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [resume-analysis, jd-parse, review-analyze]
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultEvalBaselineList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags: [评测运行]
+      operationId: createEvalBaseline
+      summary: 把已完成的运行设为基线（不重跑）
+      description: |
+        - 只接受 `COMPLETED` 且 `partial=false` 的运行；按场景分组，某场景存在 ERROR 用例时跳过并返回原因。
+        - 直接复用运行结果贴标签，不调用模型、不重跑；旧当前基线置为非当前，历史保留。
+        - 同一 `(runId, scene)` 重复调用只更新 label / current，不重复插入。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEvalBaselineRequest'
+      responses:
+        '200':
+          description: 逐场景处理结果（部分成功可区分）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultEvalBaselineResultList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/eval/baselines/{baselineId}/activate:
+    parameters:
+      - $ref: '#/components/parameters/BaselineId'
+    post:
+      tags: [评测运行]
+      operationId: activateEvalBaseline
+      summary: 将历史基线设为当前
+      description: 只切换 `is_current` 标记，不重跑、不改历史；同场景其他基线自动取消当前。
+      responses:
+        '200':
+          description: 设置成功，返回被激活的基线
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultEvalBaselineSummary'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /api/llm/eval/runs/compare:
+    x-implemented: false
+    get:
+      tags: [评测运行]
+      operationId: compareEvalRuns
+      summary: 两次运行 4 维对比
+      description: |
+        对比对象是 run vs run；基线只是被标记的 run。只有 `COMPLETED` 且 `partial=false` 的运行可参与完整对比。
+        可比性要求场景、Provider、Model、参数、语料 hash、引擎版本一致；提示词是被测变量，不参与判定。
+        不可比时仍返回 200，`comparable=false` 并在 `reasons` 中说明。
+      parameters:
+        - name: leftRunId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: rightRunId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 成功（含不可比分支）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultEvalRunCompare'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -3226,6 +3343,14 @@ components:
       in: path
       required: true
       description: 评测运行 ID
+      schema:
+        type: integer
+        format: int64
+    BaselineId:
+      name: baselineId
+      in: path
+      required: true
+      description: 基线 ID
       schema:
         type: integer
         format: int64
@@ -7262,6 +7387,11 @@ components:
                 - type: 'null'
             validation:
               $ref: '#/components/schemas/PromptValidation'
+            suggestedEvalScenes:
+              type: array
+              description: 当前配置与基线不一致时建议重建的场景；空数组表示无需提示
+              items:
+                $ref: '#/components/schemas/PromptImpactSuggestion'
 
     SavePromptDraftRequest:
       type: object
@@ -7450,6 +7580,9 @@ components:
         errorCases:
           type: integer
           description: 执行错误（ERROR）用例数，不含质量失败
+        partial:
+          type: boolean
+          description: true 表示只重跑部分用例（ERROR 重试），不可作为基线、不参与完整对比
         error:
           type: [string, "null"]
         createdAt:
@@ -7566,10 +7699,14 @@ components:
               oneOf:
                 - $ref: '#/components/schemas/EvalMetrics'
                 - type: 'null'
+            baselines:
+              type: array
+              description: 该运行已创建 / 关联的场景基线
+              items:
+                $ref: '#/components/schemas/EvalBaselineResult'
 
     CreateEvalRunRequest:
       type: object
-      required: [scenes]
       properties:
         scenes:
           type: array
@@ -7583,6 +7720,14 @@ components:
           maximum: 2
           default: 1
           description: 重复次数；>1 时用于稳定性观察
+        sourceRunId:
+          type: [integer, "null"]
+          format: int64
+          description: 部分重跑的源运行；与 scenes 二选一
+        retryErrorsOnly:
+          type: boolean
+          default: false
+          description: true 时只重跑源运行中 ERROR 的用例，新运行 partial=true
 
     ResultEvalSceneList:
       allOf:
@@ -7616,3 +7761,249 @@ components:
                       type: array
                       items:
                         $ref: '#/components/schemas/EvalRunSummary'
+
+    # ---------- 基线对比（1.24.0） ----------
+
+    EvalBaselineResult:
+      type: object
+      required: [scene, created]
+      properties:
+        scene:
+          type: string
+        created:
+          type: boolean
+          description: true 表示本次成功写入 / 更新基线
+        baselineId:
+          type: [integer, "null"]
+          format: int64
+        reason:
+          type: [string, "null"]
+          description: created=false 时的可读原因
+
+    CreateEvalBaselineRequest:
+      type: object
+      required: [runId]
+      properties:
+        runId:
+          type: integer
+          format: int64
+        label:
+          type: [string, "null"]
+          maxLength: 100
+
+    EvalRunCompareSide:
+      type: object
+      required: [runId, scene, providerKey, model, promptVersion, promptHash,
+                 corpusHash, engineVersion, params, metrics]
+      properties:
+        runId:
+          type: integer
+          format: int64
+        scene:
+          type: string
+        providerKey:
+          type: string
+        model:
+          type: string
+        promptVersion:
+          type: string
+        promptHash:
+          type: string
+        corpusHash:
+          type: string
+        engineVersion:
+          type: string
+        params:
+          type: object
+          additionalProperties: true
+        metrics:
+          $ref: '#/components/schemas/EvalMetrics'
+        baselineId:
+          type: [integer, "null"]
+          format: int64
+        baselineLabel:
+          type: [string, "null"]
+
+    EvalCompareQuality:
+      type: object
+      description: 质量门禁：L1 按用例、L2 按断言条目；旧导入基线无明细时为 null。
+      properties:
+        l1PassRate:
+          type: [number, "null"]
+        l2PassRate:
+          type: [number, "null"]
+        l1Delta:
+          type: [number, "null"]
+        l2Delta:
+          type: [number, "null"]
+        l1Failed:
+          type: [integer, "null"]
+        l2Failed:
+          type: [integer, "null"]
+
+    EvalCompareRegression:
+      type: object
+      description: 回归变化计数；一个 case 可同时命中多项。
+      properties:
+        fixedCases:
+          type: integer
+        newFailedCases:
+          type: integer
+        scoreDriftCases:
+          type: integer
+          description: 绝对分差 >10 的 case 数
+        tagChangedCases:
+          type: integer
+          description: 标签 Jaccard <0.7 的 case 数
+
+    EvalCompareCost:
+      type: object
+      properties:
+        leftTokens:
+          type: [integer, "null"]
+        rightTokens:
+          type: [integer, "null"]
+        delta:
+          type: [integer, "null"]
+        leftAvgTokens:
+          type: [number, "null"]
+        rightAvgTokens:
+          type: [number, "null"]
+
+    EvalCompareLatency:
+      type: object
+      properties:
+        leftAvgMs:
+          type: [number, "null"]
+        rightAvgMs:
+          type: [number, "null"]
+        avgDelta:
+          type: [number, "null"]
+        leftP95Ms:
+          type: [number, "null"]
+        rightP95Ms:
+          type: [number, "null"]
+        p95Delta:
+          type: [number, "null"]
+
+    EvalCompareCase:
+      type: object
+      required: [caseId, leftStatus, rightStatus, changes]
+      properties:
+        caseId:
+          type: string
+        leftStatus:
+          type: string
+        rightStatus:
+          type: string
+        changes:
+          type: array
+          items:
+            type: string
+            enum: [FIXED, REGRESSED, SCORE_DRIFT, TAG_CHANGED, UNCHANGED]
+        scoreDrift:
+          type: [number, "null"]
+        tagJaccard:
+          type: [number, "null"]
+        details:
+          type: [string, "null"]
+
+    EvalRunCompare:
+      type: object
+      required: [comparable, reasons, warnings, applicableDimensions, scene, left, right]
+      properties:
+        comparable:
+          type: boolean
+        reasons:
+          type: array
+          description: comparable=false 时的硬性原因
+          items:
+            type: string
+        warnings:
+          type: array
+          description: 不阻断对比的提示，如历史基线 Provider 未知
+          items:
+            type: string
+        applicableDimensions:
+          type: array
+          items:
+            type: string
+            enum: [QUALITY, SCORE_DRIFT, TAG_CHANGE, COST, LATENCY]
+        scene:
+          type: string
+        left:
+          $ref: '#/components/schemas/EvalRunCompareSide'
+        right:
+          $ref: '#/components/schemas/EvalRunCompareSide'
+        quality:
+          oneOf:
+            - $ref: '#/components/schemas/EvalCompareQuality'
+            - type: 'null'
+        regression:
+          oneOf:
+            - $ref: '#/components/schemas/EvalCompareRegression'
+            - type: 'null'
+        cost:
+          oneOf:
+            - $ref: '#/components/schemas/EvalCompareCost'
+            - type: 'null'
+        latency:
+          oneOf:
+            - $ref: '#/components/schemas/EvalCompareLatency'
+            - type: 'null'
+        cases:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvalCompareCase'
+
+    PromptImpactSuggestion:
+      type: object
+      required: [scene, caseCount, reasons]
+      properties:
+        scene:
+          type: string
+        caseCount:
+          type: integer
+        reasons:
+          type: array
+          items:
+            type: string
+        currentBaselineId:
+          type: [integer, "null"]
+          format: int64
+
+    ResultEvalBaselineList:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/EvalBaselineSummary'
+
+    ResultEvalBaselineResultList:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/EvalBaselineResult'
+
+    ResultEvalBaselineSummary:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/EvalBaselineSummary'
+
+    ResultEvalRunCompare:
+      allOf:
+        - $ref: '#/components/schemas/ResultVoid'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/EvalRunCompare'

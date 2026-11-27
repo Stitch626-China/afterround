@@ -109,6 +109,7 @@ class EvalApiIntegrationTest extends AbstractIntegrationTest {
     void setUp() {
         client = WebTestClient.bindToServer().baseUrl("http://127.0.0.1:" + port)
                 .responseTimeout(Duration.ofSeconds(60)).build();
+        jdbc.update("DELETE FROM llm_eval_baselines");
         jdbc.update("DELETE FROM llm_eval_run_cases");
         jdbc.update("DELETE FROM llm_eval_runs");
         jdbc.update("DELETE FROM llm_call_logs");

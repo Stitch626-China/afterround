@@ -4,10 +4,14 @@ import java.util.List;
 
 import com.jobpilot.common.api.PageResult;
 import com.jobpilot.common.api.Result;
+import com.jobpilot.modules.eval.dto.CreateEvalBaselineRequest;
 import com.jobpilot.modules.eval.dto.CreateEvalRunRequest;
+import com.jobpilot.modules.eval.dto.EvalBaselineResult;
+import com.jobpilot.modules.eval.dto.EvalBaselineSummary;
 import com.jobpilot.modules.eval.dto.EvalRunDetail;
 import com.jobpilot.modules.eval.dto.EvalRunSummary;
 import com.jobpilot.modules.eval.dto.EvalSceneSummary;
+import com.jobpilot.modules.eval.service.EvalBaselineService;
 import com.jobpilot.modules.eval.service.EvalRunService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,9 +28,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class EvalController {
 
     private final EvalRunService service;
+    private final EvalBaselineService baselineService;
 
-    public EvalController(EvalRunService service) {
+    public EvalController(EvalRunService service, EvalBaselineService baselineService) {
         this.service = service;
+        this.baselineService = baselineService;
     }
 
     @GetMapping("/scenes")
@@ -53,5 +59,21 @@ public class EvalController {
     @PostMapping("/runs/{runId}/cancel")
     public Result<EvalRunDetail> cancel(@PathVariable Long runId) {
         return Result.ok(service.cancel(runId));
+    }
+
+    @GetMapping("/baselines")
+    public Result<List<EvalBaselineSummary>> baselines(@RequestParam(required = false) String scene) {
+        return Result.ok(baselineService.list(scene));
+    }
+
+    @PostMapping("/baselines")
+    public Result<List<EvalBaselineResult>> createBaseline(
+            @Valid @RequestBody CreateEvalBaselineRequest request) {
+        return Result.ok(baselineService.createFromRun(request));
+    }
+
+    @PostMapping("/baselines/{baselineId}/activate")
+    public Result<EvalBaselineSummary> activateBaseline(@PathVariable Long baselineId) {
+        return Result.ok(baselineService.activate(baselineId));
     }
 }

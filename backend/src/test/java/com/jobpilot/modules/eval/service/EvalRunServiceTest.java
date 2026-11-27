@@ -44,6 +44,8 @@ class EvalRunServiceTest {
     @Mock
     private LlmEvalRunCaseMapper caseMapper;
     @Mock
+    private com.jobpilot.modules.eval.mapper.LlmEvalBaselineMapper baselineMapper;
+    @Mock
     private EvalSceneCatalog catalog;
     @Mock
     private LlmSceneService sceneService;
@@ -61,7 +63,8 @@ class EvalRunServiceTest {
     }
 
     private EvalRunService service() {
-        return new EvalRunService(runMapper, caseMapper, catalog, sceneService, registry, runner, executor);
+        return new EvalRunService(runMapper, caseMapper, baselineMapper, catalog, sceneService, registry, runner,
+                executor);
     }
 
     private static EvalScene resumeScene() {
@@ -73,7 +76,7 @@ class EvalRunServiceTest {
     void createRejectsUnsupportedScene() {
         when(catalog.get("unknown"))
                 .thenThrow(BizException.of(ErrorCode.BAD_REQUEST, "不支持的评测场景: unknown"));
-        assertThatThrownBy(() -> service().create(new CreateEvalRunRequest(List.of("unknown"), 1)))
+        assertThatThrownBy(() -> service().create(new CreateEvalRunRequest(List.of("unknown"), 1, null, null)))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).errorCode()).isEqualTo(ErrorCode.BAD_REQUEST);
     }
@@ -82,7 +85,7 @@ class EvalRunServiceTest {
     void createRejectsConcurrentRun() {
         when(catalog.get("resume-analysis")).thenReturn(resumeScene());
         when(runMapper.selectCount(any())).thenReturn(1L);
-        assertThatThrownBy(() -> service().create(new CreateEvalRunRequest(List.of("resume-analysis"), 1)))
+        assertThatThrownBy(() -> service().create(new CreateEvalRunRequest(List.of("resume-analysis"), 1, null, null)))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).errorCode()).isEqualTo(ErrorCode.EVAL_RUN_IN_PROGRESS);
     }
@@ -120,7 +123,7 @@ class EvalRunServiceTest {
             return null;
         }).when(executor).execute(any(Runnable.class));
 
-        EvalRunDetail detail = service().create(new CreateEvalRunRequest(List.of("resume-analysis"), 2));
+        EvalRunDetail detail = service().create(new CreateEvalRunRequest(List.of("resume-analysis"), 2, null, null));
 
         assertThat(detail.id()).isEqualTo(9L);
         assertThat(detail.status()).isEqualTo("PENDING");

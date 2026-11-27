@@ -5,7 +5,7 @@ import java.util.List;
 
 import com.jobpilot.modules.eval.core.EvalMetrics;
 
-/** 运行详情：摘要 + 逐用例 + 启动快照 + 聚合指标。 */
+/** 运行详情：摘要 + 逐用例 + 启动快照 + 聚合指标 + 已创建的基线。 */
 public record EvalRunDetail(
         Long id,
         String status,
@@ -13,6 +13,7 @@ public record EvalRunDetail(
         int totalCases,
         int completedCases,
         int errorCases,
+        Boolean partial,
         String error,
         OffsetDateTime createdAt,
         OffsetDateTime startedAt,
@@ -20,5 +21,6 @@ public record EvalRunDetail(
         List<EvalCaseResult> cases,
         List<EvalSceneModel> models,
         List<EvalScenePrompt> prompts,
-        EvalMetrics metrics) {
+        EvalMetrics metrics,
+        List<EvalBaselineResult> baselines) {
 }

@@ -11,6 +11,7 @@ public record EvalRunSummary(
         int totalCases,
         int completedCases,
         int errorCases,
+        Boolean partial,
         String error,
         OffsetDateTime createdAt,
         OffsetDateTime startedAt,

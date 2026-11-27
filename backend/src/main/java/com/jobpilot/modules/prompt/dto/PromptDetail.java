@@ -3,6 +3,7 @@ package com.jobpilot.modules.prompt.dto;
 import java.time.OffsetDateTime;
 import java.util.List;
 
+import com.jobpilot.modules.eval.dto.PromptImpactSuggestion;
 import com.jobpilot.modules.prompt.catalog.PromptModelScope;
 import com.jobpilot.modules.prompt.catalog.PromptOutputMode;
 
@@ -29,5 +30,6 @@ public record PromptDetail(
         PromptVersionDetail active,
         PromptVersionDetail builtIn,
         PromptVersionDetail draft,
-        PromptValidation validation) {
+        PromptValidation validation,
+        List<PromptImpactSuggestion> suggestedEvalScenes) {
 }
