@@ -72,6 +72,9 @@ public class LlmUsageService {
             case "OFFER_ANALYZE" -> "Offer 分析";
             case "REVIEW_ANALYZE" -> "复盘分析";
             case "INSIGHTS_SUMMARY" -> "洞察 AI 总结";
+            case "EVAL_RESUME_ANALYZE" -> "评测·简历分析";
+            case "EVAL_JD_PARSE" -> "评测·JD 解析";
+            case "EVAL_REVIEW_ANALYZE" -> "评测·复盘分析";
             case "CONNECTIVITY_TEST" -> "连通测试";
             default -> scene;
         };

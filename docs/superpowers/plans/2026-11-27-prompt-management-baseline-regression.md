@@ -728,7 +728,7 @@ frontend/e2e/llm-workbench.spec.ts
 | 草稿/发布/回滚 | `PUT .../draft`、`POST .../publish`、`POST .../versions/{n}/activate` | `PromptService` | `llm_prompt_versions` | `PromptServiceTest` + `PromptApiIntegrationTest` + E2E | 已完成 |
 | 运行时提示词生效 | 无（内部调用） | 8 个 `PromptFactory` + `PromptRegistry` | `llm_prompt_versions` | `PromptFactoryTest` + 业务服务测试 | 已完成 |
 | 模型与绑定 | 现有 `/api/llm/global`、`/api/llm/scenes/{scene}` | `LlmGlobalSettingService` / `LlmSceneService` | 现有 LLM 配置表 | 现有测试 + `llm-workbench.spec.ts` | 已完成 |
-| 评测运行 | `POST/GET /api/llm/eval/runs`、`GET /{id}`、`POST /{id}/cancel` | `EvalRunService` / `EvalRunner` | `llm_eval_runs` / `llm_eval_run_cases` | `EvalRunServiceTest` + API 集成 | 待实现 |
+| 评测运行 | `POST/GET /api/llm/eval/runs`、`GET /{id}`、`POST /{id}/cancel` | `EvalRunService` / `EvalRunner` | `llm_eval_runs` / `llm_eval_run_cases` | `EvalRunServiceTest` + `EvalRunnerTest` + `EvalApiIntegrationTest` | 后端已完成，前端待 Task 11 |
 | 设为基线 | `POST /api/llm/eval/baselines` | `EvalBaselineService` | `llm_eval_baselines` | `EvalBaselineServiceTest` + E2E | 待实现 |
 | 基线列表/设为当前 | `GET /api/llm/eval/baselines`、`POST .../{id}/activate` | `EvalBaselineService` | `llm_eval_baselines` | `EvalBaselineServiceTest` + E2E | 待实现 |
 | 运行对比 | `GET /api/llm/eval/runs/compare` | `EvalCompareService` | runs + cases | `EvalCompareServiceTest` + E2E | 待实现 |
@@ -1135,12 +1135,12 @@ Expected: `EvalCorpusTest` 27 份通过；全量 229+ tests 全绿。
 7. 评测调用写 `llm_call_logs`，scene 为 `EVAL_RESUME_ANALYZE` / `EVAL_JD_PARSE` / `EVAL_REVIEW_ANALYZE`；`LlmUsageService` 补对应中文标签，调用统计按场景分组可区分；「含评测/仅业务」过滤开关留后续。
 8. 取消：置 `cancel_requested`，当前用例结束后停止，剩余 PENDING 置 SKIPPED，run 置 CANCELLED；取消/失败的 run 不建基线。
 
-- [ ] **Step 1: 写失败测试**：`EvalRunServiceTest.createRejectsConcurrentRun`（已有 PROCESSING → 40918）、`createRejectsUnsupportedScene`（400）、`cancelFinishedRun`（40919）、`afterCommitWorkerSeesRun`、`consecutiveErrorsAbort`、`runnerWritesCaseResults`（fake client 返回固定 JSON）。
-- [ ] **Step 2: 实现 V12、entity、mapper、service、worker、controller**；`@Transactional` 创建 run/cases + `afterCommit` 提交任务。
-- [ ] **Step 3: 写 API 集成测试**：Testcontainers + 假 OpenAI 上游；POST run → 轮询 GET → COMPLETED；断言 cases、metrics、tokens、models/prompts 快照。
-- [ ] **Step 4: 启动恢复/取消测试**：预置 PROCESSING run，启动后变 FAILED 且剩余 case 变 SKIPPED；取消后同样清理。
-- [ ] **Step 5: 移除 P2 路径的 `x-implemented: false`**；`ContractCoverageTest` 总数 106 双向一致。
-- [ ] **Step 6: Commit** `feat(eval): 评测运行器产品化（异步、进度、取消）`。
+- [x] **Step 1: 写失败测试**：`EvalRunServiceTest.createRejectsConcurrentRun`（已有 PROCESSING → 40918）、`createRejectsUnsupportedScene`（400）、`cancelFinishedRun`（40919）、`afterCommitWorkerSeesRun`、`consecutiveErrorsAbort`、`runnerWritesCaseResults`（fake client 返回固定 JSON）。
+- [x] **Step 2: 实现 V12、entity、mapper、service、worker、controller**；`@Transactional` 创建 run/cases + `afterCommit` 提交任务。
+- [x] **Step 3: 写 API 集成测试**：Testcontainers + 假 OpenAI 上游；POST run → 轮询 GET → COMPLETED；断言 cases、metrics、tokens、models/prompts 快照。
+- [x] **Step 4: 启动恢复/取消测试**：预置 PROCESSING run，启动后变 FAILED 且剩余 case 变 SKIPPED；取消后同样清理。
+- [x] **Step 5: 移除 P2 路径的 `x-implemented: false`**；`ContractCoverageTest` 总数 106 双向一致。
+- [x] **Step 6: Commit** `feat(eval): 评测运行器产品化（异步、进度、取消）`。
 
 #### Task 11：前端评测运行面板（P2）
 

@@ -66,6 +66,15 @@ app:
     asr-core-pool-size: ${ASYNC_ASR_CORE_POOL_SIZE:1}
     asr-max-pool-size: ${ASYNC_ASR_MAX_POOL_SIZE:2}
     asr-queue-capacity: ${ASYNC_ASR_QUEUE_CAPACITY:5}
+    # 评测单线程顺序执行，队列只留 1 个位置
+    eval-core-pool-size: ${ASYNC_EVAL_CORE_POOL_SIZE:1}
+    eval-max-pool-size: ${ASYNC_EVAL_MAX_POOL_SIZE:1}
+    eval-queue-capacity: ${ASYNC_EVAL_QUEUE_CAPACITY:1}
+  eval:
+    # 评测使用更长 token 上限与超时，不影响生产调用的 4096 / 120s
+    max-tokens: ${EVAL_MAX_TOKENS:8192}
+    timeout-seconds: ${EVAL_TIMEOUT_SECONDS:300}
+    repeat: ${EVAL_REPEAT:1}
   asr:
     # OpenAI 兼容 /audio/transcriptions；base-url 需包含 /v1；未配置时音频复盘返回可操作提示
     base-url: ${ASR_BASE_URL:}

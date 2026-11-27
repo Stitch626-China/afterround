@@ -15,6 +15,7 @@ import java.util.Set;
 import com.jobpilot.modules.application.controller.JobApplicationController;
 import com.jobpilot.modules.chat.controller.ChatController;
 import com.jobpilot.modules.company.controller.CompanyController;
+import com.jobpilot.modules.eval.controller.EvalController;
 import com.jobpilot.modules.insights.controller.InsightsController;
 import com.jobpilot.modules.interview.controller.InterviewController;
 import com.jobpilot.modules.interview.controller.InterviewSessionController;
@@ -101,7 +102,8 @@ class ContractCoverageTest {
                 ResumeComparisonController.class, InterviewController.class, InterviewSessionController.class,
                 OfferController.class, JobApplicationController.class, InterviewEventController.class,
                 ReviewSessionController.class, ImprovementActionController.class,
-                ReviewTaxonomyController.class, InsightsController.class, PromptController.class)) {
+                ReviewTaxonomyController.class, InsightsController.class, PromptController.class,
+                EvalController.class)) {
             String base = controller.getAnnotation(RequestMapping.class).value()[0];
             for (Method method : controller.getDeclaredMethods()) {
                 for (Annotation annotation : method.getAnnotations()) {

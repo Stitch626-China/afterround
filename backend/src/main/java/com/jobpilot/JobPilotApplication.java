@@ -18,7 +18,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
         "com.jobpilot.modules.job.mapper", "com.jobpilot.modules.interview.mapper",
         "com.jobpilot.modules.offer.mapper", "com.jobpilot.modules.application.mapper",
         "com.jobpilot.modules.review.mapper", "com.jobpilot.modules.insights.mapper",
-        "com.jobpilot.modules.prompt.mapper"})
+        "com.jobpilot.modules.prompt.mapper", "com.jobpilot.modules.eval.mapper"})
 public class JobPilotApplication {
 
     public static void main(String[] args) {

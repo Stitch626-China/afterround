@@ -31,6 +31,18 @@ public class AsyncConfig {
         return executor(corePoolSize, maxPoolSize, queueCapacity, "jobpilot-asr-");
     }
 
+    /**
+     * 评测专用线程池：同一时间只允许一个运行，单线程顺序执行；
+     * 队列只留 1 个位置，配合活跃运行唯一索引避免堆积。
+     */
+    @Bean("evalTaskExecutor")
+    public ThreadPoolTaskExecutor evalTaskExecutor(
+            @Value("${app.async.eval-core-pool-size:1}") int corePoolSize,
+            @Value("${app.async.eval-max-pool-size:1}") int maxPoolSize,
+            @Value("${app.async.eval-queue-capacity:1}") int queueCapacity) {
+        return executor(corePoolSize, maxPoolSize, queueCapacity, "jobpilot-eval-");
+    }
+
     private static ThreadPoolTaskExecutor executor(int corePoolSize, int maxPoolSize, int queueCapacity,
                                                    String prefix) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

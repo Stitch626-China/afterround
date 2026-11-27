@@ -114,3 +114,10 @@
 - 原因：语料要随包发布，评测执行器要在运行时被 `EvalRunService` 复用；CLI 写基线不能污染仓库。
 - 验证：`EvalCorpusTest` classpath 27 份通过（classpath 多根重复时按 场景/id 去重）；新增 `EvalMetricsCalculatorTest`（通过率、tokens、P95 最近秩）；后端 `clean test` **264 tests、0 skipped、JaCoCo 全部门禁通过**。
 - 下一步 / 断点：Task 10 V12 + `EvalRunService` 异步执行；真实模型 CLI 冒烟需用户主动触发，未自动执行。
+
+### 18:50 事件
+
+- 改动：新增 `V12__llm_eval_runs.sql`（运行 + 逐用例；状态 CHECK、活跃运行唯一索引、部分唯一索引防并发）；`LlmEvalRun/LlmEvalRunCase` 实体与 mapper；`EvalSceneCatalog`（3 场景：简历 10 / JD 9 / 复盘 8，含语料哈希）；`EvalClientFactory`（评测专用 8192 token / 300s）；`EvalRunService`（校验 + 快照 + 事务 afterCommit 调度 + 分页/详情/取消）；`EvalRunner`（逐用例断言、token 埋点、连续 3 次上游故障熔断、取消/失败清理剩余用例）；`EvalRunRecovery`（启动把 PENDING/PROCESSING 置 FAILED、剩余用例 SKIPPED）；`EvalController` 5 端点；`AsyncConfig` 增加 `evalTaskExecutor`；`LlmUsageService` 补 `EVAL_*` 中文标签；`application.yml` 补 `app.eval` 与评测线程池；契约移除 5 个 `x-implemented: false`，`ContractCoverageTest` 纳入 `EvalController`。
+- 原因：评测运行产品化，始终由用户主动触发；模型与提示词用启动快照，运行中改配置不影响本次；运行完成不等于基线。
+- 验证：`EvalRunServiceTest` 4 个、`EvalRunnerTest` 2 个（含熔断 9 次调用）、`EvalApiIntegrationTest` 3 个（真实 PG + 假上游，10 例跑完 COMPLETED、tokens 3000、40918/40919、启动恢复）全过；后端 `clean test` **273 tests、0 skipped、JaCoCo 全部门禁通过**；契约 lint 0/0。
+- 下一步 / 断点：Task 11 前端评测运行面板（scenes 卡片、手动开始、轮询、取消、详情）。

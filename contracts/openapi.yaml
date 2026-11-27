@@ -47,7 +47,7 @@ info:
     实现完成后删除标记即自动纳入双向全等校验，无需维护例外清单。
     M3 1.9.0 契约的全部端点已实现（1.9.3 真实面试轮次、1.9.4 复盘 / 分析 / 词表 / 改进动作、1.9.5 ASR 重试），
     1.10.0 新增跨场洞察端点，1.20.0 新增 token 成本统计，1.21.0 新增复盘音频清理，1.22.0 新增提示词工作台；
-    当前 101 个已实现端点纳入双向全等校验；1.23.0 新增的 5 个评测端点暂标 `x-implemented: false`（待实现）。
+    当前 101 个已实现端点纳入双向全等校验；1.23.0 的 5 个评测端点已实现并纳入同一校验。
 
     ## 错误码补充（M2）
     - `40906` 公司名称已存在（`companies.name` UNIQUE）
@@ -694,7 +694,6 @@ paths:
   # ==========================================================
 
   /api/llm/eval/scenes:
-    x-implemented: false
     get:
       tags: [评测运行]
       operationId: listEvalScenes
@@ -713,7 +712,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/llm/eval/runs:
-    x-implemented: false
     get:
       tags: [评测运行]
       operationId: listEvalRuns
@@ -767,7 +765,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/llm/eval/runs/{runId}:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/EvalRunId'
     get:
@@ -788,7 +785,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/llm/eval/runs/{runId}/cancel:
-    x-implemented: false
     parameters:
       - $ref: '#/components/parameters/EvalRunId'
     post:
