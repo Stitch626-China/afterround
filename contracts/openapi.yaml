@@ -50,7 +50,7 @@ info:
     M3 1.9.0 契约的全部端点已实现（1.9.3 真实面试轮次、1.9.4 复盘 / 分析 / 词表 / 改进动作、1.9.5 ASR 重试），
     1.10.0 新增跨场洞察端点，1.20.0 新增 token 成本统计，1.21.0 新增复盘音频清理，1.22.0 新增提示词工作台；
     当前 101 个已实现端点纳入双向全等校验；1.23.0 的 5 个评测端点已实现并纳入同一校验。
-    1.24.0 新增 4 个基线 / 对比端点：3 个基线端点已实现，运行对比端点待 Task 14 实现（`x-implemented: false`）。
+    1.24.0 新增 4 个基线 / 对比端点，均已实现并纳入同一校验。
 
     ## 错误码补充（M2）
     - `40906` 公司名称已存在（`companies.name` UNIQUE）
@@ -891,7 +891,6 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /api/llm/eval/runs/compare:
-    x-implemented: false
     get:
       tags: [评测运行]
       operationId: compareEvalRuns

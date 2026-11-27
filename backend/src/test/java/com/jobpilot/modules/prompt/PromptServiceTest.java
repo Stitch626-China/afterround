@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.jobpilot.common.api.ErrorCode;
 import com.jobpilot.common.exception.BizException;
+import com.jobpilot.modules.eval.service.EvalImpactAnalyzer;
 import com.jobpilot.modules.prompt.catalog.PromptCatalog;
 import com.jobpilot.modules.prompt.entity.LlmPromptVersion;
 import com.jobpilot.modules.prompt.mapper.LlmPromptVersionMapper;
@@ -23,7 +24,7 @@ class PromptServiceTest {
 
     private final LlmPromptVersionMapper mapper = mock(LlmPromptVersionMapper.class);
     private final PromptService service = new PromptService(new PromptCatalog(), mapper,
-            new PromptValidator(), PromptRegistry.builtinOnly());
+            new PromptValidator(), PromptRegistry.builtinOnly(), mock(EvalImpactAnalyzer.class));
 
     @Test
     void publishWithoutDraftRejects() {

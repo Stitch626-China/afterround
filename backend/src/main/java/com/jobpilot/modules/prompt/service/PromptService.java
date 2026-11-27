@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jobpilot.common.api.ErrorCode;
 import com.jobpilot.common.api.PageResult;
 import com.jobpilot.common.exception.BizException;
+import com.jobpilot.modules.eval.service.EvalImpactAnalyzer;
 import com.jobpilot.modules.prompt.catalog.PromptCatalog;
 import com.jobpilot.modules.prompt.catalog.PromptSpec;
 import com.jobpilot.modules.prompt.catalog.PromptVersionSource;
@@ -42,13 +43,16 @@ public class PromptService {
     private final LlmPromptVersionMapper mapper;
     private final PromptValidator validator;
     private final PromptRegistry registry;
+    private final EvalImpactAnalyzer impactAnalyzer;
 
     public PromptService(PromptCatalog catalog, LlmPromptVersionMapper mapper,
-                         PromptValidator validator, PromptRegistry registry) {
+                         PromptValidator validator, PromptRegistry registry,
+                         EvalImpactAnalyzer impactAnalyzer) {
         this.catalog = catalog;
         this.mapper = mapper;
         this.validator = validator;
         this.registry = registry;
+        this.impactAnalyzer = impactAnalyzer;
     }
 
     /** 12 组提示词摘要，不返回全文。 */
@@ -73,7 +77,8 @@ public class PromptService {
                 summary.outputMode(), summary.modelScope(), summary.scene(), summary.evalScene(),
                 summary.hasEvalCorpus(), summary.affectedFunctions(), summary.placeholders(),
                 summary.requiredFields(), summary.activeVersion(), summary.builtinVersion(),
-                summary.hasDraft(), summary.updatedAt(), active, builtIn, draft, validation, List.of());
+                summary.hasDraft(), summary.updatedAt(), active, builtIn, draft, validation,
+                impactAnalyzer.suggestForPrompt(key));
     }
 
     /** 保存草稿：可保存但有错误时不能发布。 */

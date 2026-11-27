@@ -132,6 +132,13 @@ public class EvalBaselineService {
         return summary(target);
     }
 
+    /** 场景当前基线；无基线返回 null。 */
+    public EvalBaselineSummary current(String scene) {
+        LlmEvalBaseline row = baselineMapper.selectOne(Wrappers.<LlmEvalBaseline>lambdaQuery()
+                .eq(LlmEvalBaseline::getScene, scene).eq(LlmEvalBaseline::getCurrent, true));
+        return row == null ? null : summary(row);
+    }
+
     private void clearCurrent(String scene, Long keepId) {
         baselineMapper.update(null, Wrappers.<LlmEvalBaseline>lambdaUpdate()
                 .eq(LlmEvalBaseline::getScene, scene)

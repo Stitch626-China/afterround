@@ -35,6 +35,13 @@ import com.jobpilot.modules.eval.dto.EvalAssertionResult;
 import com.jobpilot.modules.eval.dto.EvalBaselineResult;
 import com.jobpilot.modules.eval.dto.EvalBaselineSummary;
 import com.jobpilot.modules.eval.dto.EvalCaseResult;
+import com.jobpilot.modules.eval.dto.EvalCompareCase;
+import com.jobpilot.modules.eval.dto.EvalCompareCost;
+import com.jobpilot.modules.eval.dto.EvalCompareLatency;
+import com.jobpilot.modules.eval.dto.EvalCompareQuality;
+import com.jobpilot.modules.eval.dto.EvalCompareRegression;
+import com.jobpilot.modules.eval.dto.EvalRunCompare;
+import com.jobpilot.modules.eval.dto.EvalRunCompareSide;
 import com.jobpilot.modules.eval.dto.EvalRunDetail;
 import com.jobpilot.modules.eval.dto.EvalRunSummary;
 import com.jobpilot.modules.eval.dto.EvalSceneModel;
@@ -172,7 +179,10 @@ class ContractSchemaTest {
             EvalMetrics.class, EvalAssertionResult.class, EvalCaseResult.class, EvalSceneModel.class,
             EvalScenePrompt.class, EvalRunSummary.class, EvalRunDetail.class, EvalSceneSummary.class,
             EvalBaselineSummary.class, EvalBaselineResult.class, CreateEvalBaselineRequest.class,
-            PromptImpactSuggestion.class, CreateEvalRunRequest.class);
+            PromptImpactSuggestion.class, CreateEvalRunRequest.class,
+            EvalRunCompare.class, EvalRunCompareSide.class, EvalCompareQuality.class,
+            EvalCompareRegression.class, EvalCompareCost.class, EvalCompareLatency.class,
+            EvalCompareCase.class);
 
     @Test
     @SuppressWarnings("unchecked")

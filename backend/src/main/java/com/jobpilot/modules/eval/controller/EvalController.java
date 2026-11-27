@@ -8,10 +8,12 @@ import com.jobpilot.modules.eval.dto.CreateEvalBaselineRequest;
 import com.jobpilot.modules.eval.dto.CreateEvalRunRequest;
 import com.jobpilot.modules.eval.dto.EvalBaselineResult;
 import com.jobpilot.modules.eval.dto.EvalBaselineSummary;
+import com.jobpilot.modules.eval.dto.EvalRunCompare;
 import com.jobpilot.modules.eval.dto.EvalRunDetail;
 import com.jobpilot.modules.eval.dto.EvalRunSummary;
 import com.jobpilot.modules.eval.dto.EvalSceneSummary;
 import com.jobpilot.modules.eval.service.EvalBaselineService;
+import com.jobpilot.modules.eval.service.EvalCompareService;
 import com.jobpilot.modules.eval.service.EvalRunService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,10 +31,13 @@ public class EvalController {
 
     private final EvalRunService service;
     private final EvalBaselineService baselineService;
+    private final EvalCompareService compareService;
 
-    public EvalController(EvalRunService service, EvalBaselineService baselineService) {
+    public EvalController(EvalRunService service, EvalBaselineService baselineService,
+                          EvalCompareService compareService) {
         this.service = service;
         this.baselineService = baselineService;
+        this.compareService = compareService;
     }
 
     @GetMapping("/scenes")
@@ -75,5 +80,10 @@ public class EvalController {
     @PostMapping("/baselines/{baselineId}/activate")
     public Result<EvalBaselineSummary> activateBaseline(@PathVariable Long baselineId) {
         return Result.ok(baselineService.activate(baselineId));
+    }
+
+    @GetMapping("/runs/compare")
+    public Result<EvalRunCompare> compare(@RequestParam Long leftRunId, @RequestParam Long rightRunId) {
+        return Result.ok(compareService.compare(leftRunId, rightRunId));
     }
 }

@@ -203,6 +203,87 @@ class EvalApiIntegrationTest extends AbstractIntegrationTest {
                 String.class, runId)).isEqualTo("SKIPPED");
     }
 
+    @Test
+    @DisplayName("运行对比：两次完成运行可比，基线标签随运行展示，缺失运行 404")
+    void comparesTwoCompletedRuns() throws Exception {
+        configureDefaultProvider();
+        long left = createCompletedRun();
+        client.post().uri(BASE + "/baselines").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("runId", left, "label", "v3 基线"))
+                .exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.data[0].created").isEqualTo(true)
+                .jsonPath("$.data[0].scene").isEqualTo("resume-analysis");
+        long right = createCompletedRun();
+
+        client.get().uri(BASE + "/runs/compare?leftRunId=" + left + "&rightRunId=" + right)
+                .exchange().expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.comparable").isEqualTo(true)
+                .jsonPath("$.data.applicableDimensions.length()").isEqualTo(4)
+                .jsonPath("$.data.left.baselineLabel").isEqualTo("v3 基线")
+                .jsonPath("$.data.cases.length()").isEqualTo(10)
+                .jsonPath("$.data.regression.fixedCases").isEqualTo(0)
+                .jsonPath("$.data.regression.newFailedCases").isEqualTo(0);
+
+        client.get().uri(BASE + "/runs/compare?leftRunId=" + left + "&rightRunId=999999")
+                .exchange().expectStatus().isNotFound();
+    }
+
+    @Test
+    @DisplayName("部分重跑只跑 ERROR 用例且不可设基线；取消与模型不同均不可比")
+    void partialRerunAndMismatchedRunsAreNotComparable() throws Exception {
+        configureDefaultProvider();
+        long source = createCompletedRun();
+        jdbc.update("UPDATE llm_eval_run_cases SET status = 'ERROR' WHERE run_id = ? AND case_id = ?",
+                source, "001-backend-java-ai");
+
+        String raw = client.post().uri(BASE + "/runs").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("sourceRunId", source, "retryErrorsOnly", true))
+                .exchange().expectStatus().isOk()
+                .expectBody(String.class).returnResult().getResponseBody();
+        JsonNode partial = MAPPER.readTree(raw).path("data");
+        assertThat(partial.path("partial").asBoolean()).isTrue();
+        assertThat(partial.path("totalCases").asInt()).isEqualTo(1);
+        long partialId = partial.path("id").asLong();
+        JsonNode done = awaitTerminal(partialId).path("data");
+        assertThat(done.path("status").asText()).isEqualTo("COMPLETED");
+        assertThat(done.path("cases")).hasSize(1);
+        assertThat(done.path("cases").get(0).path("caseId").asText()).isEqualTo("001-backend-java-ai");
+
+        client.post().uri(BASE + "/baselines").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("runId", partialId))
+                .exchange().expectStatus().isBadRequest();
+
+        JsonNode partialCompare = MAPPER.readTree(client.get()
+                .uri(BASE + "/runs/compare?leftRunId=" + source + "&rightRunId=" + partialId)
+                .exchange().expectStatus().isOk()
+                .expectBody(String.class).returnResult().getResponseBody());
+        assertThat(partialCompare.path("data").path("comparable").asBoolean()).isFalse();
+        assertThat(partialCompare.path("data").path("reasons").get(0).asText()).contains("部分重跑");
+
+        long cancelled = jdbc.queryForObject("""
+                INSERT INTO llm_eval_runs (status, partial, scenes, model_snapshot, prompt_snapshot,
+                    corpus_hash, engine_version, params, total_cases)
+                SELECT 'CANCELLED', false, scenes, model_snapshot, prompt_snapshot,
+                    corpus_hash, engine_version, params, total_cases
+                FROM llm_eval_runs WHERE id = ? RETURNING id
+                """, Long.class, source);
+        client.get().uri(BASE + "/runs/compare?leftRunId=" + source + "&rightRunId=" + cancelled)
+                .exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.data.comparable").isEqualTo(false);
+
+        long otherModel = jdbc.queryForObject("""
+                INSERT INTO llm_eval_runs (status, partial, scenes, model_snapshot, prompt_snapshot,
+                    corpus_hash, engine_version, params, total_cases)
+                SELECT 'COMPLETED', false, scenes, jsonb_set(model_snapshot, '{0,model}', '"other"'),
+                    prompt_snapshot, corpus_hash, engine_version, params, total_cases
+                FROM llm_eval_runs WHERE id = ? RETURNING id
+                """, Long.class, source);
+        client.get().uri(BASE + "/runs/compare?leftRunId=" + source + "&rightRunId=" + otherModel)
+                .exchange().expectStatus().isOk()
+                .expectBody().jsonPath("$.data.comparable").isEqualTo(false);
+    }
+
     private void configureDefaultProvider() {
         client.post().uri("/api/llm/providers").contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of("providerKey", "stub", "label", "stub", "baseUrl", upstreamBase + "/v1",
@@ -214,6 +295,16 @@ class EvalApiIntegrationTest extends AbstractIntegrationTest {
         client.put().uri("/api/llm/global").contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(Map.of("defaultProviderKey", "stub", "defaultModel", MODEL))
                 .exchange().expectStatus().isOk();
+    }
+
+    private long createCompletedRun() throws Exception {
+        String raw = client.post().uri(BASE + "/runs").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("scenes", List.of("resume-analysis"), "repeat", 1))
+                .exchange().expectStatus().isOk()
+                .expectBody(String.class).returnResult().getResponseBody();
+        long runId = MAPPER.readTree(raw).path("data").path("id").asLong();
+        awaitTerminal(runId);
+        return runId;
     }
 
     private JsonNode awaitTerminal(long runId) throws Exception {

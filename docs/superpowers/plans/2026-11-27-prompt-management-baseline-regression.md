@@ -728,12 +728,12 @@ frontend/e2e/llm-workbench.spec.ts
 | 草稿/发布/回滚 | `PUT .../draft`、`POST .../publish`、`POST .../versions/{n}/activate` | `PromptService` | `llm_prompt_versions` | `PromptServiceTest` + `PromptApiIntegrationTest` + E2E | 已完成 |
 | 运行时提示词生效 | 无（内部调用） | 8 个 `PromptFactory` + `PromptRegistry` | `llm_prompt_versions` | `PromptFactoryTest` + 业务服务测试 | 已完成 |
 | 模型与绑定 | 现有 `/api/llm/global`、`/api/llm/scenes/{scene}` | `LlmGlobalSettingService` / `LlmSceneService` | 现有 LLM 配置表 | 现有测试 + `llm-workbench.spec.ts` | 已完成 |
-| 评测运行 | `POST/GET /api/llm/eval/runs`、`GET /{id}`、`POST /{id}/cancel` | `EvalRunService` / `EvalRunner` | `llm_eval_runs` / `llm_eval_run_cases` | `EvalRunServiceTest` + `EvalRunnerTest` + `EvalApiIntegrationTest` | 后端已完成，前端待 Task 11 |
-| 设为基线 | `POST /api/llm/eval/baselines` | `EvalBaselineService` | `llm_eval_baselines` | `EvalBaselineServiceTest` + E2E | 待实现 |
-| 基线列表/设为当前 | `GET /api/llm/eval/baselines`、`POST .../{id}/activate` | `EvalBaselineService` | `llm_eval_baselines` | `EvalBaselineServiceTest` + E2E | 待实现 |
-| 运行对比 | `GET /api/llm/eval/runs/compare` | `EvalCompareService` | runs + cases | `EvalCompareServiceTest` + E2E | 待实现 |
+| 评测运行 | `POST/GET /api/llm/eval/runs`、`GET /{id}`、`POST /{id}/cancel` | `EvalRunService` / `EvalRunner` | `llm_eval_runs` / `llm_eval_run_cases` | `EvalRunServiceTest` + `EvalRunnerTest` + `EvalApiIntegrationTest` | 已完成 |
+| 设为基线 | `POST /api/llm/eval/baselines` | `EvalBaselineService` | `llm_eval_baselines` | `EvalBaselineServiceTest` + `EvalApiIntegrationTest` + E2E | 后端已完成，前端待 Task 15 |
+| 基线列表/设为当前 | `GET /api/llm/eval/baselines`、`POST .../{id}/activate` | `EvalBaselineService` | `llm_eval_baselines` | `EvalBaselineServiceTest` + `EvalApiIntegrationTest` + E2E | 后端已完成，前端待 Task 15 |
+| 运行对比 | `GET /api/llm/eval/runs/compare` | `EvalCompareService` | runs + cases | `EvalCompareServiceTest` + `EvalApiIntegrationTest` + E2E | 后端已完成，前端待 Task 15 |
 | 调用统计 | 现有 `GET /api/llm/usage` | `LlmUsageService` | `llm_call_logs` | 现有测试 + `llm-workbench.spec.ts` | 已完成 |
-| 重跑失败用例 | `POST /api/llm/eval/runs`（`sourceRunId` + `retryErrorsOnly`） | `EvalRunService` | runs/cases | `EvalRunServiceTest` | 待实现 |
+| 重跑失败用例 | `POST /api/llm/eval/runs`（`sourceRunId` + `retryErrorsOnly`） | `EvalRunService` | runs/cases | `EvalRunServiceTest` + `EvalApiIntegrationTest` | 后端已完成，前端待 Task 15 |
 | 提示词导出 | 前端聚合 `listPrompts + getPrompt` | `PromptList.vue` | 无 | E2E | 待实现 |
 
 ## 任务分解
@@ -1227,11 +1227,11 @@ Expected: `EvalCorpusTest` 27 份通过；全量 229+ tests 全绿。
 **部分重跑：**
 - `CreateEvalRunRequest.sourceRunId + retryErrorsOnly=true`：复制源 run 的 scenes/model/prompt/corpus/engine 快照，只取 `status=ERROR` 的 case；新 run `partial=true`，不建基线、不参与完整对比；前端只在有 ERROR 时显示「重跑失败用例」。
 
-- [ ] **Step 1: 写失败测试**：仅改简历 Prompt → 只建议 resume；换模型 → 建议该场景；引擎版本变化 → 全部；对比“上次基线 run vs 本次回归 run” → 正确分类修复/失败/漂移；取消/部分运行 → 不可比；JD 不出现 tag 维度。
-- [ ] **Step 2: 实现 analyzer 与 compare service**；对比入口用 `leftRunId/rightRunId`。
-- [ ] **Step 3: 接入 `PromptService.detail` 的 `suggestedEvalScenes` 与 `EvalSceneSummary.rebuildReasons`。
-- [ ] **Step 4: API 测试 compare 的 `comparable=false` 分支、partial/取消分支与 `404`。
-- [ ] **Step 5: Commit** `feat(eval): 影响面分析与运行 4 维对比`。
+- [x] **Step 1: 写失败测试**：仅改简历 Prompt → 只建议 resume；换模型 → 建议该场景；引擎版本变化 → 全部；对比“上次基线 run vs 本次回归 run” → 正确分类修复/失败/漂移；取消/部分运行 → 不可比；JD 不出现 tag 维度。
+- [x] **Step 2: 实现 analyzer 与 compare service**；对比入口用 `leftRunId/rightRunId`。
+- [x] **Step 3: 接入 `PromptService.detail` 的 `suggestedEvalScenes` 与 `EvalSceneSummary.rebuildReasons`。
+- [x] **Step 4: API 测试 compare 的 `comparable=false` 分支、partial/取消分支与 `404`。
+- [x] **Step 5: Commit** `feat(eval): 影响面分析与运行 4 维对比`。
 
 #### Task 15：前端基线对比面板（P3）
 

@@ -54,6 +54,10 @@ class EvalRunServiceTest {
     @Mock
     private EvalRunner runner;
     @Mock
+    private EvalImpactAnalyzer analyzer;
+    @Mock
+    private EvalBaselineService baselineService;
+    @Mock
     private ThreadPoolTaskExecutor executor;
 
     @BeforeAll
@@ -64,7 +68,7 @@ class EvalRunServiceTest {
 
     private EvalRunService service() {
         return new EvalRunService(runMapper, caseMapper, baselineMapper, catalog, sceneService, registry, runner,
-                executor);
+                analyzer, baselineService, executor);
     }
 
     private static EvalScene resumeScene() {

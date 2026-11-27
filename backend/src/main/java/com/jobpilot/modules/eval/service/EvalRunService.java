@@ -69,6 +69,8 @@ public class EvalRunService {
     private final LlmSceneService sceneService;
     private final PromptRegistry registry;
     private final EvalRunner runner;
+    private final EvalImpactAnalyzer analyzer;
+    private final EvalBaselineService baselineService;
     private final ThreadPoolTaskExecutor executor;
 
     @Value("${app.eval.max-tokens:8192}")
@@ -81,7 +83,7 @@ public class EvalRunService {
     public EvalRunService(LlmEvalRunMapper runMapper, LlmEvalRunCaseMapper caseMapper,
                           LlmEvalBaselineMapper baselineMapper,
                           EvalSceneCatalog catalog, LlmSceneService sceneService, PromptRegistry registry,
-                          EvalRunner runner,
+                          EvalRunner runner, EvalImpactAnalyzer analyzer, EvalBaselineService baselineService,
                           @Qualifier("evalTaskExecutor") ThreadPoolTaskExecutor executor) {
         this.runMapper = runMapper;
         this.caseMapper = caseMapper;
@@ -90,6 +92,8 @@ public class EvalRunService {
         this.sceneService = sceneService;
         this.registry = registry;
         this.runner = runner;
+        this.analyzer = analyzer;
+        this.baselineService = baselineService;
         this.executor = executor;
     }
 
@@ -111,17 +115,20 @@ public class EvalRunService {
                     catalog.corpusHash(scene.key()), scene.promptKey(), registry.version(scene.promptKey()),
                     scene.globalModel() ? "GLOBAL" : "SCENE",
                     model == null ? null : model.providerKey(), model == null ? null : model.model(),
-                    null, lastRun, List.of());
+                    baselineService.current(scene.key()), lastRun, analyzer.rebuildReasons(scene.key()));
         }).toList();
     }
 
     /** 创建运行：校验并发与模型，快照提示词 / 模型 / 参数 / 语料，事务提交后异步执行。 */
     @Transactional
     public EvalRunDetail create(CreateEvalRunRequest request) {
-        List<String> scenes = normalizeScenes(request);
-        if (request.sourceRunId() != null || Boolean.TRUE.equals(request.retryErrorsOnly())) {
-            throw BizException.of(ErrorCode.BAD_REQUEST, "部分重跑暂未开放");
+        if (request.sourceRunId() != null) {
+            return createPartial(request);
         }
+        if (Boolean.TRUE.equals(request.retryErrorsOnly())) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "retryErrorsOnly 需要同时提供 sourceRunId");
+        }
+        List<String> scenes = normalizeScenes(request);
         if (runMapper.selectCount(Wrappers.<LlmEvalRun>lambdaQuery()
                 .in(LlmEvalRun::getStatus, ACTIVE_STATUS)) > 0) {
             throw BizException.of(ErrorCode.EVAL_RUN_IN_PROGRESS);
@@ -183,6 +190,72 @@ public class EvalRunService {
             caseMapper.insert(row);
         }
         Long runId = run.getId();
+        afterCreate(runId);
+        return detail(runId);
+    }
+
+    /** 部分重跑：复制源运行的模型 / 提示词 / 参数 / 语料快照，只重跑 ERROR 用例。 */
+    private EvalRunDetail createPartial(CreateEvalRunRequest request) {
+        if (request.scenes() != null && !request.scenes().isEmpty()) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "sourceRunId 与 scenes 二选一");
+        }
+        if (!Boolean.TRUE.equals(request.retryErrorsOnly())) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "部分重跑必须指定 retryErrorsOnly=true");
+        }
+        LlmEvalRun source = requireRun(request.sourceRunId());
+        if (!"COMPLETED".equals(source.getStatus())) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "只能重跑已完成运行中的失败用例");
+        }
+        List<LlmEvalRunCase> errors = caseMapper.selectList(Wrappers.<LlmEvalRunCase>lambdaQuery()
+                .eq(LlmEvalRunCase::getRunId, source.getId()).eq(LlmEvalRunCase::getStatus, "ERROR"));
+        if (errors.isEmpty()) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "源运行没有执行错误用例");
+        }
+        if (runMapper.selectCount(Wrappers.<LlmEvalRun>lambdaQuery()
+                .in(LlmEvalRun::getStatus, ACTIVE_STATUS)) > 0) {
+            throw BizException.of(ErrorCode.EVAL_RUN_IN_PROGRESS);
+        }
+        LlmEvalRun run = new LlmEvalRun();
+        run.setUserId(1L);
+        run.setStatus("PENDING");
+        run.setPartial(true);
+        run.setScenes(source.getScenes());
+        run.setModelSnapshot(source.getModelSnapshot());
+        run.setPromptSnapshot(source.getPromptSnapshot());
+        run.setCorpusHash(source.getCorpusHash());
+        run.setEngineVersion(source.getEngineVersion());
+        run.setParams(source.getParams());
+        run.setTotalCases(errors.size());
+        run.setCompletedCases(0);
+        run.setErrorCases(0);
+        run.setRetryCount(0);
+        run.setCancelRequested(false);
+        run.setCreatedAt(OffsetDateTime.now());
+        try {
+            runMapper.insert(run);
+        } catch (DuplicateKeyException ex) {
+            throw BizException.of(ErrorCode.EVAL_RUN_IN_PROGRESS);
+        }
+        for (LlmEvalRunCase error : errors) {
+            LlmEvalRunCase row = new LlmEvalRunCase();
+            row.setRunId(run.getId());
+            row.setScene(error.getScene());
+            row.setCaseId(error.getCaseId());
+            row.setStatus("PENDING");
+            row.setResults("[]");
+            row.setScores("{}");
+            row.setTopics("[]");
+            row.setLossTags("[]");
+            row.setCreatedAt(OffsetDateTime.now());
+            row.setUpdatedAt(OffsetDateTime.now());
+            caseMapper.insert(row);
+        }
+        Long runId = run.getId();
+        afterCreate(runId);
+        return detail(runId);
+    }
+
+    private void afterCreate(Long runId) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
@@ -193,7 +266,6 @@ public class EvalRunService {
         } else {
             dispatch(runId, 0);
         }
-        return detail(runId);
     }
 
     public PageResult<EvalRunSummary> list(Integer page, Integer size) {

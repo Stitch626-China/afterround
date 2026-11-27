@@ -142,3 +142,10 @@
 - 原因：基线是「被贴标签的运行」，设为基线不重跑；历史 JSON 只做首次导入，产品基线只走 DB；`is_current` 只做标记，历史不覆盖。
 - 验证：`ContractSchemaTest` 通过（新增 12 个 DTO 字段对齐）；`EvalBaselineServiceTest` 4 个 + `LegacyBaselineImporterTest` 1 个通过（3 场景 / 27 例 / legacy hash 规则 / 幂等）；后端 `clean test` **278 tests、0 skipped、JaCoCo 全部门禁通过**；契约 lint 0/0。
 - 下一步 / 断点：Task 14 影响面分析 + run vs run 4 维对比（含部分重跑），移除 compare 的待实现标记。
+
+### 19:40 事件
+
+- 改动：Task 14 完成。新增 `EvalImpactAnalyzer`（提示词→评测场景映射、当前配置与基线指纹逐项比较、无基线 / 一致 / 重建原因）、`EvalCompareService`（run vs run 4 维对比：质量 / 回归 / 成本 / 耗时；legacy Provider 通配并写 warning；不可比原因；按场景能力裁剪维度）、部分重跑（`sourceRunId + retryErrorsOnly` 复制源快照、仅 ERROR 用例、`partial=true` 不可设基线且不参与完整对比）、`PromptService.detail.suggestedEvalScenes`、`EvalSceneSummary.rebuildReasons`；compare DTO 纳入 `ContractSchemaTest`；契约移除 compare 的 `x-implemented: false`。
+- 原因：基线只是带标签的运行，对比必须同场景 / 同 Provider / 同模型 / 同参数 / 同语料 / 同引擎；提示词是被测变量，不参与可比性判定；部分重跑不得污染基线。
+- 验证：`EvalImpactAnalyzerTest` 4 + `EvalCompareServiceTest` 5 全过；`EvalApiIntegrationTest` 新增 2 个（两次完成运行可比 + 基线 label + 404；部分重跑只跑 ERROR、不可设基线、取消与换模型不可比）通过；契约 lint 0/0；后端 `clean test` **289 tests、0 skipped、JaCoCo 全部门禁通过**。
+- 下一步 / 断点：提交 Task 14；进入 Task 15 前端基线对比 Tab、基线过期徽标、导出提示词 JSON 与重跑失败用例入口。
