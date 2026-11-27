@@ -268,3 +268,192 @@ test('LLM 工作台：模型保存确认、提示词编辑/拦截/发布、调�
   await page.getByRole('button', { name: '调用统计' }).click()
   await expect(page.getByText('近 30 天还没有模型调用记录', { exact: false })).toBeVisible()
 })
+
+/**
+ * 评测运行 E2E（接口全 mock）：
+ * 未配置模型场景禁用 → 勾选简历 → 二次确认开始 → 进度 60% → 取消确认后继续 →
+ * 完成详情展示 L1/L2、模型/提示词快照与逐用例结果。
+ */
+test('评测运行：模型缺失禁用、手动开始、进度、取消确认与完成详情', async ({ page }) => {
+  const dialogs: string[] = []
+  page.on('dialog', async (dialog) => {
+    dialogs.push(dialog.message())
+    await dialog.accept()
+  })
+
+  const evalScenes = [
+    {
+      scene: 'resume-analysis',
+      name: '简历分析',
+      caseCount: 10,
+      corpusHash: 'hash-resume',
+      promptKey: 'resume-analysis',
+      promptVersion: 'resume-analysis-v3',
+      modelScope: 'SCENE',
+      providerKey: 'stub',
+      model: 'Qwen3.8-27B',
+      currentBaseline: null,
+      lastRun: null,
+      rebuildReasons: [],
+    },
+    {
+      scene: 'jd-parse',
+      name: 'JD 解析',
+      caseCount: 9,
+      corpusHash: 'hash-jd',
+      promptKey: 'job-position-parse',
+      promptVersion: 'jd-parse-v1',
+      modelScope: 'GLOBAL',
+      providerKey: null,
+      model: null,
+      currentBaseline: null,
+      lastRun: null,
+      rebuildReasons: [],
+    },
+    {
+      scene: 'review-analyze',
+      name: '复盘分析',
+      caseCount: 8,
+      corpusHash: 'hash-review',
+      promptKey: 'review-analyze',
+      promptVersion: 'review-analyze-v2',
+      modelScope: 'SCENE',
+      providerKey: 'stub',
+      model: 'Qwen3.8-27B',
+      currentBaseline: null,
+      lastRun: null,
+      rebuildReasons: [],
+    },
+  ]
+
+  const baseRun = {
+    id: 7,
+    status: 'PENDING',
+    scenes: ['resume-analysis'],
+    totalCases: 10,
+    completedCases: 0,
+    errorCases: 0,
+    error: null,
+    createdAt: '2026-11-27T10:00:00Z',
+    startedAt: null,
+    finishedAt: null,
+  }
+
+  const cases = [
+    { scene: 'resume-analysis', caseId: '001-backend-java-ai', status: 'PASS', l1Passed: true, l2Passed: true, l3Passed: null, results: [], scores: {}, tokens: 3000, elapsedMs: 12000, error: null },
+    { scene: 'resume-analysis', caseId: '002-ai-rag-platform', status: 'FAIL', l1Passed: false, l2Passed: false, l3Passed: null, results: [], scores: {}, tokens: 2800, elapsedMs: 15000, error: 'L1:quotesMustComeFromInput' },
+    { scene: 'resume-analysis', caseId: '003-newgrad-java-intern', status: 'ERROR', l1Passed: false, l2Passed: false, l3Passed: null, results: [], scores: {}, tokens: null, elapsedMs: 30000, error: '上游服务返回 HTTP 502' },
+  ]
+
+  const completedRun = {
+    ...baseRun,
+    status: 'COMPLETED',
+    completedCases: 10,
+    errorCases: 1,
+    startedAt: '2026-11-27T10:00:01Z',
+    finishedAt: '2026-11-27T10:03:00Z',
+    cases,
+    models: [{ scene: 'resume-analysis', providerKey: 'stub', model: 'Qwen3.8-27B' }],
+    prompts: [{ scene: 'resume-analysis', promptKey: 'resume-analysis', promptVersion: 'resume-analysis-v3', promptHash: 'hash' }],
+    metrics: {
+      l1Total: 10,
+      l1Failed: 1,
+      l1PassRate: 0.9,
+      l2Total: 45,
+      l2Failed: 2,
+      l2PassRate: 0.9556,
+      totalTokens: 30000,
+      avgTokens: 3000,
+      avgElapsedMs: 12000,
+      p95ElapsedMs: 25000,
+    },
+  }
+
+  const processingRun = {
+    ...baseRun,
+    status: 'PROCESSING',
+    completedCases: 6,
+    startedAt: '2026-11-27T10:00:01Z',
+    cases: [],
+    models: [{ scene: 'resume-analysis', providerKey: 'stub', model: 'Qwen3.8-27B' }],
+    prompts: [{ scene: 'resume-analysis', promptKey: 'resume-analysis', promptVersion: 'resume-analysis-v3', promptHash: 'hash' }],
+    metrics: null,
+  }
+
+  let created = false
+  let polls = 0
+  let runs: unknown[] = []
+
+  await page.route('**/api/llm/providers', (route) => route.fulfill({ json: envelope([provider]) }))
+  await page.route(/\/api\/llm\/global$/, (route) =>
+    route.fulfill({ json: envelope({ defaultProviderKey: 'stub', defaultModel: 'Qwen3.8-27B' }) }))
+  await page.route(/\/api\/llm\/scenes(\/.*)?$/, (route) =>
+    route.fulfill({ json: envelope(sceneLabels.map(([scene, label]) => ({
+      scene,
+      label,
+      providerKey: null,
+      model: null,
+      inherited: true,
+      effectiveProviderKey: 'stub',
+      effectiveModel: 'Qwen3.8-27B',
+    }))) }))
+  await page.route('**/api/llm/usage**', (route) => route.fulfill({ json: envelope(emptyUsage) }))
+  await page.route(/\/api\/llm\/prompts(\/.*)?$/, (route) => route.fulfill({
+    json: envelope([toSummaryOf(detailOf(resumeSummary, resumeSystem, resumeUser)), toSummaryOf(detailOf(reviewSummary, '复盘', '转写'))]),
+  }))
+
+  await page.route(/\/api\/llm\/eval\/runs(\/.*)?$/, (route) => {
+    const url = new URL(route.request().url())
+    const method = route.request().method()
+    if (url.pathname === '/api/llm/eval/runs' && method === 'POST') {
+      created = true
+      runs = [baseRun]
+      return route.fulfill({ json: envelope(baseRun) })
+    }
+    if (url.pathname === '/api/llm/eval/runs' && method === 'GET') {
+      return route.fulfill({ json: envelope({ items: runs, total: runs.length, page: 1, size: 20 }) })
+    }
+    if (url.pathname.endsWith('/cancel')) {
+      return route.fulfill({ json: envelope({ ...processingRun, status: 'CANCELLED' }) })
+    }
+    if (url.pathname.endsWith('/7')) {
+      polls += 1
+      const run = polls === 1 ? processingRun : completedRun
+      runs = [run]
+      return route.fulfill({ json: envelope(run) })
+    }
+    return route.fulfill({ status: 404, json: { code: 40401, message: 'not mocked' } })
+  })
+  await page.route('**/api/llm/eval/scenes', (route) => route.fulfill({ json: envelope(evalScenes) }))
+
+  await page.goto('/llm-workbench')
+  await page.getByRole('button', { name: '评测运行' }).click()
+
+  await expect(page.getByRole('heading', { name: '选择场景' })).toBeVisible()
+  await expect(page.getByLabel('选择JD解析')).toBeDisabled()
+  await expect(page.getByText('未配置模型').first()).toBeVisible()
+  await expect(page.getByRole('button', { name: '去配置' }).first()).toBeVisible()
+
+  await page.getByLabel('选择简历分析').check()
+  await expect(page.getByText('1 个场景 · 10 例')).toBeVisible()
+  await page.getByRole('button', { name: '开始运行' }).click()
+  await page.getByRole('dialog', { name: '开始评测' }).getByRole('button', { name: '开始运行' }).click()
+  await expect.poll(() => created).toBe(true)
+
+  await expect(page.getByText('60%', { exact: false })).toBeVisible({ timeout: 8000 })
+  await page.getByRole('button', { name: '取消运行' }).click()
+  await expect(page.getByRole('dialog', { name: '取消评测' })).toBeVisible()
+  await page.getByRole('button', { name: '再想想' }).click()
+
+  await expect(page.getByText('已完成', { exact: false }).first()).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText('L1 通过率')).toBeVisible()
+  await expect(page.getByText('90.0%')).toBeVisible()
+  await expect(page.getByText('模型快照')).toBeVisible()
+  await expect(page.getByText('001-backend-java-ai')).toBeVisible()
+  await expect(page.getByText('002-ai-rag-platform')).toBeVisible()
+  await expect(page.getByRole('button', { name: '设为基线' })).toBeDisabled()
+})
+
+function toSummaryOf(detail: ReturnType<typeof detailOf>) {
+  return { ...detail, activeVersion: detail.activeVersion, hasDraft: detail.hasDraft }
+}

@@ -1,21 +1,23 @@
 <script setup lang="ts">
 /**
- * LLM 工作台（1.22.0）：模型与绑定 / 提示词 / 调用统计。
+ * LLM 工作台（1.22.0 / 1.23.0）：模型与绑定 / 提示词 / 评测运行 / 调用统计。
  * 提示词发布只改线上生效版本，不自动跑评测；有未保存修改时统一拦截。
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { listPrompts, type PromptSummary } from '@/api/prompts'
+import EvalRunPanel from '@/components/workbench/EvalRunPanel.vue'
 import ModelBindingPanel from '@/components/workbench/ModelBindingPanel.vue'
 import PromptEditor from '@/components/workbench/PromptEditor.vue'
 import PromptList from '@/components/workbench/PromptList.vue'
 import UsagePanel from '@/components/workbench/UsagePanel.vue'
 
-type Tab = 'models' | 'prompts' | 'usage'
+type Tab = 'models' | 'prompts' | 'eval' | 'usage'
 
 const tabs: { key: Tab; label: string }[] = [
   { key: 'models', label: '模型与绑定' },
   { key: 'prompts', label: '提示词' },
+  { key: 'eval', label: '评测运行' },
   { key: 'usage', label: '调用统计' },
 ]
 
@@ -129,8 +131,8 @@ onMounted(loadPrompts)
       <div>
         <h1 class="title">LLM 工作台</h1>
         <p class="lead">
-          集中查看与修改所有大模型提示词、全局与场景模型绑定，并查看调用观测。
-          修改不会自动触发评测；跑评测与设基线必须由你主动发起。
+          集中查看与修改所有大模型提示词、全局与场景模型绑定，查看调用观测，并按需手动跑场景级评测。
+          修改配置不会自动触发评测；跑评测必须由你主动发起。
         </p>
       </div>
       <span class="tag">{{ promptCount }}提示词</span>
@@ -167,6 +169,8 @@ onMounted(loadPrompts)
       />
       <p v-else-if="!loading" class="meta">还没有提示词。</p>
     </section>
+
+    <EvalRunPanel v-else-if="tab === 'eval'" @go-models="switchTab('models')" />
 
     <UsagePanel v-else />
   </div>
