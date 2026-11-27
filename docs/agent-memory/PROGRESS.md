@@ -7,11 +7,12 @@
 
 - 产品：面后（AfterRound），个人求职档案与决策系统（真实面试复盘 → 跨场归因 → 改进闭环 → Offer 决策）
 - 形态：个人自用版，免登录、单用户，本地 Docker Compose
-- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.19**（LLM 工作台）；契约 **1.22.0**（**101 端点全部实现**）；M3 收口完成，P1 LLM 工作台已完成，下一步 P2 评测运行器
+- 阶段：**M1 已完成并验收**；**M2 两批前后端全部完成**；需求文档 **v1.20**（LLM 工作台 + 评测运行）；契约 **1.23.0**（**106 端点全部实现**）；M3 收口完成，P1 提示词工作台与 P2 评测运行器已完成，下一步 P3 基线对比
 
 ## 当前状态
 
-- **P1 LLM 工作台（2026-11-27，DSL-WORKPC）**：新增 `llm_prompt_versions`（Flyway V11）与 `modules/prompt`——`PromptCatalog` 管理 12 组提示词元数据，`PromptValidator` 校验占位符 / JSON 必填字段，`PromptRegistry` 运行时 DB ACTIVE 优先、classpath 兜底、发布后精确失效，`PromptService` / `PromptController` 提供 8 个端点（查看 / 草稿 / 发布 / 回滚 / 版本历史）；8 个 PromptFactory 全部接入注册表，分析结果记录动态版本标签。前端新增侧栏底部「LLM 工作台」：模型与绑定（全局 + 7 场景 + 3 个评测场景生效模型，手动保存、全局二次确认）、提示词（12 组编辑 / diff / 恢复内置 / 草稿 / 发布 / 版本历史 / 未保存三选一拦截）、调用统计（从设置抽屉迁入）。发布只影响下一次调用，不自动跑评测、不阻塞使用。验证：契约 lint 0/0（101 端点）；后端 **261 tests 全绿、0 skipped、JaCoCo 门禁通过**；前端构建、Vitest **36**、Playwright **21** 全过。
+- **P2 评测运行器（2026-11-27，DSL-WORKPC）**：评测核心从 test scope 迁入 `modules/eval/core`（`EvalCase` / `EvalCorpus` / `Expectations` / `EvalSnapshot` / `EvalMetrics` / `EvalMetricsCalculator` / `EvalFingerprint` / `EvalEngine` / `EvalSceneCatalog`），27 份语料与 3 份基线迁至 `src/main/resources/llm-eval/` 并由 classpath 加载；新增 V12 `llm_eval_runs` / `llm_eval_run_cases`，`EvalRunService` 做并发校验、提示词 / 模型 / 参数 / 语料快照、事务 afterCommit 调度，`EvalRunner` 逐用例断言、token 埋点、连续 3 次上游故障熔断、取消 / 失败清理剩余用例，`EvalRunRecovery` 启动把中断运行置 FAILED；契约 1.23.0 新增 5 个评测端点（106 全部实现）。前端工作台新增「评测运行」Tab：场景卡片、全量 / 单选、二次确认、3 秒轮询、进度、取消确认、metrics / 快照 / 逐用例表、历史运行；「设为基线」按钮 P2 置灰。验证：契约 lint 0/0；后端 **273 tests 全绿、0 skipped、JaCoCo 门禁通过**（含真实 PG + 假上游的评测集成测试）；前端构建通过、Vitest **41**；Playwright 新增评测用例已编写，受沙箱限制未执行，待本机 `npm run test:e2e`。
+- **P1 LLM 工作台（2026-11-27，DSL-WORKPC）**：新增 `llm_prompt_versions`（Flyway V11）与 `modules/prompt`——`PromptCatalog` 管理 12 组提示词元数据，`PromptValidator` 校验占位符 / JSON 必填字段，`PromptRegistry` 运行时 DB ACTIVE 优先、classpath 兜底、发布后精确失效，`PromptService` / `PromptController` 提供 8 个端点（查看 / 草稿 / 发布 / 回滚 / 版本历史）；8 个 PromptFactory 全部接入注册表，分析结果记录动态版本标签。前端新增侧栏底部「LLM 工作台」：模型与绑定（全局 + 7 场景 + 3 个评测场景生效模型，手动保存、全局二次确认）、提示词（12 组编辑 / diff / 恢复内置 / 草稿 / 发布 / 版本历史 / 未保存三选一拦截）、调用统计（从设置抽屉迁入）。发布只影响下一次调用，不自动跑评测、不阻塞使用。
 - **LLM 评测执行器与基线（2026-11-27，DSL-WORKPC）**：新增 `backend/src/test/java/com/jobpilot/eval/`——语料校验（默认测试执行，不调模型）、L1/L2/L3 断言引擎、真实模型执行器、Markdown/JSON 报告与基线读写；默认 `mvn test` 排除 `llm-eval`。抽检 27 份语料，修正 10 份简历 `expect.json` 中超 prompt 契约的 `maxItems`（只保留 careerDirections≤5）、复盘负样本 `maxItems.questions` 与过严的 `shallow-depth` 禁项、3 处真实转写绝对时间。评测发现并修复 `StructuredOutputInvoker` 重试把 system 消息追加到末尾导致严格网关 400（改为 user，新增回归测试）；`OpenAiCompatibleClient` 增加可配置超时构造器（生产默认仍 120s）。简历 Prompt 升 `resume-analysis-v3`，明确引用必须是原文连续片段、不得用省略号拼接；首版基线（内网 `Qwen3.8-27B`，27 份全量，repeat=1）重新生成后 L1 全部通过，L2 断言 45 项失败 2 项（95.6%，达标，`review-analyze/003/004` 为标签波动观察项）。复盘基线分数改为按 `questionIndex` + 维度名对齐（`q1.score` / `q1.depth`），修复题目数量/顺序变化造成的 20~50 分假漂移。规范升 v1.3；不依赖 Docker 的 230 个单元测试全绿。
 - **LLM 评测集 review-analyze 语料已建（2026-11-26，DSL-WORKPC）**：在 `backend/src/test/resources/llm-eval/cases/review-analyze/` 新增 8 份语料（001~004 真实转写脱敏、005~007 笔记 NOTES、008 纯 HR 负样本），每份含 `input.txt` / `meta.json` / `expect.json`；input 均 ≤30,000 字符，UTF-8 无 BOM、LF；隐私关键词扫描零命中；断言使用 `taxonomy-v1` key，负样本 `expectGraceful` + `mustNotContainTags`；已检查并提交（2026-11-26，HOMEPC）。
 - **LLM 评测集 jd-parse 语料已建（2026-11-26，DSL-WORKPC）**：在 `backend/src/test/resources/llm-eval/cases/jd-parse/` 新增 9 份语料（001~004 来自四家公司 JD 改写，005 测试岗补位，009 客户端岗补位，006 福利-only 边界，007 中英混杂边界，008 无职责负样本）；每份含 `input.txt` / `meta.json` / `expect.json`；input 68~832 字符，UTF-8 无 BOM、LF；隐私关键词扫描零命中；断言使用 `requiredFields` / `skillsMin` / `maxItems` / `mustMentionAny`，边界与负样本使用 `expectGraceful`；已检查并提交（2026-11-26，HOMEPC）。
@@ -98,8 +99,9 @@
 
 ## 下一步
 
-1. **P2 评测运行器（下一步，按实施计划 Task 8~12）**：契约 1.23.0 增 5 个评测端点；评测核心迁入运行时 + 语料 classpath 化；V12 建 `llm_eval_runs` / `llm_eval_run_cases`；前端「评测运行」Tab（全量 / 单场景、进度、取消、重跑 ERROR）。评测仍由用户主动触发，不随提示词或模型变更自动运行。
-2. **P1 LLM 工作台已完成（2026-11-27）**：提示词 12 组查看 / 草稿 / 发布 / 回滚 / 历史 / diff / 恢复内置；全局与场景绑定内联保存；调用统计迁入；发布不自动跑评测。契约 1.22.0（101 端点）；后端 261 tests、前端 Vitest 36 + Playwright 21 全绿。
+1. **P3 基线版本化与对比（下一步，按实施计划 Task 13~16）**：契约 1.24.0 增 4 个基线 / 对比端点；V13 `llm_eval_baselines`；「设为基线」只贴标签不重跑；旧 JSON 基线一次性导入；影响面提示、run vs run 4 维对比、前端基线对比 Tab 与「基线已过期」徽标。
+2. **P2 评测运行器已完成（2026-11-27）**：契约 1.23.0（106 端点）；后端 273 tests；前端构建 + Vitest 41；Playwright 评测用例待本机执行（沙箱拒绝 Edge 用户目录访问）。
+3. **P1 LLM 工作台已完成（2026-11-27）**：提示词 12 组查看 / 草稿 / 发布 / 回滚 / 历史 / diff / 恢复内置；全局与场景绑定内联保存；调用统计迁入；发布不自动跑评测。契约 1.22.0（101 端点）；后端 261 tests、前端 Vitest 36 + Playwright 21 全绿。
 3. **完整性项已清零（2026-11-26）**：投递链路（FR8.1 / FR8.2 / FR2.5）、FR5.2 / FR5.3 / FR8.4 / FR6.7、FR5.1、FR5.6、FR5.8、FR1.7 轨二、NFR6 调用统计、NFR7 音频可选清理全部补齐；对照表无待补缺口。全量核查后修复契约漏记 `keyword`、音频清理时机、行情淘汰过滤、搜索空态等 8 处问题。后续转入真实使用反馈驱动的迭代。
 4. **前端「纸墨」已全量推广（2026-11-24）**：全站页面与设置抽屉均套用共享层，用户评审样板通过后一次完成；后续只在用户提出视觉问题时定点微调，不再批量改样式。
 5. **M3-d 收口（已完成，2026-11-25）**：技术回归、命名、README、脱敏、演示材料与公开仓库均已完成；LICENSE 保持不加（README 已声明保留所有权利），中国商标网未查。
@@ -173,3 +175,6 @@
 | 2026-11-27 | **运行 = 一次评测；基线 = 被「设为基线」的那次运行**（贴标签，不重跑） | 避免重复跑基线；对比直接复用运行结果，语义也更直观 |
 | 2026-11-27 | 提示词发布 / 模型变更**不自动触发评测**，也不阻塞使用 | 用户需要先直接使用改动；跑评测、重建基线必须由用户主动发起 |
 | 2026-11-27 | 提示词采用**内置默认 + DB 覆盖版本**，发布后精确失效缓存 | 升级内置不丢用户修改；回滚与追溯都有版本记录 |
+| 2026-11-27 | 评测运行**同一时间只允许一个**，DB 部分唯一索引 + 服务预检双保险 | 评测跑满 27 例耗时长，并发会抢上游限流且结果难以归因 |
+| 2026-11-27 | 质量失败（FAIL）与执行错误（ERROR）**分开计数**，ERROR 计入 L1/L2 失败 | 「模型没答好」和「模型没调通」是两类问题，混在一起会误判 |
+| 2026-11-27 | 评测使用**启动快照**（模型 / 提示词全文 / 参数 / 语料 hash），运行中改配置不影响本次 | 否则一次运行内前后用例标准不一致，结果不可解释 |

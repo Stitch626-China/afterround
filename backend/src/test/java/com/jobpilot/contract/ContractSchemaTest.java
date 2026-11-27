@@ -28,6 +28,16 @@ import com.jobpilot.modules.company.dto.CompanyResponse;
 import com.jobpilot.modules.company.dto.CreateCompanyRequest;
 import com.jobpilot.modules.company.dto.MergeCompaniesRequest;
 import com.jobpilot.modules.company.dto.UpdateCompanyRequest;
+import com.jobpilot.modules.eval.core.EvalMetrics;
+import com.jobpilot.modules.eval.dto.CreateEvalRunRequest;
+import com.jobpilot.modules.eval.dto.EvalAssertionResult;
+import com.jobpilot.modules.eval.dto.EvalBaselineSummary;
+import com.jobpilot.modules.eval.dto.EvalCaseResult;
+import com.jobpilot.modules.eval.dto.EvalRunDetail;
+import com.jobpilot.modules.eval.dto.EvalRunSummary;
+import com.jobpilot.modules.eval.dto.EvalSceneModel;
+import com.jobpilot.modules.eval.dto.EvalScenePrompt;
+import com.jobpilot.modules.eval.dto.EvalSceneSummary;
 import com.jobpilot.modules.insights.dto.InsightDtos;
 import com.jobpilot.modules.interview.dto.AnswerInterviewQuestionRequest;
 import com.jobpilot.modules.interview.dto.CreateInterviewSessionRequest;
@@ -155,7 +165,10 @@ class ContractSchemaTest {
             ReviewSummaryResponse.class, ImprovementActionDraftResponse.class, ReviewAnalysisResponse.class,
             ReviewAnalysisUpdateRequest.class, ImprovementActionResponse.class,
             CreateImprovementActionRequest.class, UpdateImprovementActionRequest.class,
-            TaxonomyItemResponse.class, TaxonomyDimensionResponse.class, ReviewTaxonomyResponse.class);
+            TaxonomyItemResponse.class, TaxonomyDimensionResponse.class, ReviewTaxonomyResponse.class,
+            EvalMetrics.class, EvalAssertionResult.class, EvalCaseResult.class, EvalSceneModel.class,
+            EvalScenePrompt.class, EvalRunSummary.class, EvalRunDetail.class, EvalSceneSummary.class,
+            EvalBaselineSummary.class, CreateEvalRunRequest.class);
 
     @Test
     @SuppressWarnings("unchecked")

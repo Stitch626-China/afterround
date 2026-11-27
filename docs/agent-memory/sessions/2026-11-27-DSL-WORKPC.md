@@ -121,3 +121,17 @@
 - 原因：评测运行产品化，始终由用户主动触发；模型与提示词用启动快照，运行中改配置不影响本次；运行完成不等于基线。
 - 验证：`EvalRunServiceTest` 4 个、`EvalRunnerTest` 2 个（含熔断 9 次调用）、`EvalApiIntegrationTest` 3 个（真实 PG + 假上游，10 例跑完 COMPLETED、tokens 3000、40918/40919、启动恢复）全过；后端 `clean test` **273 tests、0 skipped、JaCoCo 全部门禁通过**；契约 lint 0/0。
 - 下一步 / 断点：Task 11 前端评测运行面板（scenes 卡片、手动开始、轮询、取消、详情）。
+
+### 19:20 事件
+
+- 改动：前端新增 `api/eval.ts`（5 端点、类型由契约生成）、`utils/eval.ts` + 5 个单测、`EvalRunPanel.vue`；工作台增加「评测运行」Tab（场景卡片、全量 27 例、repeat 1/2、二次确认、3 秒轮询、进度、取消确认、metrics / 模型与提示词快照 / 逐用例表、历史运行；「设为基线」置灰待 P3）；未配置模型场景禁用勾选并给「去配置」；`playwright.config.ts` 固定 `outputDir` 与 list reporter；E2E 追加评测用例。
+- 原因：评测必须由用户主动触发，页面只做展示与控制；运行中改配置不影响启动快照。
+- 验证：`npm run build` 通过；Vitest **41** 全过；Playwright 22 个用例已编写，执行被沙箱策略拒绝（Edge 用户目录 / npm 缓存越界），未获得本次 22 全过证据，待本机 `npm run test:e2e`。
+- 下一步 / 断点：Task 12 P2 文档与回归，然后进入 P3 基线版本化。
+
+### 19:22 事件
+
+- 改动：P2 收口文档。需求文档升 v1.20：新增 v1.20 迭代历程与 F9「评测运行」FR9.9~9.13（运行范围、手动确认、进度取消、结果口径、EVAL_* 成本归因）；README 增加评测运行能力 / 语料新路径 / CLI 基线写 target；`ContractSchemaTest` 纳入 9 个评测 DTO 并验证字段一致；PROGRESS 更新状态、阻塞、下一步与 3 条决策；实施计划 Task 8~12 全部勾选（E2E 标注待本机）。
+- 原因：让「运行 = 评测、运行完成 ≠ 基线、发布不自动评测」的口径在需求、README 与验收表一致。
+- 验证：契约 lint 0/0（106 端点）；后端全量 273 tests、JaCoCo 通过；`ContractSchemaTest` 单独通过；前端构建 + Vitest 41 通过。
+- 下一步 / 断点：P3 Task 13：契约 1.24.0 + V13 + 基线服务（设为基线不重跑）。

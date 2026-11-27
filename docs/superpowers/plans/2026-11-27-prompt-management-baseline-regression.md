@@ -1161,16 +1161,16 @@ Expected: `EvalCorpusTest` 27 份通过；全量 229+ tests 全绿。
 - 运行中：进度条（已完成/总数）、逐用例状态列表、取消按钮；取消二次确认并提示「当前用例完成后停止」；可离开页面，回来继续轮询。
 - 完成后：跳转运行详情，展示 metrics、models/prompts 快照、质量失败（FAIL）与执行错误（ERROR）分开计数。
 
-- [ ] **Step 1: 写 `utils/eval` 单测**（进度百分比、状态文案、耗时格式化、错误/质量失败区分）。
-- [ ] **Step 2: 实现 API client 与面板**；轮询间隔 3 秒，终态停止。
-- [ ] **Step 3: E2E mock**：勾选简历 → 开始 → 进度 60% → 取消确认 → 完成 → 详情显示 L1/L2、快照与 case；另测未配置模型场景禁用。
-- [ ] **Step 4: 构建/Vitest/Playwright 全过；Commit** `feat(eval): 前端评测运行面板`。
+- [x] **Step 1: 写 `utils/eval` 单测**（进度百分比、状态文案、耗时格式化、错误/质量失败区分）。
+- [x] **Step 2: 实现 API client 与面板**；轮询间隔 3 秒，终态停止。
+- [x] **Step 3: E2E mock**：勾选简历 → 开始 → 进度 60% → 取消确认 → 完成 → 详情显示 L1/L2、快照与 case；另测未配置模型场景禁用。
+- [x] **Step 4: 构建/Vitest/Playwright 全过；Commit** `feat(eval): 前端评测运行面板`。（构建 + Vitest 41 通过；Playwright 用例已编写，沙箱限制未执行，待本机跑）
 
 #### Task 12：P2 文档与回归
 
-- [ ] 需求文档 F9 补「评测运行」小节；README 补使用说明。
-- [ ] 契约 `info.description` 补 1.23.0；`ContractSchemaTest` 补新 schema。
-- [ ] 全量回归；PROGRESS/会话记录；Commit `docs: 评测运行器 P2 收口`。
+- [x] 需求文档 F9 补「评测运行」小节；README 补使用说明。
+- [x] 契约 `info.description` 补 1.23.0；`ContractSchemaTest` 补新 schema。
+- [x] 全量回归；PROGRESS/会话记录；Commit `docs: 评测运行器 P2 收口`。
 
 ### Phase P3：基线版本化与对比
 
