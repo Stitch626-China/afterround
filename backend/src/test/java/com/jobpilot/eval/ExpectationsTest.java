@@ -2,11 +2,13 @@ package com.jobpilot.eval;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jobpilot.modules.eval.core.EvalCase;
+import com.jobpilot.modules.eval.core.Expectations;
 import org.junit.jupiter.api.Test;
 
 /** 断言引擎单元测试：路径解析、L1/L2 断言与 L3 稳定性。 */
@@ -15,8 +17,8 @@ class ExpectationsTest {
     private static final ObjectMapper M = new ObjectMapper();
 
     private static EvalCase evalCase(String scene, String expectJson) throws Exception {
-        return new EvalCase(scene, "001-x", Path.of("."), "负责接口开发，优化了接口性能。",
-                M.readTree("{\"scene\":\"" + scene + "\"}"), M.readTree(expectJson));
+        return new EvalCase(scene, "001-x", "负责接口开发，优化了接口性能。",
+                M.readTree("{\"scene\":\"" + scene + "\"}"), M.readTree(expectJson), Map.of());
     }
 
     private static JsonNode json(String value) throws Exception {

@@ -24,6 +24,11 @@ import com.jobpilot.common.llm.ChatResult;
 import com.jobpilot.common.llm.LlmClient;
 import com.jobpilot.common.llm.OpenAiCompatibleClient;
 import com.jobpilot.common.llm.StructuredOutputInvoker;
+import com.jobpilot.modules.eval.core.EvalCase;
+import com.jobpilot.modules.eval.core.EvalCorpus;
+import com.jobpilot.modules.eval.core.EvalEngine;
+import com.jobpilot.modules.eval.core.EvalSnapshot;
+import com.jobpilot.modules.eval.core.Expectations;
 import com.jobpilot.modules.job.ai.AiJobPositionParse;
 import com.jobpilot.modules.job.prompt.JobPositionPromptFactory;
 import com.jobpilot.modules.resume.ai.AiResumeAnalysis;
@@ -32,6 +37,8 @@ import com.jobpilot.modules.review.ai.AiReviewAnalysis;
 import com.jobpilot.modules.review.prompt.ReviewPromptFactory;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 /**
  * 真实模型回归评测（默认 mvn test 排除，需显式 tag 与 EVAL_* 环境变量）。
@@ -44,8 +51,6 @@ import org.junit.jupiter.api.Test;
 class LlmEvalTest {
 
     private static final ObjectMapper M = new ObjectMapper();
-    private static final Path ROOT = Path.of("src/test/resources/llm-eval");
-    private static final Path BASELINES = ROOT.resolve("baselines");
     private static final Path OUT = Path.of("target/llm-eval");
 
     private record Config(String baseUrl, String apiKey, String model, int maxTokens, int timeoutSeconds,
@@ -84,7 +89,7 @@ class LlmEvalTest {
     @Test
     void runRegression() throws Exception {
         Config config = Config.fromEnv();
-        List<EvalCase> all = EvalCorpus.load(ROOT);
+        List<EvalCase> all = EvalCorpus.load(new PathMatchingResourcePatternResolver());
         List<EvalCase> cases = config.only().isEmpty() ? all
                 : all.stream().filter(c -> config.only().contains(c.id())
                         || config.only().contains(c.scene() + "/" + c.id())).toList();
@@ -135,8 +140,9 @@ class LlmEvalTest {
             if (!config.only().isEmpty()) {
                 failures.add("生成基线时必须跑全量，不能使用 EVAL_ONLY");
             } else {
-                Baseline.write(runs, config.model());
-                System.out.println("基线已写入 " + BASELINES + "，失败用例 " + failures.size() + " 个（详见报告）");
+                Baseline.write(runs, config);
+                System.out.println("基线已写入 " + Baseline.output() + "，失败用例 " + failures.size()
+                        + " 个（详见报告）");
                 return;
             }
         } else if (config.only().isEmpty()) {
@@ -306,17 +312,30 @@ class LlmEvalTest {
         private Baseline() {
         }
 
-        static void write(List<CaseRun> runs, String model) throws Exception {
-            Files.createDirectories(BASELINES);
+        /** CLI 写基线只落 target，源码资源目录保持干净，由开发者决定是否复制回资源。 */
+        static Path output() {
+            return Path.of(System.getenv().getOrDefault("EVAL_BASELINE_OUT", "target/llm-eval/baselines"));
+        }
+
+        static void write(List<CaseRun> runs, Config config) throws Exception {
+            Path out = output();
+            Files.createDirectories(out);
             Map<String, List<CaseRun>> byScene = runs.stream()
                     .collect(Collectors.groupingBy(r -> r.evalCase().scene()));
             for (Map.Entry<String, List<CaseRun>> entry : byScene.entrySet()) {
                 ObjectNode root = M.createObjectNode();
                 root.put("generatedAt", OffsetDateTime.now().toString());
-                root.put("model", model);
+                root.put("model", config.model());
+                root.put("promptVersion", promptVersion(entry.getKey()));
+                root.put("engineVersion", EvalEngine.VERSION);
+                ObjectNode params = root.putObject("params");
+                params.put("maxTokens", config.maxTokens());
+                params.put("timeoutSeconds", config.timeoutSeconds());
+                params.put("repeat", config.repeat());
+                params.put("temperature", 0.2);
                 ObjectNode cases = root.putObject("cases");
                 entry.getValue().forEach(run -> cases.set(run.evalCase().id(), snapshot(run)));
-                Files.writeString(BASELINES.resolve(entry.getKey() + ".json"),
+                Files.writeString(out.resolve(entry.getKey() + ".json"),
                         M.writerWithDefaultPrettyPrinter().writeValueAsString(root), StandardCharsets.UTF_8);
             }
         }
@@ -325,12 +344,13 @@ class LlmEvalTest {
             Map<String, List<CaseRun>> byScene = runs.stream()
                     .collect(Collectors.groupingBy(r -> r.evalCase().scene()));
             for (Map.Entry<String, List<CaseRun>> entry : byScene.entrySet()) {
-                Path file = BASELINES.resolve(entry.getKey() + ".json");
-                if (!Files.isRegularFile(file)) {
-                    failures.add("缺少基线 " + file + "；首次运行请加 -DEVAL_WRITE_BASELINE=true");
+                ClassPathResource file = new ClassPathResource("llm-eval/baselines/" + entry.getKey() + ".json");
+                if (!file.exists()) {
+                    failures.add("缺少基线 llm-eval/baselines/" + entry.getKey()
+                            + ".json；首次运行请加 EVAL_WRITE_BASELINE=true");
                     continue;
                 }
-                JsonNode baseline = M.readTree(Files.readString(file, StandardCharsets.UTF_8));
+                JsonNode baseline = M.readTree(file.getInputStream());
                 JsonNode cases = baseline.path("cases");
                 Set<String> expected = new LinkedHashSet<>();
                 cases.fieldNames().forEachRemaining(expected::add);
@@ -361,16 +381,17 @@ class LlmEvalTest {
                 }
                 return;
             }
-            Map<String, Double> current = scores(run.evalCase(), run.actual());
+            EvalSnapshot current = EvalSnapshot.of(run.evalCase().scene(), run.actual());
             base.path("scores").fields().forEachRemaining(entry -> {
-                Double now = current.get(entry.getKey());
+                Double now = current.scores().get(entry.getKey());
                 if (now != null && Math.abs(now - entry.getValue().asDouble()) > 10) {
                     failures.add(label + " 分数漂移 >10：" + entry.getKey()
                             + " 基线=" + entry.getValue().asDouble() + ", 当前=" + now);
                 }
             });
             Set<String> baseTags = tags(base);
-            Set<String> nowTags = tags(snapshot(run));
+            Set<String> nowTags = new LinkedHashSet<>(current.topics());
+            nowTags.addAll(current.lossTags());
             Set<String> union = new LinkedHashSet<>(baseTags);
             union.addAll(nowTags);
             Set<String> intersection = new LinkedHashSet<>(baseTags);
@@ -384,10 +405,11 @@ class LlmEvalTest {
         private static ObjectNode snapshot(CaseRun run) {
             ObjectNode node = M.createObjectNode();
             node.put("status", run.status());
+            EvalSnapshot snapshot = EvalSnapshot.of(run.evalCase().scene(), run.actual());
             ObjectNode scores = node.putObject("scores");
-            scores(run.evalCase(), run.actual()).forEach(scores::put);
-            node.set("topics", M.valueToTree(topicTags(run.actual())));
-            node.set("lossTags", M.valueToTree(lossTags(run.actual())));
+            snapshot.scores().forEach(scores::put);
+            node.set("topics", M.valueToTree(snapshot.topics()));
+            node.set("lossTags", M.valueToTree(snapshot.lossTags()));
             node.put("tokens", run.tokens());
             node.put("elapsedMs", run.elapsedMs());
             return node;
@@ -400,50 +422,12 @@ class LlmEvalTest {
             return tags;
         }
 
-        private static Set<String> topicTags(JsonNode actual) {
-            Set<String> tags = new LinkedHashSet<>();
-            if (actual == null) {
-                return tags;
-            }
-            Expectations.collect(actual, "topics[].tag").forEach(n -> tags.add(n.asText()));
-            Expectations.collect(actual, "questions[].topics[]").forEach(n -> tags.add(n.asText()));
-            return tags;
-        }
-
-        private static Set<String> lossTags(JsonNode actual) {
-            Set<String> tags = new LinkedHashSet<>();
-            if (actual == null) {
-                return tags;
-            }
-            Expectations.collect(actual, "lossTags[].tag").forEach(n -> tags.add(n.asText()));
-            Expectations.collect(actual, "questions[].lossTags[]").forEach(n -> tags.add(n.asText()));
-            return tags;
-        }
-
-        /** 简历按字段名、复盘按 questionIndex 对齐分数，避免数组顺序变化造成假漂移。 */
-        private static Map<String, Double> scores(EvalCase evalCase, JsonNode actual) {
-            Map<String, Double> scores = new LinkedHashMap<>();
-            if (actual == null) {
-                return scores;
-            }
-            switch (evalCase.scene()) {
-                case "resume-analysis" -> {
-                    for (String field : List.of("technicalDepth", "projectQuality", "engineeringAbility",
-                            "expressionStructure", "jobMatchPotential")) {
-                        if (actual.path(field).isNumber()) {
-                            scores.put(field + "#0", actual.path(field).asDouble());
-                        }
-                    }
-                    Double overall = Expectations.overall(actual);
-                    if (overall != null) {
-                        scores.put("overall#0", overall);
-                    }
-                }
-                case "review-analyze" -> scores.putAll(Expectations.reviewScores(actual));
-                default -> {
-                }
-            }
-            return scores;
+        private static String promptVersion(String scene) {
+            return switch (scene) {
+                case "resume-analysis" -> new ResumePromptFactory().version();
+                case "review-analyze" -> new ReviewPromptFactory().version();
+                default -> new JobPositionPromptFactory().parseVersion();
+            };
         }
     }
 }

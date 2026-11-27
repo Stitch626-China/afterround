@@ -1098,9 +1098,9 @@ Expected: 构建通过；Vitest 全过；Playwright 全过（新用例：侧栏�
 - `EVAL_WRITE_BASELINE=true` 时写到 `EVAL_BASELINE_OUT`（默认 `target/llm-eval/baselines`），**不写 `src/main/resources`**；打印输出路径，由开发者决定是否复制回资源目录并提交。
 - 产品「设为基线」只写 DB，不碰文件。
 
-- [ ] **Step 1: 先写测试**：`EvalCorpusTest` 用 `PathMatchingResourcePatternResolver` 加载 27 份；`ExpectationsTest` 用固定 JSON 覆盖 L1/L2/L3；`EvalMetricsCalculatorTest` 覆盖 p95。
-- [ ] **Step 2: 迁移代码与资源**；`LlmEvalTest` 改为 `EvalCorpus.load(new PathMatchingResourcePatternResolver())`，baseline 读取 `classpath:llm-eval/baselines`，写模式改 `target/llm-eval/baselines`。
-- [ ] **Step 3: 跑默认测试**（不跑 llm-eval）：
+- [x] **Step 1: 先写测试**：`EvalCorpusTest` 用 `PathMatchingResourcePatternResolver` 加载 27 份；`ExpectationsTest` 用固定 JSON 覆盖 L1/L2/L3；`EvalMetricsCalculatorTest` 覆盖 p95。
+- [x] **Step 2: 迁移代码与资源**；`LlmEvalTest` 改为 `EvalCorpus.load(new PathMatchingResourcePatternResolver())`，baseline 读取 `classpath:llm-eval/baselines`，写模式改 `target/llm-eval/baselines`。
+- [x] **Step 3: 跑默认测试**（不跑 llm-eval）：
 
 ```powershell
 $env:JAVA_HOME="D:\Java\21"; mvn -f backend/pom.xml test
@@ -1108,8 +1108,8 @@ $env:JAVA_HOME="D:\Java\21"; mvn -f backend/pom.xml test
 
 Expected: `EvalCorpusTest` 27 份通过；全量 229+ tests 全绿。
 
-- [ ] **Step 4: 跑 CLI 评测冒烟**（可选，需真实模型）：确认读 classpath 基线可对比；`EVAL_WRITE_BASELINE=true` 输出到 `target/llm-eval/baselines`，源码目录保持干净。
-- [ ] **Step 5: Commit** `refactor(eval): 评测核心迁入运行时并改为 classpath 语料`。
+- [ ] **Step 4: 跑 CLI 评测冒烟**（可选，需真实模型）：确认读 classpath 基线可对比；`EVAL_WRITE_BASELINE=true` 输出到 `target/llm-eval/baselines`，源码目录保持干净。（需用户主动触发，未自动执行）
+- [x] **Step 5: Commit** `refactor(eval): 评测核心迁入运行时并改为 classpath 语料`。
 
 #### Task 10：V12 + EvalRunService + 异步执行
 

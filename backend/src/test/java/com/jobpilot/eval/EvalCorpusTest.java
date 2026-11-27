@@ -7,8 +7,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import com.jobpilot.modules.eval.core.EvalCase;
+import com.jobpilot.modules.eval.core.EvalCorpus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 
 /** 语料校验单元测试 + 真实语料合规测试（默认 mvn test 执行，不调用模型）。 */
 class EvalCorpusTest {
@@ -72,7 +75,12 @@ class EvalCorpusTest {
     }
 
     @Test
-    void realCorpusIsCompliant() {
-        assertThat(EvalCorpus.validate(Path.of("src/test/resources/llm-eval"))).isEmpty();
+    void classpathCorpusIsCompliantAndLoads27Cases() {
+        var resolver = new PathMatchingResourcePatternResolver();
+        assertThat(EvalCorpus.validate(resolver)).isEmpty();
+        List<EvalCase> cases = EvalCorpus.load(resolver);
+        assertThat(cases).hasSize(27);
+        assertThat(cases).extracting(EvalCase::scene).containsOnly("resume-analysis", "review-analyze", "jd-parse");
+        assertThat(cases.get(0).input()).isNotBlank();
     }
 }

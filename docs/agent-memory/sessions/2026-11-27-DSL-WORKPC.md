@@ -107,3 +107,10 @@
 - 原因：P2 评测运行器先落契约，后端与前端按契约实现；运行始终由用户主动触发，运行不等于基线。
 - 验证：`npx @redocly/cli lint contracts/openapi.yaml` 0 error / 0 warning；`ContractCoverageTest`、`ContractSchemaTest` 均通过（待实现端点不计入双向全等）。
 - 下一步 / 断点：Task 9 评测核心迁入运行时、27 份语料与 3 份基线迁至 main resources 并改为 classpath 加载。
+
+### 18:38 事件
+
+- 改动：评测核心从 test scope 迁入 `com.jobpilot.modules.eval.core`：`EvalCase`（附属文件改为 `Map<String,String>`）、`EvalCorpus`（新增 `ResourcePatternResolver` 加载 `classpath*:llm-eval/cases/*/*/meta.json`，保留 `Path` 校验给临时语料）、`Expectations`；新增 `EvalSnapshot`、`EvalMetrics`、`EvalMetricsCalculator`（L1 按用例 / L2 按断言 / p95）、`EvalFingerprint`、`EvalEngine(VERSION=llm-eval-v1)`。27 份语料与 3 份基线迁至 `src/main/resources/llm-eval/`；基线补 `promptVersion`（简历 v2 / JD v1 / 复盘 v2）、`engineVersion`、`params`。`LlmEvalTest` 改 classpath 加载；`EVAL_WRITE_BASELINE` 只写 `target/llm-eval/baselines`（可用 `EVAL_BASELINE_OUT` 覆盖），不再写源码目录。
+- 原因：语料要随包发布，评测执行器要在运行时被 `EvalRunService` 复用；CLI 写基线不能污染仓库。
+- 验证：`EvalCorpusTest` classpath 27 份通过（classpath 多根重复时按 场景/id 去重）；新增 `EvalMetricsCalculatorTest`（通过率、tokens、P95 最近秩）；后端 `clean test` **264 tests、0 skipped、JaCoCo 全部门禁通过**。
+- 下一步 / 断点：Task 10 V12 + `EvalRunService` 异步执行；真实模型 CLI 冒烟需用户主动触发，未自动执行。

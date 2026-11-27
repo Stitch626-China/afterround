@@ -1,4 +1,4 @@
-package com.jobpilot.eval;
+package com.jobpilot.modules.eval.core;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -126,7 +126,8 @@ public final class Expectations {
         return scores;
     }
 
-    static List<JsonNode> collect(JsonNode root, String path) {
+    /** 按 `a.b[].c` 路径收集全部匹配值；供断言与快照共用。 */
+    public static List<JsonNode> collect(JsonNode root, String path) {
         List<JsonNode> out = new ArrayList<>();
         collect(root, path.split("\\."), 0, out);
         return out;

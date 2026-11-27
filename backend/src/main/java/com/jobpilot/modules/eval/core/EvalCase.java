@@ -1,13 +1,14 @@
-package com.jobpilot.eval;
+package com.jobpilot.modules.eval.core;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-/** 一份评测语料：输入正文 + 场景参数 + 断言。 */
-public record EvalCase(String scene, String id, Path dir, String input, JsonNode meta, JsonNode expect) {
+/** 一份评测语料：输入正文 + 场景参数 + 断言；附属文件随语料一起打进 classpath。 */
+public record EvalCase(String scene, String id, String input, JsonNode meta, JsonNode expect,
+                       Map<String, String> files) {
 
     public String text(String field) {
         return meta.path(field).asText(null);
@@ -27,16 +28,8 @@ public record EvalCase(String scene, String id, Path dir, String input, JsonNode
         return values;
     }
 
+    /** 读取 jd.txt / company-intro.txt / resume.txt；不存在时返回 null。 */
     public String optionalFile(String name) {
-        Path file = dir.resolve(name);
-        return java.nio.file.Files.isRegularFile(file) ? read(file) : null;
-    }
-
-    private static String read(Path file) {
-        try {
-            return java.nio.file.Files.readString(file, java.nio.charset.StandardCharsets.UTF_8);
-        } catch (java.io.IOException ex) {
-            throw new IllegalStateException("读取语料文件失败: " + file, ex);
-        }
+        return files.get(name);
     }
 }
