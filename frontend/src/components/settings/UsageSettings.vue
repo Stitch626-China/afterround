@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 调用统计（NFR6）：只读聚合 llm_call_logs，入口固定在设置抽屉，任何页面都能打开查看。
+ * 调用统计（NFR6）：只读聚合 llm_call_logs，入口统一在 LLM 工作台。
  * 汇总 / 每日 token / 按场景 / 按模型四块，数据为空时给明确空态而不是 0%。
  */
 import { computed, onMounted, ref } from 'vue'

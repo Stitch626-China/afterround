@@ -90,6 +90,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/ChatView.vue'),
     meta: { title: '模型对话（能力验证）', ownTitle: true },
   },
+  {
+    path: '/llm-workbench',
+    name: 'llm-workbench',
+    component: () => import('@/views/LlmWorkbenchView.vue'),
+    meta: { title: 'LLM 工作台', ownTitle: true },
+  },
 ]
 
 // 开发环境提供报告页视觉样板，方便评审；生产构建不包含该路由

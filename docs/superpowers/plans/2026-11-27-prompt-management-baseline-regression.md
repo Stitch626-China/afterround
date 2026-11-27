@@ -724,15 +724,15 @@ frontend/e2e/llm-workbench.spec.ts
 
 | 功能 | 接口 | 实现类 | 数据表 | 验证 | 状态 |
 |---|---|---|---|---|---|
-| 提示词列表/详情 | `GET /api/llm/prompts`、`GET /api/llm/prompts/{key}` | `PromptService` / `PromptRegistry` | `llm_prompt_versions` | `PromptApiIntegrationTest`（列表/内置兜底/404） | 已完成 |
-| 草稿/发布/回滚 | `PUT .../draft`、`POST .../publish`、`POST .../versions/{n}/activate` | `PromptService` | `llm_prompt_versions` | `PromptServiceTest` + `PromptApiIntegrationTest`（草稿/发布/历史/回滚/400/幂等） | 已完成 |
+| 提示词列表/详情 | `GET /api/llm/prompts`、`GET /api/llm/prompts/{key}` | `PromptService` / `PromptRegistry` | `llm_prompt_versions` | `PromptApiIntegrationTest` + `llm-workbench.spec.ts` | 已完成 |
+| 草稿/发布/回滚 | `PUT .../draft`、`POST .../publish`、`POST .../versions/{n}/activate` | `PromptService` | `llm_prompt_versions` | `PromptServiceTest` + `PromptApiIntegrationTest` + E2E | 已完成 |
 | 运行时提示词生效 | 无（内部调用） | 8 个 `PromptFactory` + `PromptRegistry` | `llm_prompt_versions` | `PromptFactoryTest` + 业务服务测试 | 已完成 |
-| 模型与绑定 | 现有 `/api/llm/global`、`/api/llm/scenes/{scene}` | `LlmGlobalSettingService` / `LlmSceneService` | 现有 LLM 配置表 | 现有测试 + E2E | 待实现 |
+| 模型与绑定 | 现有 `/api/llm/global`、`/api/llm/scenes/{scene}` | `LlmGlobalSettingService` / `LlmSceneService` | 现有 LLM 配置表 | 现有测试 + `llm-workbench.spec.ts` | 已完成 |
 | 评测运行 | `POST/GET /api/llm/eval/runs`、`GET /{id}`、`POST /{id}/cancel` | `EvalRunService` / `EvalRunner` | `llm_eval_runs` / `llm_eval_run_cases` | `EvalRunServiceTest` + API 集成 | 待实现 |
 | 设为基线 | `POST /api/llm/eval/baselines` | `EvalBaselineService` | `llm_eval_baselines` | `EvalBaselineServiceTest` + E2E | 待实现 |
 | 基线列表/设为当前 | `GET /api/llm/eval/baselines`、`POST .../{id}/activate` | `EvalBaselineService` | `llm_eval_baselines` | `EvalBaselineServiceTest` + E2E | 待实现 |
 | 运行对比 | `GET /api/llm/eval/runs/compare` | `EvalCompareService` | runs + cases | `EvalCompareServiceTest` + E2E | 待实现 |
-| 调用统计 | 现有 `GET /api/llm/usage` | `LlmUsageService` | `llm_call_logs` | 现有测试 + E2E | 待实现 |
+| 调用统计 | 现有 `GET /api/llm/usage` | `LlmUsageService` | `llm_call_logs` | 现有测试 + `llm-workbench.spec.ts` | 已完成 |
 | 重跑失败用例 | `POST /api/llm/eval/runs`（`sourceRunId` + `retryErrorsOnly`） | `EvalRunService` | runs/cases | `EvalRunServiceTest` | 待实现 |
 | 提示词导出 | 前端聚合 `listPrompts + getPrompt` | `PromptList.vue` | 无 | E2E | 待实现 |
 

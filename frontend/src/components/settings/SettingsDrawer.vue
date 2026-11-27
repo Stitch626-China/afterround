@@ -1,14 +1,13 @@
 <script setup lang="ts">
 /**
  * 设置抽屉（§6.10）：左下角齿轮唤起，右侧滑出，不打断当前页面。
- * 四个 Tab：模型服务 / 场景模型 / 外观 / 调用统计（NFR6 全局入口）。
+ * 三个 Tab：模型服务 / 场景模型 / 外观；调用统计已迁至 LLM 工作台。
  */
 import { onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ModelSettings from './ModelSettings.vue'
 import SceneSettings from './SceneSettings.vue'
 import AppearanceSettings from './AppearanceSettings.vue'
-import UsageSettings from './UsageSettings.vue'
 import { settingsTab, type SettingsTab } from '@/composables/useSettings'
 
 const props = defineProps<{ open: boolean }>()
@@ -23,6 +22,12 @@ function selectTab(tab: SettingsTab): void {
 function openChat(): void {
   emit('close')
   void router.push('/chat')
+}
+
+/** 调用统计统一收口到 LLM 工作台。 */
+function openWorkbench(): void {
+  emit('close')
+  void router.push('/llm-workbench')
 }
 
 function onKeydown(event: KeyboardEvent): void {
@@ -56,15 +61,17 @@ onBeforeUnmount(() => {
             <button type="button" :class="{ active: settingsTab === 'model' }" @click="selectTab('model')">模型服务</button>
             <button type="button" :class="{ active: settingsTab === 'scene' }" @click="selectTab('scene')">场景模型</button>
             <button type="button" :class="{ active: settingsTab === 'appearance' }" @click="selectTab('appearance')">外观</button>
-            <button type="button" :class="{ active: settingsTab === 'usage' }" @click="selectTab('usage')">调用统计</button>
           </nav>
 
           <div class="drawer-body">
             <ModelSettings v-if="settingsTab === 'model'" @navigate="openChat" />
             <SceneSettings v-else-if="settingsTab === 'scene'" />
-            <UsageSettings v-else-if="settingsTab === 'usage'" />
             <AppearanceSettings v-else />
           </div>
+
+          <footer class="drawer-foot">
+            <button type="button" class="link" @click="openWorkbench">调用统计已迁至 LLM 工作台</button>
+          </footer>
         </aside>
       </div>
     </Transition>
@@ -155,6 +162,12 @@ onBeforeUnmount(() => {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-5);
+}
+
+.drawer-foot {
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-sm);
 }
 
 .fade-enter-active,

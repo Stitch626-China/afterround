@@ -56,8 +56,10 @@ test('一级导航只含业务主线，设置抽屉与主题切换可用', async
   await page.getByRole('button', { name: /Light/ }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
 
-  await page.getByRole('button', { name: '调用统计' }).click()
-  await expect(page.getByText('近 30 天还没有模型调用记录', { exact: false })).toBeVisible()
+  // 调用统计已迁至 LLM 工作台，设置抽屉只保留三个 Tab
+  await expect(page.getByRole('button', { name: '调用统计', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '调用统计已迁至 LLM 工作台', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'LLM 工作台' })).toBeVisible()
 })
 
 test('简历页展示上传区与空状态', async ({ page }) => {

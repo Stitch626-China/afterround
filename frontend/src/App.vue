@@ -73,12 +73,17 @@ const groups = [
 ]
 
 const route = useRoute()
+/** 工具入口放在侧栏底部，与业务主线区分。 */
+const toolItem = {
+  to: '/llm-workbench',
+  label: 'LLM 工作台',
+  icon: 'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
+}
 const pageTitle = computed(() => (route.meta.title as string) ?? '面后')
 /** 少数页面自带页标题（文件名、对话全屏等），避免重复渲染。 */
 const ownTitle = computed(() => route.meta.ownTitle === true)
-const currentGroup = computed(
-  () => groups.find((group) => group.items.some((item) => isActive(item.to)))?.label ?? '',
-)
+const currentGroup = computed(() => groups.find((group) => group.items.some((item) => isActive(item.to)))?.label
+  ?? (isActive(toolItem.to) ? '工具' : ''))
 
 /** 子页面（如 /resumes/:id/report）也要点亮父级入口。 */
 function isActive(to: string): boolean {
@@ -126,6 +131,26 @@ function isActive(to: string): boolean {
       </nav>
 
       <div class="sidebar-bottom">
+        <RouterLink
+          :to="toolItem.to"
+          class="nav-item"
+          :class="{ active: isActive(toolItem.to) }"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path :d="toolItem.icon" />
+          </svg>
+          <span>{{ toolItem.label }}</span>
+        </RouterLink>
         <button type="button" class="settings-btn" @click="openSettings('model')">
           <svg
             viewBox="0 0 24 24"

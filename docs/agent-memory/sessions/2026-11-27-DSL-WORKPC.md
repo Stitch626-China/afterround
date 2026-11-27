@@ -86,3 +86,10 @@
 - 原因：发布提示词后无需重启即可生效；分析结果记录的版本必须与实际调用模板一致，否则对比会误判。
 - 验证：`mvn -f backend/pom.xml clean test`（Docker）261 tests、0 failures、0 skipped、JaCoCo 全部达标；`PromptFactoryTest` 覆盖 8 个工厂的 DB 模板、占位符替换与版本标签。
 - 下一步 / 断点：Task 6 前端 LLM 工作台（入口、模型与绑定、提示词编辑/发布/历史/diff、调用统计迁移）。
+
+### 18:22 事件
+
+- 改动：新增侧栏底部「LLM 工作台」入口与 `/llm-workbench` 路由；工作台 3 个 Tab：模型与绑定（全局 + 7 场景 + 3 个评测场景生效模型，内联编辑、手动保存、全局二次确认）、提示词（12 组列表、system/user 编辑、即时校验、diff/恢复内置、草稿/发布/回滚、版本历史、未保存三选一拦截）、调用统计（迁移 `UsageSettings`）；设置抽屉移除调用统计并保留迁移链接；新增 `api/prompts.ts`、`utils/prompt.ts` 及 8 个单测、`llm-workbench.spec.ts`。
+- 原因：提示词与模型变更必须由用户主动保存/发布，且不自动触发评测；调用统计与评测实验分开入口。
+- 验证：`npm run build` 通过；`npm run test` 36 tests 全过；`npm run test:e2e` 21 tests 全过（含新工作台用例与设置抽屉三 Tab 回归）。
+- 下一步 / 断点：Task 7 P1 文档、README、需求文档 F9 与 PROGRESS 收口；随后进入 P2 评测运行器。
