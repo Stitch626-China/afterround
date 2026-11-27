@@ -22,6 +22,8 @@
     <mybatis-plus.version>3.5.9</mybatis-plus.version>
     <springdoc.version>2.8.6</springdoc.version>
     <tika.version>3.2.2</tika.version>
+    <!-- 默认排除真实模型评测；显式运行用 -Dsurefire.excludedGroups=__none__ -Dgroups=llm-eval -->
+    <surefire.excludedGroups>llm-eval</surefire.excludedGroups>
   </properties>
 
   <dependencies>
@@ -145,6 +147,14 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <configuration>
           <parameters>true</parameters>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- 默认排除真实模型评测；显式运行用 -Dsurefire.excludedGroups=__none__ -Dgroups=llm-eval -->
+          <excludedGroups>${surefire.excludedGroups}</excludedGroups>
         </configuration>
       </plugin>
       <plugin>

@@ -1,0 +1,78 @@
+{
+  "generatedAt" : "2026-11-27T13:27:57.400458300+08:00",
+  "model" : "Qwen3.8-27B",
+  "cases" : {
+    "001-java-python-ai-backend" : {
+      "status" : "PASS",
+      "scores" : { },
+      "topics" : [ ],
+      "lossTags" : [ ],
+      "tokens" : 1062,
+      "elapsedMs" : 3650
+    },
+    "002-mid-java-backend" : {
+      "status" : "PASS",
+      "scores" : { },
+      "topics" : [ ],
+      "lossTags" : [ ],
+      "tokens" : 881,
+      "elapsedMs" : 2986
+    },
+    "003-fullstack-data-platform" : {
+      "status" : "PASS",
+      "scores" : { },
+      "topics" : [ ],
+      "lossTags" : [ ],
+      "tokens" : 820,
+      "elapsedMs" : 2485
+    },
+    "004-backend-ai-product" : {
+      "status" : "PASS",
+      "scores" : { },
+      "topics" : [ ],
+      "lossTags" : [ ],
+      "tokens" : 967,
+      "elapsedMs" : 3067
+    },
+    "005-test-development" : {
+      "status" : "PASS",
+      "scores" : { },
+      "topics" : [ ],
+      "lossTags" : [ ],
+      "tokens" : 869,
+      "elapsedMs" : 2727
+    },
+    "006-benefits-only" : {
+      "status" : "PASS",
+      "scores" : { },
+      "topics" : [ ],
+      "lossTags" : [ ],
+      "tokens" : 519,
+      "elapsedMs" : 938
+    },
+    "007-mixed-language" : {
+      "status" : "PASS",
+      "scores" : { },
+      "topics" : [ ],
+      "lossTags" : [ ],
+      "tokens" : 692,
+      "elapsedMs" : 2374
+    },
+    "008-no-responsibility" : {
+      "status" : "PASS",
+      "scores" : { },
+      "topics" : [ ],
+      "lossTags" : [ ],
+      "tokens" : 437,
+      "elapsedMs" : 903
+    },
+    "009-client-engineer" : {
+      "status" : "PASS",
+      "scores" : { },
+      "topics" : [ ],
+      "lossTags" : [ ],
+      "tokens" : 908,
+      "elapsedMs" : 3108
+    }
+  }
+}

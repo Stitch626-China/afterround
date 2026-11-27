@@ -11,6 +11,7 @@
 
 ## 当前状态
 
+- **LLM 评测执行器与首版基线（2026-11-27，DSL-WORKPC）**：新增 `backend/src/test/java/com/jobpilot/eval/`——语料校验（默认测试执行，不调模型）、L1/L2/L3 断言引擎、真实模型执行器、Markdown/JSON 报告与基线读写；默认 `mvn test` 排除 `llm-eval`。抽检 27 份语料，修正 10 份简历 `expect.json` 中超 prompt 契约的 `maxItems`（只保留 careerDirections≤5）、复盘负样本 `maxItems.questions` 与过严的 `shallow-depth` 禁项、3 处真实转写绝对时间。评测发现并修复 `StructuredOutputInvoker` 重试把 system 消息追加到末尾导致严格网关 400（改为 user，新增回归测试）；`OpenAiCompatibleClient` 增加可配置超时构造器（生产默认仍 120s）。首版基线已生成（内网 `Qwen3.8-27B`，27 份全量，repeat=1）：L2 断言 45 项失败 2 项（95.6%，按规范 ≥95% 达标），L1 硬失败 1 项 `resume-analysis/002`（引用用省略号拼接原文，属 prompt 约束不足，待改 prompt 时重建基线）。`quotesMustComeFromInput` 失败详情带首条原文片段，L2 改为整轮聚合判定。规范升 v1.3；后端全量 **229 tests 全绿**（JaCoCo 门禁通过）。
 - **LLM 评测集 review-analyze 语料已建（2026-11-26，DSL-WORKPC）**：在 `backend/src/test/resources/llm-eval/cases/review-analyze/` 新增 8 份语料（001~004 真实转写脱敏、005~007 笔记 NOTES、008 纯 HR 负样本），每份含 `input.txt` / `meta.json` / `expect.json`；input 均 ≤30,000 字符，UTF-8 无 BOM、LF；隐私关键词扫描零命中；断言使用 `taxonomy-v1` key，负样本 `expectGraceful` + `mustNotContainTags`；已检查并提交（2026-11-26，HOMEPC）。
 - **LLM 评测集 jd-parse 语料已建（2026-11-26，DSL-WORKPC）**：在 `backend/src/test/resources/llm-eval/cases/jd-parse/` 新增 9 份语料（001~004 来自四家公司 JD 改写，005 测试岗补位，009 客户端岗补位，006 福利-only 边界，007 中英混杂边界，008 无职责负样本）；每份含 `input.txt` / `meta.json` / `expect.json`；input 68~832 字符，UTF-8 无 BOM、LF；隐私关键词扫描零命中；断言使用 `requiredFields` / `skillsMin` / `maxItems` / `mustMentionAny`，边界与负样本使用 `expectGraceful`；已检查并提交（2026-11-26，HOMEPC）。
 - **LLM 评测集 resume-analysis 语料已建（2026-11-26，DSL-WORKPC）**：在 `backend/src/test/resources/llm-eval/cases/resume-analysis/` 新增 10 份语料（7 份真实简历：后端+AI、AI/RAG、应届 Java、SRE、AI/Agent、前端、设计；3 份合成缺陷：无量化、空窗转行、超短）；每份含 `input.txt` / `meta.json` / `expect.json`；input 96~2697 字符；UTF-8 无 BOM、LF；隐私关键词扫描零命中；`quotesMustComeFromInput=true`、`overallFormula=30/25/20/15/10`、五维 `scoreRange` 与 `careerDirections` 上限已配置；已检查并提交（2026-11-26，HOMEPC）。
@@ -107,7 +108,7 @@
 9. **测试缺口（2026-11-18 盘点，高价值项已补，剩余非阻塞）**：
    - 中价值：公司 `create/update` 的并发重复键分支与标签 JSON 兜底；岗位 `importJd/parse` 的 Tika/IO 异常与循环自然退出分支；`JobMatchService.toResponse` 的详情解析失败兜底；JSON 兜底异常（`skillsJson` / `skills` / `parseList` / `write`）；`LlmGlobalSettingService` 部分分支；Provider/Model 删除的 HTTP 层；`GlobalExceptionHandler` 的 413/500。
    - 可接受不补：`LlmBootstrapRunner`（环境变量种子）、`main`、DTO、Prompt 资源缺失异常、`AesGcmCipher.deriveKey` 分支。
-10. **LLM 评测集（review-analyze 8 + jd-parse 9 + resume-analysis 10 已建并提交，执行器未实现）**：`review-analyze` 8 份、`jd-parse` 9 份、`resume-analysis` 10 份分别在 `backend/src/test/resources/llm-eval/cases/<scene>/`，共 27 份；规范首批 22 份已覆盖，并补齐客户端岗与 3 个简历合成缺陷。下一步实现评测执行器与基线，复用生产 `PromptFactory` 与 `StructuredOutputInvoker`，默认 `mvn test` 排除 `llm-eval` tag。
+10. **LLM 评测集（27 份语料 + 执行器 + 首版基线已完成，2026-11-27）**：`review-analyze` 8 份、`jd-parse` 9 份、`resume-analysis` 10 份分别在 `backend/src/test/resources/llm-eval/cases/<scene>/`，共 27 份；规范首批 22 份已覆盖，并补齐客户端岗与 3 个简历合成缺陷。执行器复用生产 `PromptFactory` 与 `StructuredOutputInvoker`，默认 `mvn test` 排除 `llm-eval` tag。首版基线（内网 `Qwen3.8-27B`，8192 token / 300s / repeat=1）已写入 `baselines/`；当前唯一 L1 硬失败为 `resume-analysis/002`（引用省略号拼接），属 prompt 约束不足，改 prompt 后需重建基线；`review-analyze/003`、`004` 的 L2 标签未命中在 95% 阈值内，作为模型波动观察项。
 
 ## 关键决策
 

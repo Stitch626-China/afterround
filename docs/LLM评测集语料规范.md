@@ -1,7 +1,7 @@
 # LLM 评测集语料规范
 
-> 版本 v1.1 / 2026-11-26 / 适用目录 `backend/src/test/resources/llm-eval/`
-> 状态：规范先行，评测执行器尚未实现。**本文件是建库、标注与后续实现的唯一依据**；只读本文件即可完成建库，不依赖任何会话上下文。
+> 版本 v1.3 / 2026-11-27 / 适用目录 `backend/src/test/resources/llm-eval/`
+> 状态：评测执行器已实现（`backend/src/test/java/com/jobpilot/eval/`），默认 `mvn test` 排除真实模型调用；本文件仍是建库、标注与执行的唯一依据。
 
 ## 0. 快速开始（在另一台主机）
 
@@ -11,7 +11,7 @@
 4. 每个 case 至少写三个文件：`input.txt`、`meta.json`、`expect.json`；
 5. 按第 7 节自查隐私、按附录 B 逐项自检；
 6. 只提交 `cases/`（必要时含 `.gitignore`），push；
-7. 把**一个场景目录**的路径交给 AI，例如 `backend/src/test/resources/llm-eval/cases/review-analyze/`，由 AI 实现评测执行器并生成基线。
+7. 把**一个场景目录**的路径交给 AI 复核；执行器已实现，按第 12 节运行并生成基线。
 
 先做 `review-analyze` 一个场景（8 份），跑通后再做另外两个场景。
 
@@ -198,6 +198,8 @@ backend/src/test/resources/llm-eval/
 | `maxItems` | object | 列表路径 → 数量上限，如 `{"actions": 3}` |
 | `overallFormula` | string | 仅简历：总分必须等于本地加权重算值，固定 `"30/25/20/15/10"` |
 
+`maxItems` 只能写 prompt 或需求明确约束的数量；prompt 未约束的列表不要加断言，否则会把「模型多写一条」误判为退化。
+
 引用字段取值：
 
 - 简历：`strengths[].quote`、`weaknesses[].quote`，prompt 明确要求原句，按 L1 严格校验；
@@ -234,7 +236,7 @@ backend/src/test/resources/llm-eval/
   "requiredFields": ["technicalDepth", "strengths", "weaknesses", "suggestions"],
   "quotesMustComeFromInput": true,
   "scoreRange": { "technicalDepth": [0, 70] },
-  "maxItems": { "strengths": 5, "weaknesses": 5, "suggestions": 5, "careerDirections": 5 },
+  "maxItems": { "careerDirections": 5 },
   "overallFormula": "30/25/20/15/10",
   "mustMentionAny": ["量化", "指标"],
   "scoreDriftMax": 5
@@ -271,10 +273,11 @@ JD：
 ```json
 {
   "expectGraceful": true,
-  "mustNotContainTags": ["knowledge-gap", "shallow-depth"],
-  "maxItems": { "questions": 5 }
+  "mustNotContainTags": ["knowledge-gap"]
 }
 ```
+
+负样本只禁止**技术性**失分类型，避免把通用的表达深度判断误判为硬凑；未在 prompt 中约束数量的列表不写 `maxItems`。
 
 ### 5.4 可选背景文件（仅 `review-analyze`）
 
@@ -415,6 +418,64 @@ Get-ChildItem -Recurse -File backend/src/test/resources/llm-eval/cases |
 | 提交原始转写或音频 | 公开仓库泄露隐私 | 原始层永不入 git |
 | 语料改写时改变技术事实 | 断言与真实能力脱节 | 只改措辞，不改结论 |
 | 手写 `baselines/` | 与代码版本不一致 | 只由执行器生成 |
+
+## 12. 运行评测与生成基线
+
+默认 `mvn test` 通过 surefire 排除 `llm-eval` tag，不调用模型；语料校验（`EvalCorpusTest.realCorpusIsCompliant`）仍在默认测试中执行。
+
+### 12.1 环境变量
+
+| 变量 | 必填 | 说明 |
+|---|---|---|
+| `EVAL_BASE_URL` | 是 | OpenAI 兼容地址，建议含 `/v1` |
+| `EVAL_API_KEY` | 是 | 上游密钥，只放进程环境变量，不写文件 |
+| `EVAL_MODEL` | 是 | 被测模型名 |
+| `EVAL_MAX_TOKENS` | 否 | 默认 8192（评测值；生产 NFR7 仍为 4096） |
+| `EVAL_TIMEOUT_SECONDS` | 否 | 默认 300（生产客户端默认 120s） |
+| `EVAL_REPEAT` | 否 | 默认 2，用于 L3 稳定性 |
+| `EVAL_WRITE_BASELINE` | 否 | 首次生成基线设为 `true`，必须全量运行 |
+| `EVAL_ONLY` | 否 | 逗号分隔 case id 或 `scene/id`，仅调试用；不可与写基线同用 |
+
+长复盘评测放宽 token 与超时，是为了评 prompt 质量而非复现基础设施上限；生产 4096 / 120s 的约束单独评估。
+
+### 12.2 命令
+
+macOS / Linux：
+
+```bash
+EVAL_BASE_URL="..." EVAL_API_KEY="..." EVAL_MODEL="..." EVAL_WRITE_BASELINE=true \
+mvn -o -f backend/pom.xml -Djacoco.skip=true -Dsurefire.excludedGroups=__none__ -Dgroups=llm-eval test
+```
+
+Windows PowerShell：
+
+```powershell
+$env:EVAL_BASE_URL="..."; $env:EVAL_API_KEY="..."; $env:EVAL_MODEL="..."
+$env:EVAL_WRITE_BASELINE="true"
+mvn -o -f backend/pom.xml "-Djacoco.skip=true" "-Dsurefire.excludedGroups=__none__" "-Dgroups=llm-eval" test
+```
+
+`-Dsurefire.excludedGroups=__none__` 用于覆盖 pom 中默认的 `llm-eval` 排除；`-Dgroups=llm-eval` 指定只跑评测。
+
+### 12.3 输出与判定
+
+- 报告：`backend/target/llm-eval/report.md` 与 `report.json`（逐 case 的 L1/L2/L3、tokens、耗时、失败项）；
+- 基线：仅在 `EVAL_WRITE_BASELINE=true` 且全量运行时写入 `backend/src/test/resources/llm-eval/baselines/{scene}.json`；
+- 基线存在且非写入模式时自动对比：case 集合、模型名、分数漂移 >10、标签 Jaccard <0.7 均判失败；
+- 判定口径：L1 / L3 任一失败即整轮失败；L2 按**断言**通过率聚合，低于 95% 才判失败，未通过的 case 在报告中仍标 FAIL；
+- 换模型必须重建基线；负样本的 `expectGraceful` 允许优雅失败，不参与基线分数对比。
+
+### 12.4 成本控制
+
+- 全量 27 份 × 2 次 ≈ 54 次调用；调试 prompt 时用 `EVAL_ONLY` 跑单 case，不要写基线；
+- 报告只留断言结果与 token，不保存请求 / 响应全文，避免语料膨胀。
+
+### 12.5 首版基线（2026-11-27）
+
+- 环境：内网 `datangsoft / Qwen3.8-27B`，`EVAL_MAX_TOKENS=8192`、超时 300s、`repeat=1`；
+- 结果：27 份全量，L2 断言 45 项、失败 2 项（95.6%，达标）；L1 硬失败 1 项 `resume-analysis/002-ai-rag-platform`（引用用省略号拼接两段原文，属 prompt 约束不足，待改 prompt 后重建基线）；
+- `review-analyze/003`、`004` 的 L2 失分标签未命中（`knowledge-gap` / `no-evidence`）在 95% 阈值内，保留为模型波动观察项；
+- 首版基线不引入 xfail 机制：改 prompt、语料或模型后按第 8 节重建，不要手改 `baselines/`。
 
 ## 附录 A：枚举与词表
 

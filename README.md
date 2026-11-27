@@ -189,6 +189,8 @@ cd frontend && npm run test:e2e
 npx @redocly/cli lint contracts/openapi.yaml
 ```
 
+**LLM 回归评测（可选）**：语料在 `backend/src/test/resources/llm-eval/`，默认 `mvn test` 不调用模型；配置 `EVAL_BASE_URL` / `EVAL_API_KEY` / `EVAL_MODEL` 后，按 [语料规范](docs/LLM评测集语料规范.md) 第 12 节运行，报告输出到 `backend/target/llm-eval/report.md`。
+
 CI 在 push 到 `main` 或创建 / 更新 PR 时自动运行；也可在 Actions 页面点「Run workflow」，或执行 `gh workflow run ci.yml` 手动触发。
 
 | 指标 | 当前 |

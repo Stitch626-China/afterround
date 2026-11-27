@@ -1,8 +1,7 @@
 {
   "requiredFields": ["questions"],
-  "maxItems": { "questions": 5 },
   "expectGraceful": true,
-  "mustNotContainTags": ["knowledge-gap", "shallow-depth"],
+  "mustNotContainTags": ["knowledge-gap"],
   "scoreDriftMax": 5,
   "tagJaccardMin": 0.7
 }
