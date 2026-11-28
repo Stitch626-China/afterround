@@ -744,6 +744,7 @@ paths:
       description: |
         - 必须由用户主动触发；使用当前生效提示词与当前模型，启动时做快照，中途改配置不影响本次运行。
         - 同一时间只允许一个 PENDING / PROCESSING 运行，重复创建返回 **40918**。
+        - 部分重跑（`sourceRunId + retryErrorsOnly`）要求源运行的语料指纹与当前一致；语料已变化返回 **400**，避免旧快照与新语料混用。
         - 评测调用写入 `llm_call_logs`，场景前缀 `EVAL_`；运行完成不等于基线。
       requestBody:
         required: true
@@ -852,6 +853,7 @@ paths:
       summary: 把已完成的运行设为基线（不重跑）
       description: |
         - 只接受 `COMPLETED` 且 `partial=false` 的运行；按场景分组，某场景存在 ERROR 用例时跳过并返回原因。
+        - 运行时的语料指纹必须与当前语料一致；语料已变化返回 **400**，避免旧结果冒充当前基线。
         - 直接复用运行结果贴标签，不调用模型、不重跑；旧当前基线置为非当前，历史保留。
         - 同一 `(runId, scene)` 重复调用只更新 label / current，不重复插入。
       requestBody:

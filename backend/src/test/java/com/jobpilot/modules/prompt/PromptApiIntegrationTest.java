@@ -87,6 +87,17 @@ class PromptApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("发布说明超过 200 字返回 400，不会误报版本冲突")
+    void publishRejectsTooLongNote() {
+        JsonNode builtIn = builtIn();
+        saveDraft(builtIn.path("systemContent").asText(), builtIn.path("userContent").asText(), "首版")
+                .expectStatus().isOk();
+        client.post().uri(BASE + "/" + KEY + "/publish").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("note", "x".repeat(201)))
+                .exchange().expectStatus().isBadRequest();
+    }
+
+    @Test
     @DisplayName("草稿→发布→第二版→回滚，版本历史只含 ACTIVE/ARCHIVED")
     void draftPublishAndRollbackFlow() {
         JsonNode builtIn = builtIn();

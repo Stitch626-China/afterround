@@ -42,6 +42,8 @@ public class EvalImpactAnalyzer {
     private int maxTokens = 8192;
     @Value("${app.eval.timeout-seconds:300}")
     private int timeoutSeconds = 300;
+    @Value("${app.eval.repeat:1}")
+    private int defaultRepeat = 1;
 
     public EvalImpactAnalyzer(EvalSceneCatalog catalog, PromptCatalog promptCatalog, PromptRegistry registry,
                               LlmSceneService sceneService, LlmEvalBaselineMapper baselineMapper) {
@@ -109,7 +111,7 @@ public class EvalImpactAnalyzer {
         }
         Map<String, Object> params = params(baseline.getParams());
         if (changed(params, "maxTokens", maxTokens) || changed(params, "timeoutSeconds", timeoutSeconds)
-                || changed(params, "temperature", 0.2)) {
+                || changed(params, "repeat", defaultRepeat) || changed(params, "temperature", 0.2)) {
             reasons.add("生成参数已变化");
         }
         return reasons;

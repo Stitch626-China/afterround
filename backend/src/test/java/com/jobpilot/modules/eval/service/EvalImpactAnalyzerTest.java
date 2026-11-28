@@ -74,7 +74,7 @@ class EvalImpactAnalyzerTest {
         baseline.setPromptHash(promptHash);
         baseline.setCorpusHash(corpus);
         baseline.setEngineVersion(engine);
-        baseline.setParams("{\"maxTokens\":8192,\"timeoutSeconds\":300,\"temperature\":0.2}");
+        baseline.setParams("{\"maxTokens\":8192,\"timeoutSeconds\":300,\"repeat\":1,\"temperature\":0.2}");
         baseline.setCurrent(true);
         return baseline;
     }
@@ -118,6 +118,19 @@ class EvalImpactAnalyzerTest {
 
         assertThat(analyzer().rebuildReasons("resume-analysis"))
                 .containsExactlyInAnyOrder("模型已更换", "断言引擎已升级");
+    }
+
+    @Test
+    void repeatChangeSuggestsRebuild() {
+        stubScene();
+        stubSceneConfig();
+        when(registry.template("resume-analysis")).thenReturn(new PromptTemplate("resume-analysis",
+                "s", "u", "v3", "same", PromptVersionSource.BUILTIN));
+        LlmEvalBaseline baseline = baseline("same", "m", EvalEngine.VERSION, "corpus");
+        baseline.setParams("{\"maxTokens\":8192,\"timeoutSeconds\":300,\"repeat\":2,\"temperature\":0.2}");
+        when(baselineMapper.selectOne(any())).thenReturn(baseline);
+
+        assertThat(analyzer().rebuildReasons("resume-analysis")).containsExactly("生成参数已变化");
     }
 
     @Test

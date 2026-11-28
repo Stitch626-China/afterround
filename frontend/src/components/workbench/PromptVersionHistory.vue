@@ -17,6 +17,8 @@ const props = defineProps<{ promptKey: string }>()
 const emit = defineEmits<{ changed: []; close: [] }>()
 
 const versions = ref<PromptVersionSummary[]>([])
+const total = ref(0)
+const pageNo = ref(1)
 const preview = ref<PromptVersionDetail | null>(null)
 const loading = ref(false)
 const busy = ref(false)
@@ -27,8 +29,10 @@ async function load(): Promise<void> {
   error.value = ''
   preview.value = null
   try {
-    const page = await listPromptVersions(props.promptKey)
+    const page = await listPromptVersions(props.promptKey, 1, 20)
     versions.value = page.items
+    total.value = page.total
+    pageNo.value = page.page
   } catch (ex) {
     error.value = ex instanceof Error ? ex.message : '版本历史加载失败'
   } finally {
@@ -58,6 +62,18 @@ async function activate(version: PromptVersionSummary): Promise<void> {
     error.value = ex instanceof Error ? ex.message : '回滚失败'
   } finally {
     busy.value = false
+  }
+}
+
+/** 历史版本按版本号倒序累计，超出首屏时按页追加。 */
+async function loadMore(): Promise<void> {
+  try {
+    const page = await listPromptVersions(props.promptKey, pageNo.value + 1, 20)
+    versions.value = [...versions.value, ...page.items]
+    total.value = page.total
+    pageNo.value = page.page
+  } catch (ex) {
+    error.value = ex instanceof Error ? ex.message : '版本历史加载失败'
   }
 }
 
@@ -110,6 +126,14 @@ onMounted(load)
         </div>
       </li>
     </ul>
+    <button
+      v-if="versions.length < total"
+      type="button"
+      class="link"
+      @click="loadMore"
+    >
+      加载更多（{{ versions.length }} / {{ total }}）
+    </button>
   </section>
 </template>
 

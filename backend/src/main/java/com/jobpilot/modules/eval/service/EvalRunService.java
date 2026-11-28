@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -99,8 +100,6 @@ public class EvalRunService {
 
     /** 3 个评测场景：语料、生效提示词、生效模型与最近一次运行；不自动跑、不阻塞使用。 */
     public List<EvalSceneSummary> scenes() {
-        List<LlmEvalRun> recent = runMapper.selectList(Wrappers.<LlmEvalRun>lambdaQuery()
-                .orderByDesc(LlmEvalRun::getCreatedAt).last("LIMIT 20"));
         return catalog.all().stream().map(scene -> {
             SceneModel model = null;
             try {
@@ -108,9 +107,11 @@ public class EvalRunService {
             } catch (BizException ex) {
                 log.debug("评测场景 {} 尚未配置模型: {}", scene.key(), ex.getMessage());
             }
-            EvalRunSummary lastRun = recent.stream()
-                    .filter(run -> parseScenes(run.getScenes()).contains(scene.key()))
-                    .findFirst().map(this::summary).orElse(null);
+            // 逐场景取真正最近一次，不能用全局最近 20 条截断，否则旧场景会被误显示为「暂无」
+            EvalRunSummary lastRun = runMapper.selectList(Wrappers.<LlmEvalRun>lambdaQuery()
+                            .apply("scenes @> {0}::jsonb", "[\"" + scene.key() + "\"]")
+                            .orderByDesc(LlmEvalRun::getCreatedAt).last("LIMIT 1"))
+                    .stream().findFirst().map(this::summary).orElse(null);
             return new EvalSceneSummary(scene.key(), scene.name(), catalog.caseCount(scene.key()),
                     catalog.corpusHash(scene.key()), scene.promptKey(), registry.version(scene.promptKey()),
                     scene.globalModel() ? "GLOBAL" : "SCENE",
@@ -206,6 +207,11 @@ public class EvalRunService {
         if (!"COMPLETED".equals(source.getStatus())) {
             throw BizException.of(ErrorCode.BAD_REQUEST, "只能重跑已完成运行中的失败用例");
         }
+        // 语料变化后，重跑 ERROR 会混用旧快照与新语料，结果不可解释
+        if (!Objects.equals(source.getCorpusHash(),
+                catalog.combinedCorpusHash(parseScenes(source.getScenes())))) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "源运行的语料与当前不一致，请重新运行后再重跑失败用例");
+        }
         List<LlmEvalRunCase> errors = caseMapper.selectList(Wrappers.<LlmEvalRunCase>lambdaQuery()
                 .eq(LlmEvalRunCase::getRunId, source.getId()).eq(LlmEvalRunCase::getStatus, "ERROR"));
         if (errors.isEmpty()) {
@@ -219,7 +225,8 @@ public class EvalRunService {
         run.setUserId(1L);
         run.setStatus("PENDING");
         run.setPartial(true);
-        run.setScenes(source.getScenes());
+        // 只展示实际重跑的场景，避免把未重跑的场景也列进部分结果
+        run.setScenes(json(errors.stream().map(LlmEvalRunCase::getScene).distinct().toList()));
         run.setModelSnapshot(source.getModelSnapshot());
         run.setPromptSnapshot(source.getPromptSnapshot());
         run.setCorpusHash(source.getCorpusHash());

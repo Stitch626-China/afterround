@@ -57,7 +57,7 @@ public class PromptController {
 
     @PostMapping("/{promptKey}/publish")
     public Result<PromptDetail> publish(@PathVariable String promptKey,
-                                        @RequestBody(required = false) PublishPromptRequest request) {
+                                        @RequestBody(required = false) @Valid PublishPromptRequest request) {
         return Result.ok(service.publish(promptKey, request));
     }
 

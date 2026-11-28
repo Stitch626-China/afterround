@@ -141,6 +141,22 @@ class EvalRunServiceTest {
     }
 
     @Test
+    void partialRerunRejectsChangedCorpus() {
+        LlmEvalRun source = new LlmEvalRun();
+        source.setId(4L);
+        source.setStatus("COMPLETED");
+        source.setScenes("[\"resume-analysis\"]");
+        source.setCorpusHash("old-corpus");
+        when(runMapper.selectById(4L)).thenReturn(source);
+        when(catalog.combinedCorpusHash(List.of("resume-analysis"))).thenReturn("new-corpus");
+
+        assertThatThrownBy(() -> service().create(
+                new CreateEvalRunRequest(null, null, 4L, true)))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("语料与当前不一致");
+    }
+
+    @Test
     void workerExceptionRetriesThreeTimesThenFails() {
         LlmEvalRun run = new LlmEvalRun();
         run.setId(3L);

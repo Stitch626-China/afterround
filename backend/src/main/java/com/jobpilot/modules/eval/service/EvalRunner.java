@@ -218,7 +218,8 @@ public class EvalRunner {
                 || Boolean.TRUE.equals(latest.getCancelRequested()));
         String finalStatus = cancelled ? "CANCELLED" : status;
         var update = Wrappers.<LlmEvalRun>lambdaUpdate().eq(LlmEvalRun::getId, runId)
-                .set(LlmEvalRun::getStatus, finalStatus).set(LlmEvalRun::getError, cancelled ? "已取消" : error)
+                .set(LlmEvalRun::getStatus, finalStatus)
+                .set(LlmEvalRun::getError, cancelled ? "已取消" : truncate(error))
                 .set(LlmEvalRun::getFinishedAt, OffsetDateTime.now())
                 .set(LlmEvalRun::getCompletedCases, completed).set(LlmEvalRun::getErrorCases, errors);
         if (!cancelled) {
@@ -281,9 +282,9 @@ public class EvalRunner {
                     .replace("{{jobTitle}}", value(evalCase.text("jobTitle")))
                     .replace("{{roundType}}", value(evalCase.text("roundType")))
                     .replace("{{interviewerRole}}", value(evalCase.text("interviewerRole")))
-                    .replace("{{companyIntro}}", value(evalCase.optionalFile("company-intro.txt")))
-                    .replace("{{jdText}}", value(evalCase.optionalFile("jd.txt")))
-                    .replace("{{resumeText}}", value(evalCase.optionalFile("resume.txt")))
+                    .replace("{{companyIntro}}", optional(evalCase, "company-intro.txt", 2000))
+                    .replace("{{jdText}}", optional(evalCase, "jd.txt", 8000))
+                    .replace("{{resumeText}}", optional(evalCase, "resume.txt", 6000))
                     .replace("{{text}}", evalCase.input());
         } else if ("resume-analysis".equals(scene.key())) {
             user = user.replace("{{resumeText}}", evalCase.input())
@@ -296,6 +297,16 @@ public class EvalRunner {
 
     private static String value(String value) {
         return value == null || value.isBlank() ? "未填写" : value;
+    }
+
+    /** 可选背景材料按生产同款规则截断，保证评测输入与真实调用一致。 */
+    private static String optional(EvalCase evalCase, String name, int max) {
+        String value = evalCase.optionalFile(name);
+        if (value == null || value.isBlank()) {
+            return "未填写";
+        }
+        String trimmed = value.trim();
+        return trimmed.length() <= max ? trimmed : trimmed.substring(0, max);
     }
 
     /** 熔断只统计上游连接 / 超时 / 5xx / 429；JSON 解析失败不算 Provider 故障。 */

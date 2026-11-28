@@ -144,6 +144,25 @@ class EvalCompareServiceTest {
     }
 
     @Test
+    void jdScoreDriftIsNotCountedWhenDimensionNotApplicable() {
+        LlmEvalRun left = run(1L, "COMPLETED", false, "jd-parse", "m");
+        LlmEvalRun right = run(2L, "COMPLETED", false, "jd-parse", "m");
+        when(runMapper.selectById(1L)).thenReturn(left);
+        when(runMapper.selectById(2L)).thenReturn(right);
+        LlmEvalRunCase leftRow = row(10L, "001", "PASS", "{\"salaryMin#0\":20}", "[]", 100);
+        leftRow.setScene("jd-parse");
+        LlmEvalRunCase rightRow = row(20L, "001", "PASS", "{\"salaryMin#0\":40}", "[]", 100);
+        rightRow.setScene("jd-parse");
+        when(caseMapper.selectList(any())).thenReturn(List.of(leftRow), List.of(rightRow));
+
+        EvalRunCompare compare = service().compare(1L, 2L);
+
+        assertThat(compare.regression().scoreDriftCases()).isZero();
+        assertThat(compare.cases().get(0).changes()).containsExactly("UNCHANGED");
+        assertThat(compare.cases().get(0).scoreDrift()).isNull();
+    }
+
+    @Test
     void legacyProviderComparesByModelWithWarning() {
         LlmEvalRun left = run(1L, "COMPLETED", false, "resume-analysis", "m");
         left.setModelSnapshot("[{\"scene\":\"resume-analysis\",\"providerKey\":\"legacy\",\"model\":\"m\"}]");

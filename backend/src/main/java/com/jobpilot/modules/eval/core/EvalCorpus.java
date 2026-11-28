@@ -164,6 +164,7 @@ public final class EvalCorpus {
         });
         cases.sort(Comparator.comparingInt((EvalCase item) -> SCENES.indexOf(item.scene()))
                 .thenComparing(EvalCase::id));
+        checkUniqueIds(cases, issues);
         return cases;
     }
 
@@ -195,7 +196,18 @@ public final class EvalCorpus {
                         files, cases, issues);
             }
         }
+        checkUniqueIds(cases, issues);
         return cases;
+    }
+
+    /** 对比按 case id 对齐，跨场景重复会导致用例串场。 */
+    private static void checkUniqueIds(List<EvalCase> cases, List<String> issues) {
+        Set<String> seen = new LinkedHashSet<>();
+        for (EvalCase item : cases) {
+            if (!seen.add(item.id())) {
+                issues.add(item.id() + ": case id 跨场景重复");
+            }
+        }
     }
 
     private static void collect(String scene, String id, String input, JsonNode meta, JsonNode expect,

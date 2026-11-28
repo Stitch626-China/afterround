@@ -90,16 +90,18 @@ public class EvalCompareService {
             reasons.add("断言引擎版本不同");
         }
         List<String> dimensions = applicableDimensions(leftScenes);
+        boolean scoreApplicable = dimensions.contains("SCORE_DRIFT");
+        boolean tagApplicable = dimensions.contains("TAG_CHANGE");
         if (!reasons.isEmpty()) {
             return new EvalRunCompare(false, reasons, warnings, List.of(), scene, leftSide, rightSide,
                     null, null, null, null, List.of());
         }
         return new EvalRunCompare(true, reasons, warnings, dimensions, scene, leftSide, rightSide,
                 quality(leftMetrics, rightMetrics),
-                regression(leftRows, rightRows),
+                regression(leftRows, rightRows, scoreApplicable, tagApplicable),
                 cost(leftMetrics, rightMetrics),
                 latency(leftMetrics, rightMetrics),
-                cases(leftRows, rightRows));
+                cases(leftRows, rightRows, scoreApplicable, tagApplicable));
     }
 
     private EvalRunCompareSide side(LlmEvalRun run, String scene, EvalMetrics metrics) {
@@ -145,7 +147,8 @@ public class EvalCompareService {
                 right.l1Failed(), right.l2Failed());
     }
 
-    private EvalCompareRegression regression(List<LlmEvalRunCase> left, List<LlmEvalRunCase> right) {
+    private EvalCompareRegression regression(List<LlmEvalRunCase> left, List<LlmEvalRunCase> right,
+                                             boolean scoreApplicable, boolean tagApplicable) {
         Map<String, LlmEvalRunCase> leftMap = byCase(left);
         Map<String, LlmEvalRunCase> rightMap = byCase(right);
         int fixed = 0;
@@ -163,11 +166,11 @@ public class EvalCompareService {
                     failed++;
                 }
             }
-            Double scoreDrift = scoreDrift(l, r);
+            Double scoreDrift = scoreApplicable ? scoreDrift(l, r) : null;
             if (scoreDrift != null && scoreDrift > SCORE_DRIFT_THRESHOLD) {
                 drift++;
             }
-            Double jaccard = tagJaccard(l, r);
+            Double jaccard = tagApplicable ? tagJaccard(l, r) : null;
             if (jaccard != null && jaccard < TAG_JACCARD_THRESHOLD) {
                 tags++;
             }
@@ -175,7 +178,8 @@ public class EvalCompareService {
         return new EvalCompareRegression(fixed, failed, drift, tags);
     }
 
-    private List<EvalCompareCase> cases(List<LlmEvalRunCase> left, List<LlmEvalRunCase> right) {
+    private List<EvalCompareCase> cases(List<LlmEvalRunCase> left, List<LlmEvalRunCase> right,
+                                        boolean scoreApplicable, boolean tagApplicable) {
         Map<String, LlmEvalRunCase> leftMap = byCase(left);
         Map<String, LlmEvalRunCase> rightMap = byCase(right);
         List<EvalCompareCase> cases = new ArrayList<>();
@@ -191,11 +195,11 @@ public class EvalCompareService {
             if (passed(leftStatus) && !passed(rightStatus)) {
                 changes.add("REGRESSED");
             }
-            Double scoreDrift = scoreDrift(l, r);
+            Double scoreDrift = scoreApplicable ? scoreDrift(l, r) : null;
             if (scoreDrift != null && scoreDrift > SCORE_DRIFT_THRESHOLD) {
                 changes.add("SCORE_DRIFT");
             }
-            Double jaccard = tagJaccard(l, r);
+            Double jaccard = tagApplicable ? tagJaccard(l, r) : null;
             if (jaccard != null && jaccard < TAG_JACCARD_THRESHOLD) {
                 changes.add("TAG_CHANGED");
             }

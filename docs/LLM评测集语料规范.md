@@ -99,6 +99,7 @@ backend/src/main/resources/llm-eval/
 命名规矩：
 
 - 只用小写 ASCII、数字、连字符；
+- **case id 跨场景全局唯一**（对比按 case id 对齐，同名会串场）；
 - 序号三位补零，决定执行顺序与报告顺序；
 - 语义标签写「来源 + 特征」，如 `real` / `synthetic` / `negative` / `short` / `no-metrics`；
 - **禁止**出现公司名、人名、日期、中文文件名。
@@ -196,7 +197,7 @@ backend/src/main/resources/llm-eval/
 | `scoreRange` | object | 字段路径 → `[最小值, 最大值]`，如 `{"questions[].score": [0, 100]}` |
 | `quotesMustComeFromInput` | boolean | **仅简历**：`strengths[].quote` / `weaknesses[].quote` 必须是 `input.txt` 的子串（去空白与引号后比对），抓幻觉引用 |
 | `maxItems` | object | 列表路径 → 数量上限，如 `{"actions": 3}` |
-| `overallFormula` | string | 仅简历：总分必须等于本地加权重算值，固定 `"30/25/20/15/10"` |
+| `overallFormula` | string | 仅简历：固定 `"30/25/20/15/10"`；确认五维分数齐全、可本地加权算出总分（模型不返回总分，不做模型自报总分比对） |
 
 `maxItems` 只能写 prompt 或需求明确约束的数量；prompt 未约束的列表不要加断言，否则会把「模型多写一条」误判为退化。
 
@@ -369,7 +370,8 @@ Get-ChildItem -Recurse -File backend/src/main/resources/llm-eval/cases |
 2. CLI 基线 JSON 记录 `generatedAt`、`model`、`promptVersion`、`engineVersion`、`params`、每个 case 的关键分数、标签集合、耗时、token；产品数据库基线额外记录 `providerKey`、`promptHash`、`corpusHash`，用于影响面提示；`corpusHash` 覆盖 `input.txt`、`meta.json`、`expect.json` 与可选背景文件，任一变化都会标记「评测语料已变化」；代码版本以生成时的 git commit 为准，记录在会话与提交信息中；
 3. 执行器启动时校验：**基线中的 case id 集合必须与目录扫描结果一致**，不一致直接报错；
 4. 改语料、改断言引擎或改基线都算口径变更，必须单独提交并在提交信息里说明原因；
-5. 以下任一情况视为退化：L1 由 PASS 变 FAIL；某 case 分数漂移 >10；标签集合 Jaccard <0.7；L2 通过率低于 95%。
+5. 以下任一情况视为退化：L1 由 PASS 变 FAIL；某 case 分数漂移 >10；标签集合 Jaccard <0.7；L2 通过率低于 95%；
+6. 产品内「设为基线」与「重跑失败用例」都要求运行的语料指纹等于当前语料；语料变化后先重新运行，避免旧快照与新语料混用。
 
 基线文件形态（CLI 执行器生成，仅供参考）：
 
