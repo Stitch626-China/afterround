@@ -221,15 +221,16 @@ public class EvalRunService {
                 .in(LlmEvalRun::getStatus, ACTIVE_STATUS)) > 0) {
             throw BizException.of(ErrorCode.EVAL_RUN_IN_PROGRESS);
         }
+        List<String> errorScenes = errors.stream().map(LlmEvalRunCase::getScene).distinct().toList();
         LlmEvalRun run = new LlmEvalRun();
         run.setUserId(1L);
         run.setStatus("PENDING");
         run.setPartial(true);
-        // 只展示实际重跑的场景，避免把未重跑的场景也列进部分结果
-        run.setScenes(json(errors.stream().map(LlmEvalRunCase::getScene).distinct().toList()));
+        // 只展示实际重跑的场景，语料指纹也随之取这些场景的组合值
+        run.setScenes(json(errorScenes));
         run.setModelSnapshot(source.getModelSnapshot());
         run.setPromptSnapshot(source.getPromptSnapshot());
-        run.setCorpusHash(source.getCorpusHash());
+        run.setCorpusHash(catalog.combinedCorpusHash(errorScenes));
         run.setEngineVersion(source.getEngineVersion());
         run.setParams(source.getParams());
         run.setTotalCases(errors.size());
