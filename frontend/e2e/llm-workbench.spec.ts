@@ -402,7 +402,7 @@ test('评测运行：模型缺失禁用、手动开始、进度、取消确认�
     json: envelope([toSummaryOf(detailOf(resumeSummary, resumeSystem, resumeUser)), toSummaryOf(detailOf(reviewSummary, '复盘', '转写'))]),
   }))
 
-  await page.route(/\/api\/llm\/eval\/runs(\/.*)?$/, (route) => {
+  await page.route('**/api/llm/eval/runs**', (route) => {
     const url = new URL(route.request().url())
     const method = route.request().method()
     if (url.pathname === '/api/llm/eval/runs' && method === 'POST') {
@@ -430,7 +430,7 @@ test('评测运行：模型缺失禁用、手动开始、进度、取消确认�
   await page.getByRole('button', { name: '评测运行' }).click()
 
   await expect(page.getByRole('heading', { name: '选择场景' })).toBeVisible()
-  await expect(page.getByLabel('选择JD解析')).toBeDisabled()
+  await expect(page.getByLabel('选择JD 解析')).toBeDisabled()
   await expect(page.getByText('未配置模型').first()).toBeVisible()
   await expect(page.getByRole('button', { name: '去配置' }).first()).toBeVisible()
 
@@ -440,7 +440,7 @@ test('评测运行：模型缺失禁用、手动开始、进度、取消确认�
   await page.getByRole('dialog', { name: '开始评测' }).getByRole('button', { name: '开始运行' }).click()
   await expect.poll(() => created).toBe(true)
 
-  await expect(page.getByText('60%', { exact: false })).toBeVisible({ timeout: 8000 })
+  await expect(page.getByText('6 / 10 例 · 60%')).toBeVisible({ timeout: 8000 })
   await page.getByRole('button', { name: '取消运行' }).click()
   await expect(page.getByRole('dialog', { name: '取消评测' })).toBeVisible()
   await page.getByRole('button', { name: '再想想' }).click()
@@ -586,7 +586,7 @@ test('基线对比：过期徽标、去评测预选、设为基线与四维对�
     return route.fulfill({ json: envelope(resumeDetail) })
   })
   await page.route('**/api/llm/eval/scenes', (route) => route.fulfill({ json: envelope(evalScenes) }))
-  await page.route(/\/api\/llm\/eval\/runs(\/.*)?$/, (route) => {
+  await page.route('**/api/llm/eval/runs**', (route) => {
     const url = new URL(route.request().url())
     if (url.pathname === '/api/llm/eval/runs') {
       return route.fulfill({ json: envelope({ items: [runSummary(8), runSummary(7)], total: 2, page: 1, size: 50 }) })
@@ -594,10 +594,13 @@ test('基线对比：过期徽标、去评测预选、设为基线与四维对�
     if (url.pathname.endsWith('/8')) {
       return route.fulfill({ json: envelope(runDetail) })
     }
+    if (url.pathname.endsWith('/7')) {
+      return route.fulfill({ json: envelope({ ...runDetail, id: 7 }) })
+    }
     return route.fulfill({ json: envelope(runDetail) })
   })
   await page.route(/\/api\/llm\/eval\/runs\/compare.*/, (route) => route.fulfill({ json: envelope(compareData) }))
-  await page.route(/\/api\/llm\/eval\/baselines(\/.*)?$/, (route) => {
+  await page.route('**/api/llm/eval/baselines**', (route) => {
     const url = new URL(route.request().url())
     if (route.request().method() === 'POST' && url.pathname.endsWith('/activate')) {
       const id = Number(url.pathname.split('/').at(-2))
@@ -605,7 +608,20 @@ test('基线对比：过期徽标、去评测预选、设为基线与四维对�
       return route.fulfill({ json: envelope(baselines.find((item) => item.id === id)) })
     }
     if (route.request().method() === 'POST') {
-      return route.fulfill({ json: envelope([{ scene: 'resume-analysis', created: true, baselineId: 5, reason: null }]) })
+      const payload = route.request().postDataJSON() as { runId?: number; label?: string | null }
+      const target = baselines.find((item) => item.scene === 'resume-analysis' && item.runId === payload.runId)
+      const baselineId = target?.id ?? 5
+      if (target) {
+        baselines = baselines.map((item) => item.id === target.id
+          ? { ...item, label: payload.label || '', current: true }
+          : { ...item, current: false })
+      } else {
+        baselines = [
+          ...baselines.map((item) => ({ ...item, current: false })),
+          baseline(5, payload.runId ?? 8, payload.label || '', true),
+        ]
+      }
+      return route.fulfill({ json: envelope([{ scene: 'resume-analysis', created: true, baselineId, reason: null }]) })
     }
     return route.fulfill({ json: envelope({ items: baselines, total: baselines.length, page: 1, size: 20 }) })
   })
@@ -617,7 +633,7 @@ test('基线对比：过期徽标、去评测预选、设为基线与四维对�
   await expect(page.getByLabel('选择简历分析')).toBeChecked()
   await expect(page.getByText('1 个场景 · 10 例')).toBeVisible()
 
-  await page.locator('tr.clickable').first().click()
+  await page.locator('tr.clickable').nth(1).click()
   await page.getByRole('button', { name: '设为基线' }).click()
   await page.getByLabel('基线备注').fill('v3 复测')
   await page.getByRole('dialog', { name: '设为基线' }).getByRole('button', { name: '设为基线' }).click()
@@ -625,6 +641,7 @@ test('基线对比：过期徽标、去评测预选、设为基线与四维对�
 
   await page.getByRole('button', { name: '基线对比' }).click()
   await expect(page.getByRole('heading', { name: '选择对比' })).toBeVisible()
+  await expect(page.getByRole('cell', { name: 'v3 复测', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '开始对比' }).click()
   await expect(page.getByText('修复 1')).toBeVisible()
   await expect(page.getByText('80.0% → 90.0%')).toBeVisible()
@@ -672,7 +689,7 @@ test('基线对比：尚无基线与不可比原因', async ({ page }) => {
   await page.route(/\/api\/llm\/prompts(\/.*)?$/, (route) =>
     route.fulfill({ json: envelope([toSummaryOf(detailOf(resumeSummary, resumeSystem, resumeUser))]) }))
   await page.route('**/api/llm/eval/scenes', (route) => route.fulfill({ json: envelope(scenes) }))
-  await page.route(/\/api\/llm\/eval\/runs(\/.*)?$/, (route) => {
+  await page.route('**/api/llm/eval/runs**', (route) => {
     const url = new URL(route.request().url())
     return route.fulfill({ json: envelope({ items: runs, total: runs.length, page: 1, size: 50 }) })
   })
@@ -691,12 +708,13 @@ test('基线对比：尚无基线与不可比原因', async ({ page }) => {
       latency: null,
       cases: [],
     }) }))
-  await page.route(/\/api\/llm\/eval\/baselines(\/.*)?$/, (route) =>
+  await page.route('**/api/llm/eval/baselines**', (route) =>
     route.fulfill({ json: envelope({ items: [], total: 0, page: 1, size: 20 }) }))
 
   await page.goto('/llm-workbench?tab=baseline')
   await expect(page.getByRole('heading', { name: '选择对比' })).toBeVisible()
   await expect(page.getByText('尚无基线', { exact: false })).toBeVisible()
+  await page.getByLabel('左侧运行').selectOption('7')
   await page.getByRole('button', { name: '开始对比' }).click()
   await expect(page.getByText('不可比：场景集合不同', { exact: false })).toBeVisible()
 })
