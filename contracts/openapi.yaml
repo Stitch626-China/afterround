@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: 面后（AfterRound）API
-  version: 1.24.0
+  version: 1.25.0
   description: |
     **本文件是接口的唯一真实源。**
 
@@ -40,6 +40,8 @@ info:
       运行为异步任务，使用启动时的提示词与模型快照；始终由用户主动触发，发布或改配置不自动评测。
     - **1.24.0（基线对比）**：新增 4 个端点（基线列表 / 从已完成运行设为基线 / 设为当前 / 运行对比），
       基线是被「设为基线」的那次运行，只贴标签不重跑；对比对象是 run vs run，提示词不参与可比性。
+    - **1.25.0（基线列表分页）**：`GET /api/llm/eval/baselines` 统一分页（`page` / `size`，默认 20，最大 100），
+      当前基线在前，其余按创建时间倒序；响应改为 `PageResult<EvalBaselineSummary>`，与列表分页约定一致。
     - 场景枚举 `LlmScene` 一次性定义全部 7 个场景（含 M2 未落地的预留项），避免后续扩展改动枚举。
       JD 结构化解析与简历对比总结未列入枚举，使用全局默认，不参与场景级绑定。
 
@@ -821,7 +823,7 @@ paths:
     get:
       tags: [评测运行]
       operationId: listEvalBaselines
-      summary: 按场景查询当前与历史基线
+      summary: 按场景分页查询当前与历史基线
       description: 当前基线在前，其余按创建时间倒序；不传 `scene` 时返回全部场景。
       parameters:
         - name: scene
@@ -830,13 +832,15 @@ paths:
           schema:
             type: string
             enum: [resume-analysis, jd-parse, review-analyze]
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
       responses:
         '200':
           description: 成功
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ResultEvalBaselineList'
+                $ref: '#/components/schemas/ResultEvalBaselinePage'
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -7792,6 +7796,9 @@ components:
 
     EvalRunCompareSide:
       type: object
+      description: |
+        单侧运行摘要。多场景运行时 `providerKey` / `model` / `promptVersion` / `promptHash`
+        取第一个场景作为展示代表；可比性仍逐场景校验。`baselineId` / `baselineLabel` 仅单场景运行有值。
       required: [runId, scene, providerKey, model, promptVersion, promptHash,
                  corpusHash, engineVersion, params, metrics]
       properties:
@@ -7800,6 +7807,7 @@ components:
           format: int64
         scene:
           type: string
+          description: 多场景运行以 `+` 拼接
         providerKey:
           type: string
         model:
@@ -7829,16 +7837,22 @@ components:
       properties:
         l1PassRate:
           type: [number, "null"]
+          description: 左侧运行的 L1 通过率
         l2PassRate:
           type: [number, "null"]
+          description: 左侧运行的 L2 通过率
         l1Delta:
           type: [number, "null"]
+          description: 右侧减左侧的 L1 通过率差
         l2Delta:
           type: [number, "null"]
+          description: 右侧减左侧的 L2 通过率差
         l1Failed:
           type: [integer, "null"]
+          description: 右侧运行的 L1 失败数
         l2Failed:
           type: [integer, "null"]
+          description: 右侧运行的 L2 失败数
 
     EvalCompareRegression:
       type: object
@@ -7971,15 +7985,20 @@ components:
           type: [integer, "null"]
           format: int64
 
-    ResultEvalBaselineList:
+    ResultEvalBaselinePage:
       allOf:
         - $ref: '#/components/schemas/ResultVoid'
         - type: object
           properties:
             data:
-              type: array
-              items:
-                $ref: '#/components/schemas/EvalBaselineSummary'
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    items:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/EvalBaselineSummary'
 
     ResultEvalBaselineResultList:
       allOf:

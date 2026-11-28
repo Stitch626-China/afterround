@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * LLM 工作台（1.24.0）：模型与绑定 / 提示词 / 评测运行 / 基线对比 / 调用统计。
+ * LLM 工作台（1.25.0）：模型与绑定 / 提示词 / 评测运行 / 基线对比 / 调用统计。
  * 提示词发布只改线上生效版本，不自动跑评测；有未保存修改时统一拦截。
  */
 import { computed, onMounted, ref, watch } from 'vue'

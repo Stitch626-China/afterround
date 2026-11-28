@@ -28,6 +28,8 @@ import {
 const scenes = ref<EvalSceneSummary[]>([])
 const runs = ref<EvalRunSummary[]>([])
 const baselines = ref<EvalBaselineSummary[]>([])
+const baselineTotal = ref(0)
+const baselinePage = ref(1)
 const leftId = ref<number | null>(null)
 const rightId = ref<number | null>(null)
 const compare = ref<EvalRunCompare | null>(null)
@@ -106,12 +108,14 @@ async function load(): Promise<void> {
     const [sceneList, runPage, baselineList] = await Promise.all([
       listEvalScenes(),
       listEvalRuns(1, 50),
-      listEvalBaselines(),
+      listEvalBaselines(undefined, 1, 20),
     ])
     scenes.value = sceneList
     runs.value = runPage.items
-    baselines.value = baselineList
-    const current = baselineList.find((item) => item.current)
+    baselines.value = baselineList.items
+    baselineTotal.value = baselineList.total
+    baselinePage.value = baselineList.page
+    const current = baselineList.items.find((item) => item.current)
     if (current) {
       leftId.value = current.runId
     }
@@ -149,13 +153,28 @@ async function activate(item: EvalBaselineSummary): Promise<void> {
   error.value = ''
   try {
     await activateEvalBaseline(item.id)
-    baselines.value = await listEvalBaselines()
+    const page = await listEvalBaselines(undefined, 1, 20)
+    baselines.value = page.items
+    baselineTotal.value = page.total
+    baselinePage.value = page.page
     scenes.value = await listEvalScenes()
     notice.value = `已将「${item.label || item.promptVersion}」设为当前基线`
   } catch (ex) {
     error.value = ex instanceof Error ? ex.message : '切换基线失败'
   } finally {
     activating.value = null
+  }
+}
+
+/** 基线历史按创建时间累计，超出首屏时按页追加。 */
+async function loadMoreBaselines(): Promise<void> {
+  try {
+    const page = await listEvalBaselines(undefined, baselinePage.value + 1, 20)
+    baselines.value = [...baselines.value, ...page.items]
+    baselineTotal.value = page.total
+    baselinePage.value = page.page
+  } catch (ex) {
+    error.value = ex instanceof Error ? ex.message : '基线加载失败'
   }
 }
 
@@ -339,6 +358,14 @@ onMounted(load)
             </tr>
           </tbody>
         </table>
+        <button
+          v-if="baselines.length < baselineTotal"
+          type="button"
+          class="btn quiet"
+          @click="loadMoreBaselines"
+        >
+          加载更多（{{ baselines.length }} / {{ baselineTotal }}）
+        </button>
       </section>
     </template>
   </section>

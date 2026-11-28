@@ -1,5 +1,5 @@
 /**
- * 评测运行接口（contracts/openapi.yaml 1.24.0）。
+ * 评测运行接口（contracts/openapi.yaml 1.25.0）。
  * 类型由契约生成，禁止手写数据结构。
  */
 import type { components } from './schema'
@@ -21,6 +21,9 @@ export type EvalCompareCase = components['schemas']['EvalCompareCase']
 /** 分页结构由契约派生，仅把 items 收紧为必填。 */
 export type EvalRunPage = NonNullable<components['schemas']['ResultEvalRunPage']['data']> & {
   items: EvalRunSummary[]
+}
+export type EvalBaselinePage = NonNullable<components['schemas']['ResultEvalBaselinePage']['data']> & {
+  items: EvalBaselineSummary[]
 }
 
 export function listEvalScenes(): Promise<EvalSceneSummary[]> {
@@ -47,8 +50,12 @@ export function compareEvalRuns(leftRunId: number, rightRunId: number): Promise<
   return get<EvalRunCompare>(`/llm/eval/runs/compare?leftRunId=${leftRunId}&rightRunId=${rightRunId}`)
 }
 
-export function listEvalBaselines(scene?: string): Promise<EvalBaselineSummary[]> {
-  return get<EvalBaselineSummary[]>(`/llm/eval/baselines${scene ? `?scene=${scene}` : ''}`)
+export function listEvalBaselines(scene?: string, page = 1, size = 20): Promise<EvalBaselinePage> {
+  const query = new URLSearchParams({ page: String(page), size: String(size) })
+  if (scene) {
+    query.set('scene', scene)
+  }
+  return get<EvalBaselinePage>(`/llm/eval/baselines?${query}`)
 }
 
 export function createEvalBaseline(payload: CreateEvalBaselineRequest): Promise<EvalBaselineResult[]> {

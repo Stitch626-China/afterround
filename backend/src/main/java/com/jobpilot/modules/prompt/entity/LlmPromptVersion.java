@@ -2,7 +2,9 @@ package com.jobpilot.modules.prompt.entity;
 
 import java.time.OffsetDateTime;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -22,6 +24,8 @@ public class LlmPromptVersion {
     private String contentHash;
     /** DRAFT / ACTIVE / ARCHIVED */
     private String status;
+    /** 可清空：保存草稿时传空也要真正清掉备注。 */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String note;
     private OffsetDateTime createdAt;
     private OffsetDateTime publishedAt;

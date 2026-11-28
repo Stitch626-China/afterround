@@ -40,9 +40,15 @@ public class EvalRunRecovery implements ApplicationRunner {
                     .eq(LlmEvalRunCase::getRunId, run.getId()).eq(LlmEvalRunCase::getStatus, "PENDING")
                     .set(LlmEvalRunCase::getStatus, "SKIPPED").set(LlmEvalRunCase::getError, "服务重启，未执行")
                     .set(LlmEvalRunCase::getUpdatedAt, OffsetDateTime.now()));
+            List<LlmEvalRunCase> rows = caseMapper.selectList(Wrappers.<LlmEvalRunCase>lambdaQuery()
+                    .eq(LlmEvalRunCase::getRunId, run.getId()));
+            int completed = (int) rows.stream()
+                    .filter(row -> !"PENDING".equals(row.getStatus()) && !"SKIPPED".equals(row.getStatus())).count();
+            int errors = (int) rows.stream().filter(row -> "ERROR".equals(row.getStatus())).count();
             runMapper.update(null, Wrappers.<LlmEvalRun>lambdaUpdate().eq(LlmEvalRun::getId, run.getId())
                     .set(LlmEvalRun::getStatus, "FAILED").set(LlmEvalRun::getError, "服务重启，评测中断")
-                    .set(LlmEvalRun::getFinishedAt, OffsetDateTime.now()));
+                    .set(LlmEvalRun::getFinishedAt, OffsetDateTime.now())
+                    .set(LlmEvalRun::getCompletedCases, completed).set(LlmEvalRun::getErrorCases, errors));
             log.warn("评测运行 {} 因服务重启标记 FAILED", run.getId());
         }
     }

@@ -16,6 +16,7 @@ import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
 import com.jobpilot.infrastructure.security.AesGcmCipher;
 import com.jobpilot.modules.chat.entity.ChatSession;
 import com.jobpilot.modules.chat.mapper.ChatSessionMapper;
+import com.jobpilot.modules.eval.service.EvalClientFactory;
 import com.jobpilot.modules.llm.dto.CreateProviderRequest;
 import com.jobpilot.modules.llm.dto.UpdateProviderRequest;
 import com.jobpilot.modules.llm.entity.LlmGlobalSetting;
@@ -50,6 +51,8 @@ class LlmProviderServiceTest {
     private AesGcmCipher cipher;
     @Mock
     private ProviderClientRegistry registry;
+    @Mock
+    private EvalClientFactory evalClientFactory;
 
     @BeforeAll
     static void initLambdaCache() {
@@ -57,7 +60,8 @@ class LlmProviderServiceTest {
     }
 
     private LlmProviderService service() {
-        return new LlmProviderService(providerMapper, modelMapper, globalMapper, sessionMapper, sceneMapper, cipher, registry);
+        return new LlmProviderService(providerMapper, modelMapper, globalMapper, sessionMapper, sceneMapper,
+                cipher, registry, evalClientFactory);
     }
 
     private static LlmProvider provider() {
@@ -117,13 +121,16 @@ class LlmProviderServiceTest {
         // 仅改展示名不应重建客户端；启停必须失效缓存（禁用立即生效）
         service().update("p", new UpdateProviderRequest("新名字", null, null, null, null));
         verify(registry, times(0)).invalidate(any());
+        verify(evalClientFactory, times(0)).invalidate(any());
 
         service().update("p", new UpdateProviderRequest(null, null, null, false, null));
         verify(registry).invalidate("p");
+        verify(evalClientFactory).invalidate("p");
 
         when(cipher.encrypt("sk-new")).thenReturn("cipher2");
         service().update("p", new UpdateProviderRequest(null, "http://other:3000/v1", "sk-new", null, null));
         verify(registry, times(2)).invalidate("p");
+        verify(evalClientFactory, times(2)).invalidate("p");
     }
 
     @Test
@@ -149,5 +156,6 @@ class LlmProviderServiceTest {
 
         verify(providerMapper).deleteById(10L);
         verify(registry).invalidate("p");
+        verify(evalClientFactory).invalidate("p");
     }
 }

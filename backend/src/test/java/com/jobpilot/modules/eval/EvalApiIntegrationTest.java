@@ -188,19 +188,22 @@ class EvalApiIntegrationTest extends AbstractIntegrationTest {
                 INSERT INTO llm_eval_runs (status, scenes, model_snapshot, prompt_snapshot,
                     corpus_hash, engine_version, params, total_cases, started_at)
                 VALUES ('PROCESSING', '["jd-parse"]'::jsonb, '[]'::jsonb, '[]'::jsonb,
-                    'h', 'llm-eval-v1', '{}'::jsonb, 1, now()) RETURNING id
+                    'h', 'llm-eval-v1', '{}'::jsonb, 2, now()) RETURNING id
                 """, Long.class);
         jdbc.update("""
                 INSERT INTO llm_eval_run_cases (run_id, scene, case_id, status)
-                VALUES (?, 'jd-parse', '001-java-python-ai-backend', 'PENDING')
-                """, runId);
+                VALUES (?, 'jd-parse', '001-java-python-ai-backend', 'PASS'),
+                       (?, 'jd-parse', '002-mid-java-backend', 'PENDING')
+                """, runId, runId);
 
         recovery.run(null);
 
         assertThat(jdbc.queryForObject("SELECT status FROM llm_eval_runs WHERE id = ?", String.class, runId))
                 .isEqualTo("FAILED");
-        assertThat(jdbc.queryForObject("SELECT status FROM llm_eval_run_cases WHERE run_id = ?",
-                String.class, runId)).isEqualTo("SKIPPED");
+        assertThat(jdbc.queryForObject("SELECT completed_cases FROM llm_eval_runs WHERE id = ?",
+                Integer.class, runId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM llm_eval_run_cases WHERE run_id = ? AND status = 'SKIPPED'",
+                Integer.class, runId)).isEqualTo(1);
     }
 
     @Test

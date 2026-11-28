@@ -108,7 +108,7 @@ class EvalRunnerTest {
         assertThat(row.getTokens()).isEqualTo(300);
         assertThat(row.getElapsedMs()).isNotNull();
         verify(callLogger).log(Mockito.eq("EVAL_RESUME_ANALYZE"), Mockito.eq("p"), Mockito.eq("m"),
-                Mockito.isNull(), Mockito.isNull(), Mockito.eq(300), Mockito.anyLong(),
+                Mockito.eq(100), Mockito.eq(200), Mockito.eq(300), Mockito.anyLong(),
                 Mockito.eq(!"ERROR".equals(row.getStatus())), Mockito.any());
     }
 
@@ -129,5 +129,58 @@ class EvalRunnerTest {
         assertThat(rows.get(3).getStatus()).isEqualTo("PENDING");
         // 熔断前只跑 3 个用例；每个用例结构化输出内部最多 3 次
         verify(client, times(9)).chatJson(anyString(), anyList());
+    }
+
+    @Test
+    void cancellationDuringLastCaseWinsOverCompleted() {
+        LlmEvalRun run = run();
+        when(runMapper.selectById(1L)).thenReturn(run);
+        LlmClient client = mock(LlmClient.class);
+        when(client.chatJson(anyString(), anyList()))
+                .thenReturn(new ChatResult(ANALYSIS_JSON, "m", 100, 200, 300));
+        when(clientFactory.get("p")).thenReturn(client);
+        LlmEvalRunCase row = caseRow(10L, "001-backend-java-ai");
+        when(caseMapper.selectList(any())).thenReturn(List.of(row));
+        doAnswer(invocation -> {
+            // 模拟最后一个用例执行期间用户取消
+            run.setCancelRequested(true);
+            return 1;
+        }).when(caseMapper).updateById(any(LlmEvalRunCase.class));
+        List<Object> updateValues = new java.util.ArrayList<>();
+        doAnswer(invocation -> {
+            Object wrapper = invocation.getArgument(1);
+            if (wrapper instanceof com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<?> update) {
+                updateValues.addAll(update.getParamNameValuePairs().values());
+            }
+            return 1;
+        }).when(runMapper).update(Mockito.isNull(), any());
+
+        runner.run(1L);
+
+        assertThat(updateValues).contains("CANCELLED");
+    }
+
+    @Test
+    void providerFailureIsNotGracefulForNegativeSample() {
+        LlmEvalRun run = run();
+        run.setScenes("[\"review-analyze\"]");
+        run.setModelSnapshot("[{\"scene\":\"review-analyze\",\"providerKey\":\"p\",\"model\":\"m\"}]");
+        run.setPromptSnapshot("[{\"scene\":\"review-analyze\",\"promptKey\":\"review-analyze\","
+                + "\"promptVersion\":\"v\",\"promptHash\":\"h\",\"system\":\"系统\","
+                + "\"user\":\"转写：{{text}}\"}]");
+        when(runMapper.selectById(1L)).thenReturn(run);
+        LlmClient client = mock(LlmClient.class);
+        when(client.chatJson(anyString(), anyList())).thenThrow(new LlmException(502, "上游服务返回 HTTP 502"));
+        when(clientFactory.get("p")).thenReturn(client);
+        LlmEvalRunCase row = caseRow(10L, "008-negative-hr-no-tech");
+        row.setScene("review-analyze");
+        bindCaseRows(List.of(row));
+
+        runner.run(1L);
+
+        assertThat(row.getStatus()).isEqualTo("ERROR");
+        verify(callLogger).log(Mockito.eq("EVAL_REVIEW_ANALYZE"), Mockito.eq("p"), Mockito.eq("m"),
+                Mockito.isNull(), Mockito.isNull(), Mockito.isNull(), Mockito.anyLong(),
+                Mockito.eq(false), Mockito.any());
     }
 }

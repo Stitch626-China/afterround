@@ -10,6 +10,7 @@ import com.jobpilot.infrastructure.llm.ProviderClientRegistry;
 import com.jobpilot.infrastructure.security.AesGcmCipher;
 import com.jobpilot.modules.chat.entity.ChatSession;
 import com.jobpilot.modules.chat.mapper.ChatSessionMapper;
+import com.jobpilot.modules.eval.service.EvalClientFactory;
 import com.jobpilot.modules.llm.dto.CreateProviderRequest;
 import com.jobpilot.modules.llm.dto.LlmProviderResponse;
 import com.jobpilot.modules.llm.dto.UpdateProviderRequest;
@@ -36,11 +37,13 @@ public class LlmProviderService {
     private final LlmSceneSettingMapper sceneMapper;
     private final AesGcmCipher cipher;
     private final ProviderClientRegistry registry;
+    private final EvalClientFactory evalClientFactory;
 
     public LlmProviderService(LlmProviderMapper providerMapper, LlmModelMapper modelMapper,
                               LlmGlobalSettingMapper globalMapper, ChatSessionMapper sessionMapper,
                               LlmSceneSettingMapper sceneMapper,
-                              AesGcmCipher cipher, ProviderClientRegistry registry) {
+                              AesGcmCipher cipher, ProviderClientRegistry registry,
+                              EvalClientFactory evalClientFactory) {
         this.providerMapper = providerMapper;
         this.modelMapper = modelMapper;
         this.globalMapper = globalMapper;
@@ -48,6 +51,7 @@ public class LlmProviderService {
         this.sceneMapper = sceneMapper;
         this.cipher = cipher;
         this.registry = registry;
+        this.evalClientFactory = evalClientFactory;
     }
 
     /** 全部 Provider 及其模型，按 sortOrder 排序。 */
@@ -105,6 +109,7 @@ public class LlmProviderService {
         providerMapper.updateById(entity);
         if (changedConnection) {
             registry.invalidate(providerKey);
+            evalClientFactory.invalidate(providerKey);
         }
         return toResponse(entity);
     }
@@ -124,6 +129,7 @@ public class LlmProviderService {
         }
         providerMapper.deleteById(entity.getId());
         registry.invalidate(providerKey);
+        evalClientFactory.invalidate(providerKey);
     }
 
     private LlmProvider require(String providerKey) {

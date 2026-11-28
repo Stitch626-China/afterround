@@ -17,6 +17,7 @@ import com.jobpilot.modules.eval.mapper.LlmEvalBaselineMapper;
 import com.jobpilot.modules.eval.mapper.LlmEvalRunCaseMapper;
 import com.jobpilot.modules.eval.mapper.LlmEvalRunMapper;
 import com.jobpilot.modules.prompt.service.PromptRegistry;
+import com.jobpilot.modules.prompt.service.PromptTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -79,8 +80,8 @@ public class LegacyBaselineImporter implements ApplicationRunner {
         String promptVersion = root.path("promptVersion").asText("legacy");
         String engineVersion = root.path("engineVersion").asText(EvalEngine.VERSION);
         String params = root.path("params").isObject() ? root.path("params").toString() : "{}";
-        String promptHash = registry.version(scene.promptKey()).equals(promptVersion)
-                ? registry.template(scene.promptKey()).contentHash() : "legacy";
+        PromptTemplate builtin = registry.builtin(scene.promptKey());
+        String promptHash = builtin.versionLabel().equals(promptVersion) ? builtin.contentHash() : "legacy";
         if (cases.isEmpty()) {
             return 0;
         }
@@ -95,7 +96,7 @@ public class LegacyBaselineImporter implements ApplicationRunner {
         run.setPromptSnapshot("[{\"scene\":\"" + scene.key() + "\",\"promptKey\":\"" + scene.promptKey()
                 + "\",\"promptVersion\":\"" + escape(promptVersion) + "\",\"promptHash\":\"" + promptHash
                 + "\",\"system\":\"\",\"user\":\"\"}]");
-        run.setCorpusHash(catalog.corpusHash(scene.key()));
+        run.setCorpusHash(catalog.combinedCorpusHash(List.of(scene.key())));
         run.setEngineVersion(engineVersion);
         run.setParams(params);
         run.setTotalCases(cases.size());

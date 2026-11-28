@@ -104,11 +104,11 @@ public class EvalRunner {
                     .filter(item -> item.id().equals(row.getCaseId())).findFirst().orElse(null);
             if (evalCase == null) {
                 save(row, new Outcome("SKIPPED", null, null, null, List.of(), null, null, 0,
-                        "语料已不存在", false), runId, scene, model);
+                        "语料已不存在", false), runId);
                 continue;
             }
             Outcome outcome = execute(scene, evalCase, model, prompts.get(scene.key()), repeat);
-            save(row, outcome, runId, scene, model);
+            save(row, outcome, runId);
             consecutiveProviderErrors = outcome.providerError() ? consecutiveProviderErrors + 1 : 0;
             log.info("评测 {}/{} {} -> {} {}", runId, evalCase.scene(), evalCase.id(), outcome.status(),
                     outcome.error() == null ? "" : outcome.error());
@@ -125,20 +125,15 @@ public class EvalRunner {
                             PromptSnapshot prompt, int repeat) {
         long start = System.nanoTime();
         List<Expectations.Result> results = new ArrayList<>();
-        JsonNode actual = null;
         Integer tokens = 0;
         try {
-            LlmClient client = clientFactory.get(model.providerKey());
-            StructuredOutputInvoker invoker = new StructuredOutputInvoker(client);
             List<ChatMessage> messages = messages(scene, evalCase, prompt);
-            StructuredOutputInvoker.Parsed<?> first = invoker.invokeWithUsage(model.model(), messages,
-                    scene.outputType());
-            actual = M.valueToTree(first.value());
+            StructuredOutputInvoker.Parsed<?> first = invoke(scene, model, messages);
+            JsonNode actual = M.valueToTree(first.value());
             tokens = addTokens(tokens, first.result());
             results.addAll(Expectations.evaluate(evalCase, actual));
             if (repeat > 1) {
-                StructuredOutputInvoker.Parsed<?> second = invoker.invokeWithUsage(model.model(), messages,
-                        scene.outputType());
+                StructuredOutputInvoker.Parsed<?> second = invoke(scene, model, messages);
                 tokens = addTokens(tokens, second.result());
                 results.addAll(Expectations.stability(evalCase, actual, M.valueToTree(second.value())));
             }
@@ -147,15 +142,38 @@ public class EvalRunner {
                     layerPassed(results, "L3"), results, EvalSnapshot.of(scene.key(), actual), tokens,
                     elapsed(start), passed ? null : failedNames(results), false);
         } catch (Exception ex) {
-            boolean graceful = evalCase.flag("expectGraceful");
+            // 负样本的优雅降级只适用于模型正常响应但内容不足；上游/配置故障仍按执行错误处理
+            boolean provider = providerError(ex);
+            boolean graceful = evalCase.flag("expectGraceful") && !provider;
             String message = truncate(ex.getMessage());
             return new Outcome(graceful ? "GRACEFUL" : "ERROR", graceful ? null : Boolean.FALSE,
                     graceful ? null : Boolean.FALSE, null, List.of(), null, null, elapsed(start), message,
-                    !graceful && providerError(ex));
+                    provider && !graceful);
         }
     }
 
-    private void save(LlmEvalRunCase row, Outcome outcome, Long runId, EvalScene scene, ModelSnapshot model) {
+    /** 单次逻辑调用：成功 / 失败都落 llm_call_logs；repeat>1 时两次调用各写一条。 */
+    private StructuredOutputInvoker.Parsed<?> invoke(EvalScene scene, ModelSnapshot model,
+                                                     List<ChatMessage> messages) {
+        long start = System.nanoTime();
+        try {
+            LlmClient client = clientFactory.get(model.providerKey());
+            StructuredOutputInvoker.Parsed<?> parsed = new StructuredOutputInvoker(client)
+                    .invokeWithUsage(model.model(), messages, scene.outputType());
+            ChatResult result = parsed.result();
+            callLogger.log(logScene(scene), model.providerKey(), model.model(),
+                    result == null ? null : result.promptTokens(),
+                    result == null ? null : result.completionTokens(),
+                    result == null ? null : result.totalTokens(), elapsed(start), true, null);
+            return parsed;
+        } catch (RuntimeException ex) {
+            callLogger.log(logScene(scene), model.providerKey(), model.model(), null, null, null,
+                    elapsed(start), false, truncate(ex.getMessage()));
+            throw ex;
+        }
+    }
+
+    private void save(LlmEvalRunCase row, Outcome outcome, Long runId) {
         LlmEvalRunCase update = new LlmEvalRunCase();
         update.setId(row.getId());
         update.setStatus(outcome.status());
@@ -174,9 +192,6 @@ public class EvalRunner {
         update.setUpdatedAt(OffsetDateTime.now());
         caseMapper.updateById(update);
 
-        callLogger.log(logScene(scene), model == null ? "" : model.providerKey(),
-                model == null ? "" : model.model(), null, null, outcome.tokens(),
-                outcome.elapsedMs(), !"ERROR".equals(outcome.status()), outcome.error());
         com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<LlmEvalRun> progress =
                 Wrappers.<LlmEvalRun>lambdaUpdate().eq(LlmEvalRun::getId, runId)
                         .setSql("completed_cases = completed_cases + 1");
@@ -197,10 +212,25 @@ public class EvalRunner {
         int completed = (int) all.stream()
                 .filter(row -> !"PENDING".equals(row.getStatus()) && !"SKIPPED".equals(row.getStatus())).count();
         int errors = (int) all.stream().filter(row -> "ERROR".equals(row.getStatus())).count();
-        runMapper.update(null, Wrappers.<LlmEvalRun>lambdaUpdate().eq(LlmEvalRun::getId, runId)
-                .set(LlmEvalRun::getStatus, status).set(LlmEvalRun::getError, error)
+        // 取消可能发生在最后一个用例执行期间：取消优先，不能用 COMPLETED / FAILED 覆盖
+        LlmEvalRun latest = runMapper.selectById(runId);
+        boolean cancelled = latest != null && ("CANCELLED".equals(latest.getStatus())
+                || Boolean.TRUE.equals(latest.getCancelRequested()));
+        String finalStatus = cancelled ? "CANCELLED" : status;
+        var update = Wrappers.<LlmEvalRun>lambdaUpdate().eq(LlmEvalRun::getId, runId)
+                .set(LlmEvalRun::getStatus, finalStatus).set(LlmEvalRun::getError, cancelled ? "已取消" : error)
                 .set(LlmEvalRun::getFinishedAt, OffsetDateTime.now())
-                .set(LlmEvalRun::getCompletedCases, completed).set(LlmEvalRun::getErrorCases, errors));
+                .set(LlmEvalRun::getCompletedCases, completed).set(LlmEvalRun::getErrorCases, errors);
+        if (!cancelled) {
+            // 条件更新关闭「读到未取消、写入前被取消」的竞态
+            update.ne(LlmEvalRun::getStatus, "CANCELLED").eq(LlmEvalRun::getCancelRequested, false);
+        }
+        if (runMapper.update(null, update) == 0 && !cancelled) {
+            runMapper.update(null, Wrappers.<LlmEvalRun>lambdaUpdate().eq(LlmEvalRun::getId, runId)
+                    .set(LlmEvalRun::getStatus, "CANCELLED").set(LlmEvalRun::getError, "已取消")
+                    .set(LlmEvalRun::getFinishedAt, OffsetDateTime.now())
+                    .set(LlmEvalRun::getCompletedCases, completed).set(LlmEvalRun::getErrorCases, errors));
+        }
     }
 
     private static boolean active(String status) {
@@ -281,6 +311,10 @@ public class EvalRunner {
                 if (llm.status() == 429 || llm.status() >= 500) {
                     return true;
                 }
+            }
+            // Provider 未配置 / 已禁用属于基础设施故障，不能当作负样本的优雅降级
+            if (current instanceof com.jobpilot.common.exception.BizException) {
+                return true;
             }
             if (current instanceof WebClientRequestException || current instanceof TimeoutException
                     || current instanceof java.net.ConnectException

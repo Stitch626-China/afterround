@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -136,5 +138,23 @@ class EvalRunServiceTest {
         assertThat(detail.prompts().get(0).promptVersion()).isEqualTo("resume-analysis-v3");
         assertThat(saved.get().getParams()).contains("\"repeat\":2");
         verify(runner).run(9L);
+    }
+
+    @Test
+    void workerExceptionRetriesThreeTimesThenFails() {
+        LlmEvalRun run = new LlmEvalRun();
+        run.setId(3L);
+        run.setStatus("PENDING");
+        when(runMapper.selectById(3L)).thenReturn(run);
+        when(caseMapper.selectList(any())).thenReturn(List.of());
+        doThrow(new IllegalStateException("boom")).when(runner).run(3L);
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(executor).execute(any(Runnable.class));
+
+        service().dispatch(3L, 0);
+
+        verify(runner, times(4)).run(3L);
     }
 }

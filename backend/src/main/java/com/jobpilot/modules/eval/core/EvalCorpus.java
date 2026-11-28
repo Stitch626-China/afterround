@@ -41,7 +41,7 @@ public final class EvalCorpus {
     private static final Set<String> SOURCE_TYPES = Set.of("real-transcript", "real-notes", "community-rewrite",
             "synthetic", "negative");
     private static final Set<String> ROUND_TYPES = Set.of("HR", "TECH", "CROSS", "DIRECTOR", "FINAL", "OTHER");
-    private static final Set<String> INPUT_TYPES = Set.of("TEXT", "NOTES", "AUDIO");
+    private static final Set<String> INPUT_TYPES = Set.of("TEXT", "NOTES");
     private static final Set<String> FORMATS = Set.of("PHONE", "VIDEO", "ONSITE", "OTHER");
     private static final Set<String> TOPICS = Set.of("java", "jvm", "concurrency", "mysql", "redis", "kafka",
             "spring", "distributed", "system-design", "algorithm", "project", "communication", "career", "other");
@@ -272,17 +272,15 @@ public final class EvalCorpus {
     }
 
     private static String text(String label, byte[] bytes, List<String> issues, boolean input) {
-        if (input && bytes.length >= 3 && (bytes[0] & 0xFF) == 0xEF && (bytes[1] & 0xFF) == 0xBB
+        if (bytes.length >= 3 && (bytes[0] & 0xFF) == 0xEF && (bytes[1] & 0xFF) == 0xBB
                 && (bytes[2] & 0xFF) == 0xBF) {
             issues.add(label + ": 含 BOM");
         }
         String text = new String(bytes, StandardCharsets.UTF_8).replace("\uFEFF", "");
-        if (!input) {
-            return text;
-        }
-        if (text.isBlank()) {
+        if (input && text.isBlank()) {
             issues.add(label + ": 为空");
         }
+        // input.txt 与可选背景材料都会进入模型输入，统一做隐私扫描
         for (Pattern pattern : PRIVACY) {
             if (pattern.matcher(text).find()) {
                 issues.add(label + ": 命中隐私正则 " + pattern.pattern());

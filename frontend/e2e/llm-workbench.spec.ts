@@ -607,7 +607,7 @@ test('基线对比：过期徽标、去评测预选、设为基线与四维对�
     if (route.request().method() === 'POST') {
       return route.fulfill({ json: envelope([{ scene: 'resume-analysis', created: true, baselineId: 5, reason: null }]) })
     }
-    return route.fulfill({ json: envelope(baselines) })
+    return route.fulfill({ json: envelope({ items: baselines, total: baselines.length, page: 1, size: 20 }) })
   })
 
   await page.goto('/llm-workbench?tab=prompts')
@@ -691,7 +691,8 @@ test('基线对比：尚无基线与不可比原因', async ({ page }) => {
       latency: null,
       cases: [],
     }) }))
-  await page.route(/\/api\/llm\/eval\/baselines(\/.*)?$/, (route) => route.fulfill({ json: envelope([]) }))
+  await page.route(/\/api\/llm\/eval\/baselines(\/.*)?$/, (route) =>
+    route.fulfill({ json: envelope({ items: [], total: 0, page: 1, size: 20 }) }))
 
   await page.goto('/llm-workbench?tab=baseline')
   await expect(page.getByRole('heading', { name: '选择对比' })).toBeVisible()

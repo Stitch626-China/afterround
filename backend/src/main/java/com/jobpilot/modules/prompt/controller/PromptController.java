@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 提示词工作台 API（contracts/openapi.yaml 1.22.0，8 个端点）。 */
+/** 提示词工作台 API（1.22.0 引入，当前契约 1.25.0，共 8 个端点）。 */
 @RestController
 @RequestMapping("/api/llm/prompts")
 public class PromptController {

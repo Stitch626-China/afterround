@@ -26,6 +26,8 @@ import com.jobpilot.modules.prompt.service.PromptValidator.ValidationResult;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 提示词草稿 / 发布 / 回滚 / 版本历史。
@@ -148,7 +150,7 @@ public class PromptService {
         } catch (DataIntegrityViolationException ex) {
             throw conflict();
         }
-        registry.invalidate(key);
+        invalidateAfterCommit(key);
         return detail(key);
     }
 
@@ -199,8 +201,21 @@ public class PromptService {
         } catch (DataIntegrityViolationException ex) {
             throw conflict();
         }
-        registry.invalidate(key);
+        invalidateAfterCommit(key);
         return detail(key);
+    }
+
+    /** 立即失效并再挂一次提交后失效，避免并发线程在提交前读到旧 ACTIVE 并回填缓存。 */
+    private void invalidateAfterCommit(String key) {
+        registry.invalidate(key);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    registry.invalidate(key);
+                }
+            });
+        }
     }
 
     private LlmPromptVersion activeRow(String key) {

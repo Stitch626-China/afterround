@@ -49,8 +49,12 @@ const activeRun = computed(() => runs.value.find((run) => !isTerminal(run.status
 const selectedScenes = computed(() => scenes.value.filter((scene) => selected.value.includes(scene.scene)))
 const totalSelectedCases = computed(() => selectedScenes.value.reduce((sum, scene) => sum + scene.caseCount, 0))
 const canStart = computed(() => selected.value.length > 0 && !busy.value && !activeRun.value)
+const errorScenes = computed(() => new Set((detail.value?.cases ?? [])
+  .filter((item) => item.status === 'ERROR').map((item) => item.scene)))
+const cleanScenes = computed(() => (detail.value?.scenes ?? [])
+  .filter((scene) => !errorScenes.value.has(scene)))
 const canBaseline = computed(() => detail.value?.status === 'COMPLETED'
-  && !detail.value.partial && detail.value.errorCases === 0)
+  && !detail.value.partial && cleanScenes.value.length > 0)
 const canRetry = computed(() => detail.value?.status === 'COMPLETED'
   && detail.value.errorCases > 0 && !activeRun.value)
 const metrics = computed(() => detail.value?.metrics ?? null)
@@ -384,7 +388,7 @@ onBeforeUnmount(stopPolling)
               type="button"
               class="btn ghost"
               :disabled="busy || !canBaseline"
-              :title="canBaseline ? '只贴标签，复用本次运行结果，不重跑' : '仅完成且无执行错误的运行可设为基线'"
+              :title="canBaseline ? '只贴标签，复用本次运行结果，不重跑' : (detail.status === 'COMPLETED' && !detail.partial ? '所有场景都有执行错误，暂不可设基线' : '仅完成且非部分重跑可设为基线')"
               @click="baselineOpen = true"
             >
               设为基线
@@ -550,7 +554,7 @@ onBeforeUnmount(stopPolling)
           <h2>设为基线？</h2>
           <p>
             基线只是给运行 #{{ detail?.id }} 贴标签，复用已有结果，不会重跑；
-            同一场景只保留一个当前基线，历史基线仍保留。
+            有执行错误的场景会跳过，同一场景只保留一个当前基线，历史基线仍保留。
           </p>
           <label class="dialog-field">
             备注（可选）

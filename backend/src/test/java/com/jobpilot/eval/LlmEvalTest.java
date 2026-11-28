@@ -58,7 +58,7 @@ class LlmEvalTest {
         static Config fromEnv() {
             return new Config(required("EVAL_BASE_URL"), required("EVAL_API_KEY"), required("EVAL_MODEL"),
                     integer("EVAL_MAX_TOKENS", 8192), integer("EVAL_TIMEOUT_SECONDS", 300),
-                    integer("EVAL_REPEAT", 2),
+                    integer("EVAL_REPEAT", 1),
                     Boolean.parseBoolean(System.getenv().getOrDefault("EVAL_WRITE_BASELINE", "false")),
                     Arrays.stream(System.getenv().getOrDefault("EVAL_ONLY", "").split(","))
                             .map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet()));
@@ -363,6 +363,20 @@ class LlmEvalTest {
                 if (!config.model().equals(baseline.path("model").asText())) {
                     failures.add(entry.getKey() + " 基线模型不一致：基线=" + baseline.path("model").asText()
                             + ", 当前=" + config.model() + "；换模型请重建基线");
+                }
+                String engine = baseline.path("engineVersion").asText(EvalEngine.VERSION);
+                if (!EvalEngine.VERSION.equals(engine)) {
+                    failures.add(entry.getKey() + " 断言引擎版本不一致：基线=" + engine
+                            + ", 当前=" + EvalEngine.VERSION + "；引擎升级请重建基线");
+                }
+                JsonNode params = baseline.path("params");
+                if (params.isObject()
+                        && (params.path("maxTokens").asInt(config.maxTokens()) != config.maxTokens()
+                        || params.path("timeoutSeconds").asInt(config.timeoutSeconds()) != config.timeoutSeconds()
+                        || params.path("repeat").asInt(config.repeat()) != config.repeat())) {
+                    failures.add(entry.getKey() + " 生成参数不一致：基线=" + params
+                            + ", 当前 maxTokens=" + config.maxTokens() + ", timeoutSeconds="
+                            + config.timeoutSeconds() + ", repeat=" + config.repeat() + "；请重建基线");
                 }
                 for (CaseRun run : entry.getValue()) {
                     compareCase(run, cases.path(run.evalCase().id()), failures);

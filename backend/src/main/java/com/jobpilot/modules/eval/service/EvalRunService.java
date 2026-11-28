@@ -288,6 +288,7 @@ public class EvalRunService {
     }
 
     /** 取消：PENDING 直接终结并清理；PROCESSING 只置标记，由 worker 在当前用例结束后收口。 */
+    @Transactional
     public EvalRunDetail cancel(Long runId) {
         LlmEvalRun run = requireRun(runId);
         if (TERMINAL_STATUS.contains(run.getStatus())) {
@@ -321,10 +322,11 @@ public class EvalRunService {
                     if (!(run != null && ACTIVE_STATUS.contains(run.getStatus()))) {
                         return;
                     }
-                    if (attempt + 1 < MAX_WORKER_RETRIES) {
+                    if (attempt < MAX_WORKER_RETRIES) {
+                        int retry = attempt + 1;
                         runMapper.update(null, Wrappers.<LlmEvalRun>lambdaUpdate().eq(LlmEvalRun::getId, runId)
-                                .set(LlmEvalRun::getRetryCount, attempt + 1));
-                        dispatch(runId, attempt + 1);
+                                .set(LlmEvalRun::getRetryCount, retry));
+                        dispatch(runId, retry);
                     } else {
                         fail(runId, "评测执行失败：" + ex.getMessage());
                     }
@@ -336,6 +338,10 @@ public class EvalRunService {
     }
 
     private void fail(Long runId, String error) {
+        LlmEvalRun latest = runMapper.selectById(runId);
+        if (latest == null || !ACTIVE_STATUS.contains(latest.getStatus())) {
+            return;
+        }
         caseMapper.update(null, Wrappers.<LlmEvalRunCase>lambdaUpdate()
                 .eq(LlmEvalRunCase::getRunId, runId).eq(LlmEvalRunCase::getStatus, "PENDING")
                 .set(LlmEvalRunCase::getStatus, "SKIPPED").set(LlmEvalRunCase::getError, "评测已失败")
@@ -346,6 +352,7 @@ public class EvalRunService {
                 .filter(row -> !"PENDING".equals(row.getStatus()) && !"SKIPPED".equals(row.getStatus())).count();
         int errors = (int) rows.stream().filter(row -> "ERROR".equals(row.getStatus())).count();
         runMapper.update(null, Wrappers.<LlmEvalRun>lambdaUpdate().eq(LlmEvalRun::getId, runId)
+                .in(LlmEvalRun::getStatus, ACTIVE_STATUS)
                 .set(LlmEvalRun::getStatus, "FAILED").set(LlmEvalRun::getError, truncate(error))
                 .set(LlmEvalRun::getFinishedAt, OffsetDateTime.now())
                 .set(LlmEvalRun::getCompletedCases, completed).set(LlmEvalRun::getErrorCases, errors));

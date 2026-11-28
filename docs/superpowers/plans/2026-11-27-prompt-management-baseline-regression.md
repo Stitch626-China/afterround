@@ -515,12 +515,14 @@ P2 的评测只有「运行」，没有 mode；运行完成不等于基线。P3 
 
 | 方法 | 路径 | operationId | 说明 |
 |---|---|---|---|
-| GET | `/api/llm/eval/baselines` | `listEvalBaselines` | 按场景返回当前 + 历史基线 |
+| GET | `/api/llm/eval/baselines` | `listEvalBaselines` | 按场景分页返回当前 + 历史基线（page/size，默认 20） |
 | POST | `/api/llm/eval/baselines` | `createEvalBaseline` | 把一次已完成的运行「设为基线」，不重跑 |
 | POST | `/api/llm/eval/baselines/{baselineId}/activate` | `activateEvalBaseline` | 将历史基线设为当前 |
 | GET | `/api/llm/eval/runs/compare` | `compareEvalRuns` | 两次运行 4 维对比（基线只是被标记的 run） |
 
 复用 `EvalBaselineSummary`；新增 `EvalBaselineResult`、`CreateEvalBaselineRequest`、`EvalRunCompare`、`EvalRunCompareSide`、`EvalCompareQuality`、`EvalCompareRegression`、`EvalCompareCost`、`EvalCompareLatency`、`EvalCompareCase`、`PromptImpactSuggestion`；同时扩展 `PromptDetail`（`suggestedEvalScenes`）、`EvalRunSummary`（`partial`）、`EvalRunDetail`（`baselines`）、`CreateEvalRunRequest`（`sourceRunId`、`retryErrorsOnly`）。`PromptImpactSuggestion` 字段：`scene`、`caseCount`、`reasons[]`、`currentBaselineId`（nullable）。结果包装 `ResultEvalBaselineList`、`ResultEvalBaselineResultList`、`ResultEvalBaselineSummary`（activate 返回）、`ResultEvalRunCompare`。`info.version` 升 `1.24.0`；`ContractCoverageTest` 总数 `106 → 110`。
+
+> 2026-11-28 审计修订：`GET /api/llm/eval/baselines` 补 `page` / `size`（默认 20，最大 100），响应改为 `ResultEvalBaselinePage`；契约 1.25.0，端点总数不变。
 
 ```yaml
 EvalBaselineSummary:

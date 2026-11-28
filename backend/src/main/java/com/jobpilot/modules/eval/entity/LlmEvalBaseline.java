@@ -2,6 +2,7 @@ package com.jobpilot.modules.eval.entity;
 
 import java.time.OffsetDateTime;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -19,6 +20,8 @@ public class LlmEvalBaseline {
     private Long userId;
     private String scene;
     private Long runId;
+    /** 可清空：重复设为基线时传空要真正清掉旧标签。 */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String label;
     private String providerKey;
     private String model;

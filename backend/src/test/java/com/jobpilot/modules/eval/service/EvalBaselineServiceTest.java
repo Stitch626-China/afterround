@@ -62,6 +62,7 @@ class EvalBaselineServiceTest {
                 + "\"system\":\"\",\"user\":\"\"}]");
         run.setParams("{\"repeat\":1}");
         run.setEngineVersion("llm-eval-v1");
+        run.setCorpusHash("corpus");
         return run;
     }
 
@@ -83,6 +84,7 @@ class EvalBaselineServiceTest {
         when(runMapper.selectById(1L)).thenReturn(run(false));
         when(caseMapper.selectList(any())).thenReturn(List.of(caseRow("PASS")));
         when(baselineMapper.selectOne(any())).thenReturn(null);
+        when(catalog.combinedCorpusHash(any())).thenReturn("corpus");
         when(catalog.corpusHash("resume-analysis")).thenReturn("corpus");
         org.mockito.Mockito.doAnswer(invocation -> {
             invocation.getArgument(0, LlmEvalBaseline.class).setId(5L);
@@ -110,6 +112,7 @@ class EvalBaselineServiceTest {
     @Test
     void sceneWithErrorIsSkipped() {
         when(runMapper.selectById(1L)).thenReturn(run(false));
+        when(catalog.combinedCorpusHash(any())).thenReturn("corpus");
         when(caseMapper.selectList(any())).thenReturn(List.of(caseRow("ERROR")));
 
         List<EvalBaselineResult> results = service()
@@ -126,6 +129,17 @@ class EvalBaselineServiceTest {
         assertThatThrownBy(() -> service().createFromRun(new CreateEvalBaselineRequest(1L, null)))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).errorCode()).isEqualTo(ErrorCode.BAD_REQUEST);
+    }
+
+    @Test
+    void corpusChangedAfterRunCannotBecomeBaseline() {
+        when(runMapper.selectById(1L)).thenReturn(run(false));
+        when(catalog.combinedCorpusHash(any())).thenReturn("changed");
+
+        assertThatThrownBy(() -> service().createFromRun(new CreateEvalBaselineRequest(1L, null)))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("语料与当前不一致");
+        verify(baselineMapper, never()).insert(any(LlmEvalBaseline.class));
     }
 
     @Test

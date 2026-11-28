@@ -359,30 +359,29 @@ Get-ChildItem -Recurse -File backend/src/main/resources/llm-eval/cases |
 
 （把示例关键词换成你实际脱敏掉的词。）
 
+执行器加载语料时会扫描 `input.txt` 与可选背景文件（`jd.txt` / `company-intro.txt` / `resume.txt`）中的手机号、邮箱、身份证号；命中即拒绝加载。正则只兜底明显格式，姓名、公司名等仍需按上表人工复核。
+
 ## 8. 基线与变更规则
 
 ### 8.1 基线指纹与判定
 
 1. **先冻结基线，再改 prompt**：用当前代码跑一遍全部语料，由执行器生成基线；
-2. 基线记录 `generatedAt`、`promptVersion`、`promptHash`、`providerKey`、`model`、`corpusHash`、`engineVersion`、`params`、每个 case 的关键分数、标签集合、耗时、token；代码版本以生成时的 git commit 为准，记录在会话与提交信息中；
+2. CLI 基线 JSON 记录 `generatedAt`、`model`、`promptVersion`、`engineVersion`、`params`、每个 case 的关键分数、标签集合、耗时、token；产品数据库基线额外记录 `providerKey`、`promptHash`、`corpusHash`，用于影响面提示；`corpusHash` 覆盖 `input.txt`、`meta.json`、`expect.json` 与可选背景文件，任一变化都会标记「评测语料已变化」；代码版本以生成时的 git commit 为准，记录在会话与提交信息中；
 3. 执行器启动时校验：**基线中的 case id 集合必须与目录扫描结果一致**，不一致直接报错；
 4. 改语料、改断言引擎或改基线都算口径变更，必须单独提交并在提交信息里说明原因；
 5. 以下任一情况视为退化：L1 由 PASS 变 FAIL；某 case 分数漂移 >10；标签集合 Jaccard <0.7；L2 通过率低于 95%。
 
-基线文件形态（执行器生成，仅供参考）：
+基线文件形态（CLI 执行器生成，仅供参考）：
 
 ```json
 {
   "generatedAt": "2026-11-27T10:00:00+08:00",
-  "promptVersion": "resume-analysis-v3",
-  "promptHash": "a1b2c3...（SHA-256 十六进制）",
-  "providerKey": "datangsoft",
   "model": "Qwen3.8-27B",
-  "corpusHash": "d4e5f6...",
+  "promptVersion": "review-analyze-v2",
   "engineVersion": "llm-eval-v1",
-  "params": { "maxTokens": 8192, "timeoutSeconds": 300, "temperature": 0.2 },
+  "params": { "maxTokens": 8192, "timeoutSeconds": 300, "repeat": 1, "temperature": 0.2 },
   "cases": {
-    "001-real-tech2-jvm-gap": {
+    "001-real-tech2-concurrency-gap": {
       "status": "PASS",
       "scores": { "q1.score": 55, "q2.score": 70, "q3.score": 60 },
       "topics": ["jvm", "system-design"],
@@ -394,7 +393,8 @@ Get-ChildItem -Recurse -File backend/src/main/resources/llm-eval/cases |
 }
 ```
 
-- `promptHash` 与 `corpusHash` 是变更检测指纹，不参与运行之间的可比性判定（提示词是被测变量）；
+- CLI JSON **不含** `providerKey` / `promptHash` / `corpusHash`；旧基线导入时由 `LegacyBaselineImporter` 补 `providerKey=legacy`、`promptHash`（版本与内置一致时用内置内容 hash，否则 `legacy`）与当前语料 hash；
+- `promptHash` 只用于影响面提示；`corpusHash` 与 `engineVersion` 参与产品内运行的可比性判定，提示词 hash 不参与（提示词是被测变量）；
 - `engineVersion` 由 `EvalEngine.VERSION` 提供，断言规则变化时手动升级；引擎升级后旧基线不可比，需要重建。
 
 ### 8.2 产品内基线（数据库）
@@ -494,7 +494,7 @@ mvn -o -f backend/pom.xml "-Djacoco.skip=true" "-Dsurefire.excludedGroups=__none
 
 - 报告：`backend/target/llm-eval/report.md` 与 `report.json`（逐 case 的 L1/L2/L3、tokens、耗时、失败项）；
 - 基线：仅在 `EVAL_WRITE_BASELINE=true` 且全量运行时写入 `backend/target/llm-eval/baselines/{scene}.json`（可用 `EVAL_BASELINE_OUT` 覆盖目录），源码目录保持干净；
-- 基线存在且非写入模式时自动对比：case 集合、模型名、分数漂移 >10、标签 Jaccard <0.7 均判失败；分数对齐方式为简历按字段名、复盘按 `questionIndex` + 维度名，数组顺序变化不产生漂移；
+- 基线存在且非写入模式时自动对比：case 集合、模型名、引擎版本、生成参数（maxTokens / timeoutSeconds / repeat）、分数漂移 >10、标签 Jaccard <0.7 均判失败；分数对齐方式为简历按字段名、复盘按 `questionIndex` + 维度名，数组顺序变化不产生漂移；
 - 判定口径：L1 / L3 任一失败即整轮失败；L2 按**断言**通过率聚合，低于 95% 才判失败，未通过的 case 在报告中仍标 FAIL；
 - 换模型必须重建基线；负样本的 `expectGraceful` 允许优雅失败，不参与基线分数对比；
 - 产品内评测运行读取同一组 `app.eval` 参数（`EVAL_MAX_TOKENS` / `EVAL_TIMEOUT_SECONDS` / `EVAL_REPEAT`），但结果落数据库，不写上述 CLI 文件。
@@ -504,12 +504,13 @@ mvn -o -f backend/pom.xml "-Djacoco.skip=true" "-Dsurefire.excludedGroups=__none
 - 全量 27 份 × 2 次 ≈ 54 次调用；调试 prompt 时用 `EVAL_ONLY` 跑单 case，不要写基线；
 - 报告只留断言结果与 token，不保存请求 / 响应全文，避免语料膨胀。
 
-### 12.5 当前基线（2026-11-27，`resume-analysis-v3`）
+### 12.5 当前基线（2026-11-27，基线为 `resume-analysis-v2`，当前提示词为 v3）
 
 - 环境：内网 `datangsoft / Qwen3.8-27B`，`EVAL_MAX_TOKENS=8192`、超时 300s、`repeat=1`；
 - 结果：27 份全量，L1 全部通过（`resume-analysis/002` 的省略号拼接已由 prompt v3 修复）；L2 断言 45 项、失败 2 项（95.6%，达标），未命中为 `review-analyze/003`（`knowledge-gap`）与 `004`（`no-evidence`），保留为模型波动观察项；
+- 简历基线文件仍是 `resume-analysis-v2` 生成；产品导入时 `promptHash` 标记为 `legacy`，因此不会把 v2→v3 误报成「提示词已更新」；需要严格判断基线是否过期时，重建基线；
 - 分数对齐：简历按字段名，复盘按 `questionIndex` + 维度名写入（如 `q1.score` / `q1.depth`），数组顺序变化不产生漂移；
-- 产品内的当前基线以数据库 `llm_eval_baselines` 为准：完成且无 ERROR 的运行点「设为基线」即可，复用运行结果、不重跑；历史 JSON 只在首次启动时导入一次；
+- 产品内的当前基线以数据库 `llm_eval_baselines` 为准：完成运行后点「设为基线」即可，复用运行结果、不重跑；有执行错误的场景会跳过；历史 JSON 只在首次启动时导入一次；
 - 首版基线不引入 xfail 机制：改 prompt、语料或模型后重建基线，不要手改 `baselines/` 或手工改库。
 
 ## 附录 A：枚举与词表

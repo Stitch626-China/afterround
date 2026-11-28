@@ -1,5 +1,5 @@
 /**
- * 提示词工作台接口（contracts/openapi.yaml 1.22.0）。
+ * 提示词工作台接口（契约 1.25.0；提示词 8 端点自 1.22.0 引入）。
  * 类型由契约生成，禁止手写数据结构。
  */
 import type { components } from './schema'

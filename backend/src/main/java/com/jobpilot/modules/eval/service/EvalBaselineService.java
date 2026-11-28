@@ -5,12 +5,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jobpilot.common.api.ErrorCode;
+import com.jobpilot.common.api.PageResult;
 import com.jobpilot.common.exception.BizException;
 import com.jobpilot.modules.eval.core.EvalMetrics;
 import com.jobpilot.modules.eval.core.EvalSceneCatalog;
@@ -61,6 +64,10 @@ public class EvalBaselineService {
             throw BizException.of(ErrorCode.BAD_REQUEST, "只能把已完成且非部分重跑的运行设为基线");
         }
         List<String> scenes = parseScenes(run.getScenes());
+        // 语料已变化时旧运行的结果不再代表当前语料，不能冒充基线
+        if (!Objects.equals(run.getCorpusHash(), catalog.combinedCorpusHash(scenes))) {
+            throw BizException.of(ErrorCode.BAD_REQUEST, "运行时的语料与当前不一致，请重新运行后再设为基线");
+        }
         List<LlmEvalRunCase> rows = caseMapper.selectList(Wrappers.<LlmEvalRunCase>lambdaQuery()
                 .eq(LlmEvalRunCase::getRunId, run.getId()));
         Map<String, SceneMeta> snapshots = snapshots(run);
@@ -107,16 +114,20 @@ public class EvalBaselineService {
         return results;
     }
 
-    /** 当前基线在前，其余按创建时间倒序；可按场景筛选。 */
-    public List<EvalBaselineSummary> list(String scene) {
+    /** 当前基线在前，其余按创建时间倒序；可按场景筛选，统一分页。 */
+    public PageResult<EvalBaselineSummary> list(String scene, Integer page, Integer size) {
         if (scene != null && !scene.isBlank()) {
             catalog.get(scene);
         }
-        return baselineMapper.selectList(Wrappers.<LlmEvalBaseline>lambdaQuery()
+        int current = PageResult.normalizePage(page);
+        int pageSize = PageResult.normalizeSize(size);
+        Page<LlmEvalBaseline> result = baselineMapper.selectPage(new Page<>(current, pageSize),
+                Wrappers.<LlmEvalBaseline>lambdaQuery()
                         .eq(scene != null && !scene.isBlank(), LlmEvalBaseline::getScene, scene)
                         .orderByDesc(LlmEvalBaseline::getCurrent)
-                        .orderByDesc(LlmEvalBaseline::getCreatedAt))
-                .stream().map(this::summary).toList();
+                        .orderByDesc(LlmEvalBaseline::getCreatedAt));
+        return PageResult.of(result.getRecords().stream().map(this::summary).toList(),
+                result.getTotal(), current, pageSize);
     }
 
     /** 只切换 is_current，不重跑、不改历史。 */

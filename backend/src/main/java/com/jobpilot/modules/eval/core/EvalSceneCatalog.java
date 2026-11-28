@@ -76,9 +76,12 @@ public class EvalSceneCatalog {
 
     private String hash(String scene) {
         StringBuilder builder = new StringBuilder();
-        cases.stream().filter(item -> item.scene().equals(scene)).forEach(item -> builder
-                .append(item.id()).append('\n').append(item.input()).append('\n')
-                .append(item.meta()).append('\n').append(item.expect()).append('\n'));
+        cases.stream().filter(item -> item.scene().equals(scene)).forEach(item -> {
+            builder.append(item.id()).append('\n').append(item.input()).append('\n')
+                    .append(item.meta()).append('\n').append(item.expect()).append('\n');
+            // 可选背景材料同样会进入模型输入，必须计入语料指纹
+            item.files().forEach((name, text) -> builder.append(name).append('=').append(text).append('\n'));
+        });
         return sha256(builder.toString());
     }
 

@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 评测运行 API（contracts/openapi.yaml 1.23.0，5 个端点）。 */
+/** 评测运行 API（contracts/openapi.yaml 1.25.0，评测 + 基线共 9 个端点）。 */
 @RestController
 @RequestMapping("/api/llm/eval")
 public class EvalController {
@@ -67,8 +67,10 @@ public class EvalController {
     }
 
     @GetMapping("/baselines")
-    public Result<List<EvalBaselineSummary>> baselines(@RequestParam(required = false) String scene) {
-        return Result.ok(baselineService.list(scene));
+    public Result<PageResult<EvalBaselineSummary>> baselines(@RequestParam(required = false) String scene,
+                                                             @RequestParam(defaultValue = "1") Integer page,
+                                                             @RequestParam(defaultValue = "20") Integer size) {
+        return Result.ok(baselineService.list(scene, page, size));
     }
 
     @PostMapping("/baselines")
