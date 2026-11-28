@@ -75,6 +75,18 @@ class EvalCorpusTest {
     }
 
     @Test
+    void scansPrivacyPatternsInOptionalFiles() throws Exception {
+        writeCase("review-analyze", "001-x",
+                "{\"scene\":\"review-analyze\",\"sourceType\":\"synthetic\",\"sanitized\":true,"
+                        + "\"companyName\":\"[公司A]\",\"jobTitle\":\"Java\",\"roundType\":\"TECH\","
+                        + "\"inputType\":\"TEXT\"}",
+                "{\"requiredFields\":[\"questions\"]}", "面试官问了 JVM。");
+        Files.writeString(temp.resolve("review-analyze/001-x/resume.txt"), "邮箱 a@b.com",
+                StandardCharsets.UTF_8);
+        assertThat(EvalCorpus.validate(temp)).anyMatch(i -> i.contains("resume.txt") && i.contains("隐私正则"));
+    }
+
+    @Test
     void classpathCorpusIsCompliantAndLoads27Cases() {
         var resolver = new PathMatchingResourcePatternResolver();
         assertThat(EvalCorpus.validate(resolver)).isEmpty();

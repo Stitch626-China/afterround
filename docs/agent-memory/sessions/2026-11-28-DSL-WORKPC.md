@@ -18,7 +18,7 @@
 - `backend/.../prompt/entity/LlmPromptVersion.java`、`backend/.../eval/entity/LlmEvalBaseline.java` → 空备注 / 空标签可真正清空。
 - `contracts/openapi.yaml` → 1.25.0：基线列表分页并改为 `ResultEvalBaselinePage`；补充 `EvalCompareQuality` 左右语义与 `EvalRunCompareSide` 多场景展示口径。
 - 前端 → `listEvalBaselines` 改分页、基线列表「加载更多」；`canBaseline` 按干净场景判断；版本注释同步 1.25.0；E2E mock 改分页响应。
-- 测试 → `EvalRunnerTest` 补取消 / Provider 故障 / 调用日志断言；`EvalRunServiceTest` 补 3 次重试；`EvalBaselineServiceTest` 补语料变化拒绝；`EvalApiIntegrationTest` 恢复计数；`LlmProviderServiceTest` 补缓存失效。
+- 测试 → `EvalRunnerTest` 补取消 / Provider 故障 / 调用日志断言；`EvalRunServiceTest` 补 3 次重试；`EvalBaselineServiceTest` 补语料变化拒绝；`EvalCorpusTest` 补可选背景文件隐私扫描；`EvalApiIntegrationTest` 恢复计数；`LlmProviderServiceTest` 补缓存失效。
 - 文档 → 需求 v1.21 FR9.14 / 迭代段、README、功能实现对照表统一为「有 ERROR 的场景跳过」；语料规范补可选文件隐私扫描、语料指纹范围、基线分页；计划文档补审计修订说明。
 
 ## 决策（为什么）
@@ -33,7 +33,7 @@
 ## 验证
 
 - `npx @redocly/cli lint contracts/openapi.yaml` → valid（0 error / 0 warning）。
-- `mvn -f backend/pom.xml clean test` → **293 tests，0 failures / 0 errors / 0 skipped，BUILD SUCCESS**，JaCoCo 门禁通过。
+- `mvn -f backend/pom.xml clean test` → **294 tests，0 failures / 0 errors / 0 skipped，BUILD SUCCESS**，JaCoCo 门禁通过。
 - `npm run build`（含契约类型生成 + vue-tsc）→ 通过；`npm run test` → **42 tests 全过**。
 - `npx playwright test --list` → 24 tests / 8 files（仅静态枚举，未启动浏览器）。
 
@@ -54,5 +54,5 @@
 ### 13:25 审计修复与回归完成
 - 改动：见上「改动」清单，覆盖取消竞态、重试上限、恢复计数、Provider 缓存、基线分页与语料一致性、语料指纹 / 隐私扫描、提示词缓存提交后失效及文档同步。
 - 原因：P1-P3 全链路审计发现确定性缺陷与契约 / 文档口径不一致。
-- 验证：契约 lint 0/0；后端 293 tests 全绿、JaCoCo 通过；前端构建 + Vitest 42；Playwright 24 例静态枚举。
+- 验证：契约 lint 0/0；后端 294 tests 全绿、JaCoCo 通过；前端构建 + Vitest 42；Playwright 24 例静态枚举。
 - 下一步 / 断点：本机 E2E 与真实模型手工验收；E2E 基线列表断言缺口待补。
